@@ -49,18 +49,12 @@
     <section class="panel settings-panel">
       <h2 id="lbl-settings">Einstellungen</h2>
       <label><span id="lbl-size">Bildauflösung</span>
-        <select id="setting-size">
-          <option value="1024x1024">1024×1024</option>
-          <option value="1536x1024" selected>1536×1024</option>
-          <option value="1024x1536">1024×1536</option>
-        </select>
+        <select id="setting-size"></select>
       </label>
       <label><span id="lbl-quality">Qualität</span>
-        <select id="setting-quality">
-          <option value="standard">Standard</option>
-          <option value="high" selected>Hoch</option>
-        </select>
+        <select id="setting-quality"></select>
       </label>
+      <p id="image-settings-hint" class="muted compositing-hint"></p>
       <label><span id="lbl-category">Produktkategorie</span>
         <select id="setting-category"></select>
       </label>
@@ -107,22 +101,36 @@
   <main id="view-templates" class="view">
     <section class="panel full">
       <h2>Vorlagen-Editor</h2>
-      <div id="editor-template-list" class="template-list horizontal"></div>
+      <div id="editor-current-bar" class="editor-current-bar">
+        <img id="editor-current-thumb" class="editor-current-thumb" alt="" />
+        <div class="editor-current-meta">
+          <label class="editor-current-select-row">
+            <span id="lbl-editor-template">Aktuelle Vorlage</span>
+            <select id="editor-template-select"></select>
+          </label>
+          <span id="editor-size-badge" class="editor-template-badge"></span>
+        </div>
+      </div>
+      <p id="editor-locked-hint" class="editor-locked-hint hidden muted"></p>
       <div class="editor-workspace">
         <div class="editor-col">
           <h3 id="lbl-original">Original</h3>
           <img id="editor-original" alt="Original" />
         </div>
         <div class="editor-controls">
+          <div class="editor-settings-row">
+            <label><span id="lbl-editor-quality">Qualität</span>
+              <select id="editor-quality"></select>
+            </label>
+          </div>
           <label><span id="lbl-change">Änderungswunsch</span>
             <textarea id="change-request" rows="4" placeholder="z. B. Neon-Rahmen von blau auf rot…"></textarea>
           </label>
-          <button type="button" class="btn secondary" id="btn-optimize-prompt">Prompt optimieren</button>
+          <button type="button" class="btn primary" id="btn-generate-edit">KI-Änderung generieren</button>
           <label><span id="lbl-opt-prompt">Optimierter Prompt</span>
-            <textarea id="optimized-prompt" rows="6"></textarea>
+            <textarea id="optimized-prompt" rows="6" readonly></textarea>
           </label>
           <p id="change-summary" class="muted"></p>
-          <button type="button" class="btn primary" id="btn-apply-edit">Änderung anwenden</button>
           <div class="accept-row hidden" id="accept-row">
             <button type="button" class="btn primary" id="btn-accept">Änderung akzeptieren</button>
             <button type="button" class="btn danger" id="btn-reject">Änderung verwerfen</button>
@@ -147,6 +155,28 @@
     <img id="preview-lightbox-image" alt="Vorschau Vollbild" />
     <p id="preview-lightbox-hint" class="preview-lightbox-hint">Klicken oder Esc zum Schließen</p>
   </div>
+
+  <dialog id="prompt-dialog">
+    <form method="dialog" id="prompt-form" class="prompt-form">
+      <h2 id="prompt-title"></h2>
+      <input id="prompt-input" type="text" class="prompt-input" />
+      <div class="prompt-actions">
+        <button type="button" class="btn secondary" id="prompt-cancel">Abbrechen</button>
+        <button type="submit" class="btn primary" id="prompt-ok">OK</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="confirm-dialog">
+    <form method="dialog" id="confirm-form" class="prompt-form">
+      <h2 id="confirm-title"></h2>
+      <p id="confirm-message"></p>
+      <div class="prompt-actions">
+        <button type="button" class="btn secondary" id="confirm-cancel" value="cancel">Abbrechen</button>
+        <button type="submit" class="btn danger" id="confirm-ok" value="ok">OK</button>
+      </div>
+    </form>
+  </dialog>
 
   <dialog id="wait-dialog">
     <h2 id="wait-title">Bitte warten</h2>

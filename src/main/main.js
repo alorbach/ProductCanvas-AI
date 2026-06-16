@@ -8,8 +8,10 @@ const { subscribeBridgeJobProgress } = require('./bridge/bridge-job-progress');
 const { CodexManager } = require('./bridge/codex-manager');
 const { TemplateRegistry } = require('./templates/template-registry');
 const { TemplateEditorService } = require('./templates/template-editor-service');
+const { TemplateEditPipeline } = require('./generate/template-edit-pipeline');
 const { ProfileStore } = require('./profiles/profile-store');
 const { PromptBuilder } = require('./generate/prompt-builder');
+const { getImageSettingsCatalog } = require('./generate/image-settings');
 const { ImagePipeline } = require('./generate/image-pipeline');
 const { DocLoader } = require('./docs/doc-loader');
 const paths = require('./paths');
@@ -25,6 +27,7 @@ let profileStore;
 let promptBuilder;
 let imagePipeline;
 let templateEditor;
+let templateEditPipeline;
 let docLoader;
 let session = null;
 let autosaveTimer = null;
@@ -264,6 +267,14 @@ function registerIpc() {
 
   ipcMain.handle('templates:list', () => templateRegistry.listAll());
 
+  ipcMain.handle('settings:imageCatalog', () => getImageSettingsCatalog());
+
+  ipcMain.handle('templates:getDimensions', async (_, id) => {
+    const template = templateRegistry.getById(id);
+    if (!template) return null;
+    return templateRegistry.getDimensions(template);
+  });
+
   ipcMain.handle('templates:importDialog', async () => {
     const r = await dialog.showOpenDialog(mainWindow, {
       filters: [{ name: 'Bilder', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
@@ -277,7 +288,11 @@ function registerIpc() {
     return importTemplateFiles(filePaths || [], name);
   });
 
-  ipcMain.handle('templates:clone', (_, { sourceId, name }) => templateRegistry.clone(sourceId, name));
+  ipcMain.handle('templates:clone', (_, { sourceId, name }) => {
+    const cloned = templateRegistry.clone(sourceId, name);
+    send('templates:updated', templateRegistry.listAll());
+    return cloned;
+  });
 
   ipcMain.handle('templates:delete', (_, id) => templateRegistry.deleteUserTemplate(id));
 
@@ -290,18 +305,23 @@ function registerIpc() {
     return templateRegistry.imageToDataUrl(p);
   });
 
-  ipcMain.handle('templates:optimizePrompt', async (_, { templateId, changeRequest, pairingCode }) => {
+  ipcMain.handle('templates:runEdit', async (_, { templateId, changeRequest, quality, pairingCode }) => {
     await bridgeManager.requirePaired(pairingCode);
     const signalKey = `edit-${Date.now()}`;
-    return templateEditor.optimizePrompt(templateId, changeRequest, signalKey);
+    const onProgress = (p) => send('job:progress', p);
+    const unsubscribe = subscribeBridgeJobProgress(bridgeManager.getClient(), onProgress);
+    try {
+      return await templateEditor.runEdit(
+        { templateId, changeRequest, quality },
+        onProgress,
+        signalKey,
+      );
+    } finally {
+      unsubscribe();
+    }
   });
 
-  ipcMain.handle('templates:applyEdit', async (_, { settings, optimizedPrompt, pairingCode }) => {
-    await bridgeManager.requirePaired(pairingCode);
-    const signalKey = `apply-${Date.now()}`;
-    const onProgress = (p) => send('job:progress', p);
-    return templateEditor.applyEdit(settings, optimizedPrompt, onProgress, signalKey);
-  });
+  ipcMain.handle('templates:getPendingEdit', () => templateEditor.getPendingEdit());
 
   ipcMain.handle('templates:acceptEdit', () => templateEditor.acceptEdit());
   ipcMain.handle('templates:rejectEdit', () => templateEditor.rejectEdit());
@@ -444,7 +464,8 @@ app.whenReady().then(() => {
   const client = bridgeManager.getClient();
   promptBuilder = new PromptBuilder(client, templateRegistry);
   imagePipeline = new ImagePipeline(client, templateRegistry);
-  templateEditor = new TemplateEditorService(client, templateRegistry, imagePipeline);
+  templateEditPipeline = new TemplateEditPipeline(client, templateRegistry);
+  templateEditor = new TemplateEditorService(templateEditPipeline, templateRegistry);
   docLoader = new DocLoader();
   session = profileStore.loadSession();
   debugLog.setBroadcast((entry) => send('debug:entry', entry));

@@ -8,7 +8,15 @@ const {
   prepareProductReferenceFrame,
   frameByteSize,
 } = require('./image-prep');
-const { buildReferenceImageEntries, buildTemplateLayoutHint } = require('./image-preflight');
+const { buildReferenceImageEntries } = require('./image-preflight');
+const {
+  appendLayoutLockBlock,
+  buildTemplateLayoutHint,
+  sanitizePreflightPrompt,
+} = require('./layout-fidelity');
+const {
+  normalizeQuality,
+} = require('./image-settings');
 
 const PRODUCT_FIDELITY_BLOCK = [
   'CRITICAL PRODUCT FIDELITY — HIGHEST PRIORITY:',
@@ -140,6 +148,7 @@ async function buildImageAttachments(referenceImages, templatePath, options = {}
 function buildImageApiPayload({
   promptData,
   settings,
+  template,
   referenceImages,
   attachmentPaths,
   frames,
@@ -147,16 +156,22 @@ function buildImageApiPayload({
   hasTemplateReference,
 }) {
   const requireReferences = hasProductReference || hasTemplateReference;
-  const prompt = buildImageGenerationPrompt(promptData, {
+  let prompt = buildImageGenerationPrompt(promptData, {
     hasProductReference,
     hasTemplateReference,
   });
+  prompt = sanitizePreflightPrompt(prompt, {
+    allowGoldHeader: Boolean(settings?.extraPrompt && /gold/i.test(settings.extraPrompt)),
+  });
+  if (hasTemplateReference && template) {
+    prompt = appendLayoutLockBlock(prompt, template, settings);
+  }
 
   const payload = {
     model: 'codex-local:image',
     prompt,
     size: settings.size || '1536x1024',
-    quality: settings.quality || 'high',
+    quality: normalizeQuality(settings.quality),
     requireReferences,
   };
 

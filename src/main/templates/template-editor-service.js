@@ -2,127 +2,88 @@
 
 const fs = require('fs');
 const path = require('path');
+const sharp = require('sharp');
 const paths = require('../paths');
 const debugLog = require('../debug/logger');
-const { prepareBridgeFrame, frameByteSize } = require('../generate/image-prep');
-
-function extractJson(text) {
-  const match = text.match(/\{[\s\S]*\}/);
-  if (!match) return null;
-  try {
-    return JSON.parse(match[0]);
-  } catch {
-    return null;
-  }
-}
-
-function getChoiceContent(result) {
-  return result?.response?.choices?.[0]?.message?.content || '';
-}
 
 class TemplateEditorService {
-  constructor(bridgeClient, templateRegistry, imagePipeline) {
-    this.client = bridgeClient;
+  constructor(templateEditPipeline, templateRegistry) {
+    this.pipeline = templateEditPipeline;
     this.registry = templateRegistry;
-    this.imagePipeline = imagePipeline;
     this.pendingEdit = null;
   }
 
-  async optimizePrompt(templateId, changeRequest, signalKey) {
-    const template = this.registry.getById(templateId);
-    if (!template) throw new Error('Vorlage nicht gefunden.');
-    const templatePath = this.registry.resolveTemplatePath(template);
-    const frame = await prepareBridgeFrame(templatePath);
-    debugLog.info('template-editor', 'Vorlage für Analyse vorbereitet', {
-      path: templatePath,
-      frameBytes: frameByteSize(frame),
-    });
-
-    const analyzeResult = await this.client.mediaAnalyze({
-      model: 'codex-local:auto',
-      prompt: 'Analysiere diese Werbe-Vorlage: Layout, Farben, Neon-Akzente, Header, Footer, Kontaktleiste, Bühnenbereich. Antworte strukturiert auf Deutsch.',
-      frames: [frame],
-    }, signalKey);
-
-    const analysis = getChoiceContent(analyzeResult) || '';
-
-    const chatResult = await this.client.chat({
-      model: 'codex-local:auto',
-      messages: [{
-        role: 'user',
-        content: `Du optimierst einen Bildbearbeitungs-Prompt für eine TELE-KOHLGRAF-Vorlage.
-
-Vorlagen-Analyse:
-${analysis}
-
-Änderungswunsch des Nutzers:
-${changeRequest}
-
-Regeln:
-- TELE-KOHLGRAF-Branding (Header, Kontakt, Footer) unverändert lassen, außer explizit gewünscht
-- Gleiche Bildabmessungen und Gesamtlayout
-- Nur die gewünschte Änderung durchführen
-
-Antworte NUR mit JSON:
-{
-  "optimizedEditPrompt": "englischer Prompt für Bildgenerierung",
-  "changeSummary": "kurze deutsche Zusammenfassung",
-  "preservedElements": ["Header", "Footer", ...]
-}`,
-      }],
-      max_tokens: 2048,
-    }, signalKey);
-
-    const parsed = extractJson(getChoiceContent(chatResult));
-    if (!parsed?.optimizedEditPrompt) {
-      throw new Error('Prompt-Optimierung fehlgeschlagen.');
-    }
-
-    this.pendingEdit = {
-      templateId,
-      templatePath,
-      changeRequest,
-      ...parsed,
-    };
-    return parsed;
-  }
-
-  async applyEdit(settings, optimizedPrompt, onProgress, signalKey) {
-    const edit = this.pendingEdit || {};
-    const prompt = optimizedPrompt || edit.optimizedEditPrompt;
-    const result = await this.imagePipeline.generateImage(
-      { optimizedEditPrompt: prompt },
-      settings,
+  async runEdit({ templateId, changeRequest, quality }, onProgress, signalKey) {
+    const result = await this.pipeline.runTemplateEdit(
+      { templateId, changeRequest, quality },
       onProgress,
       signalKey,
     );
     this.pendingEdit = {
-      ...edit,
-      previewPath: result.path,
-      previewB64: result.b64,
+      templateId: result.templateId,
+      templatePath: result.templatePath,
+      changeRequest: result.changeRequest,
+      optimizedEditPrompt: result.optimizedEditPrompt,
+      changeSummary: result.changeSummary,
+      previewPath: result.previewPath,
+      previewB64: result.previewB64,
+      imageSize: result.imageSize,
+      templateWidth: result.templateWidth,
+      templateHeight: result.templateHeight,
     };
+    return result;
+  }
+
+  getPendingEdit() {
+    if (!this.pendingEdit) return null;
+    let previewB64 = this.pendingEdit.previewB64 || '';
+    if (!previewB64 && this.pendingEdit.previewPath && fs.existsSync(this.pendingEdit.previewPath)) {
+      try {
+        previewB64 = fs.readFileSync(this.pendingEdit.previewPath).toString('base64');
+      } catch { /* ignore */ }
+    }
     return {
-      previewPath: result.path,
-      previewB64: result.b64,
-      originalPath: edit.templatePath || this.registry.resolveTemplatePath(this.registry.getById(edit.templateId)),
+      templateId: this.pendingEdit.templateId,
+      changeRequest: this.pendingEdit.changeRequest,
+      optimizedEditPrompt: this.pendingEdit.optimizedEditPrompt,
+      changeSummary: this.pendingEdit.changeSummary,
+      previewB64,
+      imageSize: this.pendingEdit.imageSize,
     };
   }
 
-  acceptEdit() {
+  async acceptEdit() {
     if (!this.pendingEdit?.previewPath || !this.pendingEdit?.templateId) {
       throw new Error('Keine ausstehende Vorschau zum Akzeptieren.');
     }
     const template = this.registry.getById(this.pendingEdit.templateId);
     if (!template) throw new Error('Vorlage nicht gefunden.');
 
-    let targetPath = this.registry.resolveTemplatePath(template);
-    const targetId = template.id;
+    const targetPath = this.registry.resolveTemplatePath(template);
+    const dims = await this.registry.getDimensions(template);
     const historyDir = paths.userTemplatesHistoryDir(template.id);
     const histFile = path.join(historyDir, `${Date.now()}.png`);
     fs.copyFileSync(targetPath, histFile);
 
-    fs.copyFileSync(this.pendingEdit.previewPath, targetPath);
-    const accepted = { templateId: targetId, path: targetPath };
+    let previewPath = this.pendingEdit.previewPath;
+    if (dims?.width && dims?.height) {
+      const meta = await sharp(previewPath).metadata();
+      if (meta.width !== dims.width || meta.height !== dims.height) {
+        const resizedPath = path.join(paths.tempPreviewDir(), `template-accept-${Date.now()}.png`);
+        await sharp(previewPath)
+          .resize(dims.width, dims.height, { fit: 'fill' })
+          .png()
+          .toFile(resizedPath);
+        previewPath = resizedPath;
+        debugLog.info('template-editor', 'Vorschau auf Vorlagenmaß skaliert', {
+          from: `${meta.width}x${meta.height}`,
+          to: `${dims.width}x${dims.height}`,
+        });
+      }
+    }
+
+    fs.copyFileSync(previewPath, targetPath);
+    const accepted = { templateId: template.id, path: targetPath };
     this.pendingEdit = null;
     return accepted;
   }

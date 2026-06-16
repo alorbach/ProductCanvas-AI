@@ -14,6 +14,7 @@ const {
   computePreflightFingerprint,
 } = require('./image-preflight');
 const { compositeProductAd } = require('./product-compositor');
+const { resolveImageGenerationSettings } = require('./image-settings');
 
 class ImagePipeline {
   constructor(bridgeClient, templateRegistry) {
@@ -34,13 +35,15 @@ class ImagePipeline {
 
     const templatePath = this.registry.resolveTemplatePath(template);
     const productPath = collectReferencePaths(settings.referenceImages)[0];
+    const templateDims = await this.registry.getDimensions(template);
+    const imageSettings = resolveImageGenerationSettings(settings, templateDims);
 
     const pngBuffer = await compositeProductAd({
       templatePath,
       productPath,
       template,
       promptData,
-      settings,
+      settings: imageSettings,
     });
 
     const outPath = path.join(paths.tempPreviewDir(), `preview-${Date.now()}.png`);
@@ -104,6 +107,8 @@ class ImagePipeline {
     }
 
     const productPaths = collectReferencePaths(settings.referenceImages);
+    const templateDims = template ? await this.registry.getDimensions(template) : null;
+    const imageSettings = resolveImageGenerationSettings(settings, templateDims);
     const enrichedPromptData = {
       ...promptData,
       productAnalysis: promptData?.productAnalysis || settings.productAnalysis || '',
@@ -115,7 +120,7 @@ class ImagePipeline {
 
     const { finalPrompt, preflightFingerprint } = await this.resolveFinalPrompt({
       promptData: enrichedPromptData,
-      settings,
+      settings: imageSettings,
       template,
       templatePath,
       attachments,
@@ -132,7 +137,8 @@ class ImagePipeline {
 
     const apiPayload = buildImageApiPayload({
       promptData: enrichedPromptData,
-      settings,
+      settings: imageSettings,
+      template,
       referenceImages: attachments.referenceImages,
       attachmentPaths: attachments.attachmentPaths,
       frames: attachments.frames,
@@ -171,6 +177,9 @@ class ImagePipeline {
       ].filter(Boolean),
       bridgeSupportsRefs,
       bridgeVersion: bridgeCapabilities?.bridge?.version || 'unknown',
+      imageSize: imageSettings.size,
+      imageSizeMode: imageSettings.sizeMode,
+      imageQuality: imageSettings.quality,
     });
 
     let unsubscribe = () => {};

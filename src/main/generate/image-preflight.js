@@ -5,31 +5,16 @@ const path = require('path');
 const crypto = require('crypto');
 const sharp = require('sharp');
 const { isImagePath } = require('./image-prep');
+const {
+  LAYOUT_EDITABLE_RULES,
+  LAYOUT_FROZEN_RULES,
+  buildProductStageHint,
+  buildTemplateLayoutHint,
+  sanitizePreflightPrompt,
+} = require('./layout-fidelity');
 
 const PREFLIGHT_REF_MAX_EDGE = 1024;
 const PREFLIGHT_JPEG_QUALITY = 88;
-
-function buildTemplateLayoutHint(template, options = {}) {
-  if (!template) return '';
-  const categories = (template.categories || []).join(', ');
-  const lines = [
-    `Selected layout template: "${template.name}" (${template.importedFrom || template.file || 'user template'}).`,
-  ];
-  if (options.layoutImageAttached) {
-    lines.push(
-      'IMAGE 2 is authoritative for neon accent color, header, footer, contact bar, typography zones, and stage framing.',
-      'Copy accent and layout colors from IMAGE 2 exactly — never override with a different neon color.',
-    );
-  } else {
-    lines.push(`Accent hint: ${template.accentHex || template.accent}.`);
-    lines.push(`Stage: ${template.stageHint || 'dark showroom with neon side bars'}.`);
-  }
-  lines.push(
-    'Gold typography for brand/series/tagline. Footer categories: ' + categories + '.',
-    `Highlight category: ${template.categories?.[0] || 'LAUTSPRECHER'}.`,
-  );
-  return lines.join(' ');
-}
 
 function getChoiceContent(result) {
   return result?.response?.choices?.[0]?.message?.content || '';
@@ -74,23 +59,32 @@ async function buildReferenceImageEntries({ productPath, layoutPath } = {}) {
 
 function buildPreflightTaskPrompt({ settings, promptData, template }) {
   const templateHint = buildTemplateLayoutHint(template, { layoutImageAttached: true });
+  const size = String(settings?.size || '').trim();
+  const quality = String(settings?.quality || '').trim();
   const lines = [
     'Create a TELE-KOHLGRAF retail advertisement image using the attached reference image(s).',
     'Return ONLY the final English image-edit prompt — no explanation, no markdown, no JSON.',
     '',
     'Rules:',
     '- IMAGE 1 (product): copy exact product models, driver layout, tweeter panels, logos, finishes.',
-    '- IMAGE 2 (layout template): copy header, footer, contact bar, neon accent color, typography zones, stage framing exactly from the attached image.',
+    '- IMAGE 2 (layout template): copy frozen layout zones exactly — header, footer, contact bar, brand text colors, icon row, neon accents.',
     '- The neon side-bar color in IMAGE 2 is mandatory (e.g. blue template = blue neon, not yellow).',
-    '- Merge products from Image 1 into the layout structure of Image 2 photorealistically.',
+    '- Do NOT recolor header brand text to gold unless it is gold in IMAGE 2.',
+    '- Do NOT add category highlight boxes or new footer emphasis.',
+    '- Merge products from Image 1 into the product stage of Image 2 photorealistically.',
     '- Do NOT invent different products. Do NOT use products from the layout template image.',
+    LAYOUT_FROZEN_RULES,
+    LAYOUT_EDITABLE_RULES,
     '',
     `Brand: ${promptData?.brandName || settings?.brandName || '–'}`,
     `Series: ${promptData?.seriesName || settings?.seriesName || '–'}`,
     `Tagline: ${promptData?.tagline || settings?.tagline || '–'}`,
     `Category: ${promptData?.productCategory || settings?.productCategory || 'LAUTSPRECHER'}`,
     `Extra: ${settings?.extraPrompt || '–'}`,
+    `Target output size: ${size || '1536x1024'}${settings?.sizeMode === 'template' ? ' (from selected layout template)' : ''}`,
+    `Preferred quality: ${quality || 'high'}`,
   ];
+  if (template) lines.push(buildProductStageHint(template));
   if (templateHint) lines.push(`Layout context: ${templateHint}`);
   if (promptData?.productDescription) lines.push(`Product details: ${promptData.productDescription}`);
   if (promptData?.productAnalysis) lines.push(`Product analysis:\n${promptData.productAnalysis}`);
@@ -155,7 +149,8 @@ function computePreflightFingerprint(settings, templatePath, productPaths) {
     tagline: settings?.tagline || '',
     productCategory: settings?.productCategory || '',
     extraPrompt: settings?.extraPrompt || '',
-    size: settings?.size || '',
+    size: settings?.sizeMode === 'template' ? 'template' : (settings?.size || ''),
+    sizeMode: settings?.sizeMode || '',
     quality: settings?.quality || '',
   };
   return crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
@@ -206,10 +201,13 @@ async function runImagePreflight(bridgeClient, {
     }, signalKey);
   }
 
-  const finalPrompt = getChoiceContent(result).trim().replace(/^["']|["']$/g, '');
+  let finalPrompt = getChoiceContent(result).trim().replace(/^["']|["']$/g, '');
   if (!finalPrompt) {
     throw new Error('Bild-Preflight hat keinen finalen Prompt geliefert.');
   }
+  finalPrompt = sanitizePreflightPrompt(finalPrompt, {
+    allowGoldHeader: Boolean(settings?.extraPrompt && /gold/i.test(settings.extraPrompt)),
+  });
 
   return {
     finalPrompt,

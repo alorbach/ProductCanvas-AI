@@ -8,7 +8,7 @@
     "postinstall": "node scripts/generate-placeholders.js",
     "icons": "node scripts/generate-icons.js",
     "start": "electron .",
-    "test": "node test/basic.test.js && node test/prompt-fidelity.test.js && node test/image-preflight.test.js",
+    "test": "node test/basic.test.js && node test/image-settings.test.js && node test/prompt-fidelity.test.js && node test/image-preflight.test.js && node test/layout-fidelity.test.js && node test/template-edit-pipeline.test.js",
     "dist:win": "npm run icons && node scripts/build-win.js"
   },
   "author": "TELE-KOHLGRAF",

@@ -7,10 +7,13 @@ import { showContextMenu, menuItem } from './context-menu.js';
 const api = window.werbungMaker;
 let session = {};
 let templates = [];
+let imageSettingsCatalog = null;
 let promptData = null;
 let lastPreviewPath = '';
 let lastPreviewB64 = '';
 let editorTemplateId = '';
+let editorLocked = false;
+let editorGenerating = false;
 let waitStart = 0;
 let waitTimer = null;
 let openLightbox = () => {};
@@ -102,6 +105,70 @@ function showError(err, context = '') {
     showPairingBanner(message);
   }
   alert(full);
+}
+
+function askPrompt(title, defaultValue = '') {
+  return new Promise((resolve) => {
+    const dialog = $('prompt-dialog');
+    const input = $('prompt-input');
+    const form = $('prompt-form');
+    $('prompt-title').textContent = title;
+    input.value = defaultValue;
+    const cleanup = () => {
+      form.removeEventListener('submit', onSubmit);
+      $('prompt-cancel').removeEventListener('click', onCancel);
+      dialog.removeEventListener('cancel', onCancel);
+    };
+    const onCancel = (e) => {
+      e?.preventDefault();
+      cleanup();
+      dialog.close();
+      resolve(null);
+    };
+    const onSubmit = (e) => {
+      e.preventDefault();
+      const value = input.value.trim();
+      cleanup();
+      dialog.close();
+      resolve(value);
+    };
+    form.addEventListener('submit', onSubmit);
+    $('prompt-cancel').addEventListener('click', onCancel);
+    dialog.addEventListener('cancel', onCancel);
+    dialog.showModal();
+    input.focus();
+    input.select();
+  });
+}
+
+function askConfirm(title, message) {
+  return new Promise((resolve) => {
+    const dialog = $('confirm-dialog');
+    const form = $('confirm-form');
+    $('confirm-title').textContent = title;
+    $('confirm-message').textContent = message;
+    const cleanup = () => {
+      form.removeEventListener('submit', onSubmit);
+      $('confirm-cancel').removeEventListener('click', onCancel);
+      dialog.removeEventListener('cancel', onCancel);
+    };
+    const onCancel = (e) => {
+      e?.preventDefault();
+      cleanup();
+      dialog.close();
+      resolve(false);
+    };
+    const onSubmit = (e) => {
+      e.preventDefault();
+      cleanup();
+      dialog.close();
+      resolve(true);
+    };
+    form.addEventListener('submit', onSubmit);
+    $('confirm-cancel').addEventListener('click', onCancel);
+    dialog.addEventListener('cancel', onCancel);
+    dialog.showModal();
+  });
 }
 
 let debugLines = [];
@@ -319,6 +386,10 @@ function showView(name) {
   document.querySelectorAll('.nav-btn').forEach((b) => b.classList.remove('active'));
   $(`view-${name}`)?.classList.add('active');
   document.querySelector(`[data-mode="${name}"]`)?.classList.add('active');
+  if (name === 'templates' && !editorLocked && !editorGenerating && session.templateId) {
+    editorTemplateId = session.templateId;
+    selectEditorTemplate(session.templateId).catch(() => {});
+  }
 }
 
 function applyLabels() {
@@ -335,6 +406,7 @@ function applyLabels() {
   $('lbl-settings').textContent = t('settings.title');
   $('lbl-size').textContent = t('settings.size');
   $('lbl-quality').textContent = t('settings.quality');
+  $('image-settings-hint').textContent = t('settings.imageOptionsHint');
   $('lbl-category').textContent = t('settings.category');
   $('lbl-compositing').textContent = t('settings.compositing');
   $('compositing-hint').textContent = t('settings.compositingHint');
@@ -357,11 +429,17 @@ function applyLabels() {
   $('lbl-ki-preview').textContent = t('template.preview');
   $('lbl-change').textContent = t('template.changeRequest');
   $('change-request').placeholder = t('template.changeRequest.placeholder');
-  $('btn-optimize-prompt').textContent = t('template.optimizePrompt');
   $('lbl-opt-prompt').textContent = t('prompt.optimized');
-  $('btn-apply-edit').textContent = t('template.applyEdit');
+  $('btn-generate-edit').textContent = t('template.generateEdit');
+  $('lbl-editor-quality').textContent = t('settings.quality');
+  $('lbl-editor-template').textContent = t('template.current');
   $('btn-accept').textContent = t('template.accept');
   $('btn-reject').textContent = t('template.reject');
+  $('prompt-cancel').textContent = t('dialog.cancel');
+  $('prompt-ok').textContent = t('dialog.ok');
+  $('confirm-cancel').textContent = t('dialog.cancel');
+  $('confirm-ok').textContent = t('dialog.ok');
+  updateEditorLockUi();
   $('wait-title').textContent = t('wait.title');
   $('btn-wait-cancel').textContent = t('wait.cancel');
   $('btn-bridge-connect').textContent = t('bridge.setup.connect');
@@ -376,6 +454,162 @@ function applyLabels() {
 
 async function updateSession(patch) {
   session = await api.sessionUpdate(patch);
+}
+
+function formatGatewaySizeLabel(size) {
+  if (size === 'auto') return 'Auto';
+  return String(size).replace(/x/i, '×');
+}
+
+function qualityLabel(quality) {
+  const key = `settings.quality.${quality}`;
+  const label = t(key);
+  return label === key ? quality : label;
+}
+
+function getSelectedTemplate() {
+  return templates.find((tmpl) => tmpl.id === session.templateId) || null;
+}
+
+function templateSizeLabel(tmpl) {
+  if (!tmpl?.width || !tmpl?.height) return '…';
+  return `${tmpl.width}×${tmpl.height}`;
+}
+
+async function refreshEditorUi() {
+  const id = editorTemplateId || session.templateId;
+  const tmpl = templates.find((item) => item.id === id);
+
+  const select = $('editor-template-select');
+  const prevId = select.value || id;
+  select.innerHTML = '';
+  if (!templates.length) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = t('template.empty');
+    select.appendChild(opt);
+    select.disabled = true;
+  } else {
+    for (const item of templates) {
+      const opt = document.createElement('option');
+      opt.value = item.id;
+      opt.textContent = item.name;
+      select.appendChild(opt);
+    }
+    select.value = templates.some((item) => item.id === prevId) ? prevId : id;
+    select.disabled = editorLocked || editorGenerating;
+  }
+
+  const thumb = $('editor-current-thumb');
+  if (tmpl?.id) {
+    const url = await api.templatesGetImage(tmpl.id);
+    if (url) thumb.src = url;
+    thumb.classList.remove('hidden');
+  } else {
+    thumb.removeAttribute('src');
+    thumb.classList.add('hidden');
+  }
+
+  let dims = tmpl?.width && tmpl?.height ? { width: tmpl.width, height: tmpl.height } : null;
+  if (tmpl?.id && !dims) {
+    dims = await api.templatesGetDimensions(tmpl.id);
+    if (dims?.width && dims?.height) {
+      tmpl.width = dims.width;
+      tmpl.height = dims.height;
+    }
+  }
+  const sizeBadge = $('editor-size-badge');
+  if (dims?.width && dims?.height) {
+    sizeBadge.textContent = t('template.outputSize').replace('{size}', `${dims.width}×${dims.height}`);
+    sizeBadge.classList.remove('hidden');
+  } else {
+    sizeBadge.textContent = '';
+    sizeBadge.classList.add('hidden');
+  }
+
+  if (!imageSettingsCatalog) {
+    imageSettingsCatalog = await api.getImageSettingsCatalog();
+  }
+  const qualitySelect = $('editor-quality');
+  const prevQuality = qualitySelect.value || session.quality || imageSettingsCatalog.defaultQuality;
+  qualitySelect.innerHTML = '';
+  for (const quality of imageSettingsCatalog.qualities) {
+    const opt = document.createElement('option');
+    opt.value = quality;
+    opt.textContent = qualityLabel(quality);
+    qualitySelect.appendChild(opt);
+  }
+  qualitySelect.value = imageSettingsCatalog.qualities.includes(prevQuality)
+    ? prevQuality
+    : imageSettingsCatalog.defaultQuality;
+  qualitySelect.disabled = editorLocked || editorGenerating;
+}
+
+function updateEditorLockUi() {
+  const bar = $('editor-current-bar');
+  const hint = $('editor-locked-hint');
+  const locked = editorLocked || editorGenerating;
+  bar.classList.toggle('locked', locked);
+  const select = $('editor-template-select');
+  if (select) select.disabled = locked || !templates.length;
+  hint.classList.toggle('hidden', !locked);
+  hint.textContent = t('template.lockedHint');
+  $('btn-generate-edit').disabled = editorGenerating;
+  $('change-request').disabled = editorGenerating;
+  if ($('editor-quality')) $('editor-quality').disabled = locked || editorGenerating;
+}
+
+function clearEditorPreview() {
+  $('editor-preview').classList.add('hidden');
+  $('editor-preview-empty').classList.remove('hidden');
+  $('accept-row').classList.add('hidden');
+  $('optimized-prompt').value = '';
+  $('change-summary').textContent = '';
+}
+
+async function refreshImageSettingsUi() {
+  if (!imageSettingsCatalog) {
+    imageSettingsCatalog = await api.getImageSettingsCatalog();
+  }
+  const selected = getSelectedTemplate();
+  if (selected?.id && (!selected.width || !selected.height)) {
+    const dims = await api.templatesGetDimensions(selected.id);
+    if (dims?.width && dims?.height) {
+      selected.width = dims.width;
+      selected.height = dims.height;
+    }
+  }
+  const sizeSelect = $('setting-size');
+  const qualitySelect = $('setting-quality');
+  const prevSize = session.size || sizeSelect.value || imageSettingsCatalog.defaultSize;
+  let prevQuality = session.quality || qualitySelect.value || imageSettingsCatalog.defaultQuality;
+  if (prevQuality === 'standard') prevQuality = 'medium';
+
+  sizeSelect.innerHTML = '';
+  const templateOpt = document.createElement('option');
+  templateOpt.value = imageSettingsCatalog.sizeFromTemplate;
+  templateOpt.textContent = t('settings.sizeTemplate').replace('{size}', templateSizeLabel(getSelectedTemplate()));
+  sizeSelect.appendChild(templateOpt);
+  for (const size of imageSettingsCatalog.sizes) {
+    const opt = document.createElement('option');
+    opt.value = size;
+    opt.textContent = formatGatewaySizeLabel(size);
+    sizeSelect.appendChild(opt);
+  }
+
+  const validSizes = [imageSettingsCatalog.sizeFromTemplate, ...imageSettingsCatalog.sizes];
+  sizeSelect.value = validSizes.includes(prevSize) ? prevSize : imageSettingsCatalog.defaultSize;
+
+  qualitySelect.innerHTML = '';
+  for (const quality of imageSettingsCatalog.qualities) {
+    const opt = document.createElement('option');
+    opt.value = quality;
+    opt.textContent = qualityLabel(quality);
+    qualitySelect.appendChild(opt);
+  }
+  qualitySelect.value = imageSettingsCatalog.qualities.includes(prevQuality)
+    ? prevQuality
+    : imageSettingsCatalog.defaultQuality;
 }
 
 function readSettingsFromUi() {
@@ -435,15 +669,38 @@ function promptDataFromSession() {
   };
 }
 
+function pendingPreflightPlaceholder(source = session) {
+  return (source.referenceImages || []).length > 0
+    && !String(source.preflightPrompt || '').trim()
+    && !String(source.imagePrompt || '').trim();
+}
+
+function resolvePromptDisplayText(source = session) {
+  const prompt = String(source.preflightPrompt || source.imagePrompt || '').trim();
+  if (prompt) return prompt;
+  if (pendingPreflightPlaceholder(source)) return t('prompt.pendingPreflight');
+  return '';
+}
+
+function refreshPromptImageField() {
+  $('prompt-image').value = resolvePromptDisplayText();
+}
+
 function restorePromptFromSession() {
   promptData = promptDataFromSession();
-  $('prompt-image').value = session.imagePrompt || '';
+  refreshPromptImageField();
 }
 
 async function applyBuiltPrompt(data, fingerprint) {
   promptData = data;
-  const pendingPreflight = !data.imagePrompt && !data.preflightPrompt && (session.referenceImages || []).length > 0;
-  $('prompt-image').value = data.imagePrompt || (pendingPreflight ? t('prompt.pendingPreflight') : '');
+  const displaySource = {
+    preflightPrompt: data.preflightPrompt || data.finalPrompt || '',
+    imagePrompt: data.imagePrompt || '',
+  };
+  $('prompt-image').value = resolvePromptDisplayText({
+    ...session,
+    ...displaySource,
+  });
   $('setting-brand').value = data.brandName || '';
   $('setting-series').value = data.seriesName || '';
   $('setting-tagline').value = data.tagline || '';
@@ -501,8 +758,10 @@ function promptDataForGenerate(settings) {
 }
 
 function writeSettingsToUi() {
-  $('setting-size').value = session.size || '1536x1024';
-  $('setting-quality').value = session.quality || 'high';
+  $('setting-size').value = session.size || imageSettingsCatalog?.defaultSize || 'template';
+  let quality = session.quality || imageSettingsCatalog?.defaultQuality || 'high';
+  if (quality === 'standard') quality = 'medium';
+  $('setting-quality').value = quality;
   $('setting-category').value = session.productCategory || 'LAUTSPRECHER';
   $('setting-brand').value = session.brandName || '';
   $('setting-series').value = session.seriesName || '';
@@ -518,6 +777,8 @@ async function openPathInExplorer(filePath) {
 
 async function selectTemplate(id, { openEditor = false } = {}) {
   await updateSession({ templateId: id });
+  await refreshImageSettingsUi();
+  writeSettingsToUi();
   if (openEditor) {
     await selectEditorTemplate(id);
     showView('templates');
@@ -529,33 +790,54 @@ async function selectTemplate(id, { openEditor = false } = {}) {
 async function renameTemplate(id) {
   const tmpl = templates.find((item) => item.id === id);
   if (!tmpl) return;
-  const name = prompt('Neuer Name:', tmpl.name);
+  const name = await askPrompt(t('template.rename'), tmpl.name);
   if (name === null || !name.trim()) return;
-  await api.templatesRename({ id, name: name.trim() });
-  await loadTemplates();
+  try {
+    await api.templatesRename({ id, name: name.trim() });
+    await loadTemplates();
+  } catch (err) {
+    showError(err, t('template.rename'));
+  }
 }
 
 async function cloneTemplate(id) {
   const tmpl = templates.find((item) => item.id === id);
-  if (!tmpl) return;
-  const name = prompt('Name der Kopie:', `${tmpl.name} – Kopie`);
+  if (!tmpl) {
+    alert(t('template.empty'));
+    return;
+  }
+  const name = await askPrompt(t('template.clone'), `${tmpl.name} – Kopie`);
   if (name === null) return;
-  await api.templatesClone({ sourceId: id, name: name || undefined });
-  await loadTemplates();
-  alert('Vorlage wurde geklont.');
+  try {
+    const cloned = await api.templatesClone({ sourceId: id, name: name || undefined });
+    await loadTemplates();
+    if (cloned?.id) {
+      await updateSession({ templateId: cloned.id });
+      editorTemplateId = cloned.id;
+      await selectEditorTemplate(cloned.id);
+    }
+    alert(t('template.cloneSuccess'));
+  } catch (err) {
+    showError(err, t('template.clone'));
+  }
 }
 
 async function deleteTemplate(id) {
   const tmpl = templates.find((item) => item.id === id);
   if (!tmpl) return;
-  if (!confirm(`Vorlage „${tmpl.name}" wirklich löschen?`)) return;
-  await api.templatesDelete(id);
-  if (session.templateId === id) {
-    const fallback = templates.find((item) => item.id !== id);
-    await updateSession({ templateId: fallback?.id || '' });
+  const ok = await askConfirm(t('template.delete'), t('template.deleteConfirm').replace('{name}', tmpl.name));
+  if (!ok) return;
+  try {
+    await api.templatesDelete(id);
+    if (session.templateId === id) {
+      const fallback = templates.find((item) => item.id !== id);
+      await updateSession({ templateId: fallback?.id || '' });
+    }
+    await loadTemplates();
+    alert(t('template.deleteSuccess'));
+  } catch (err) {
+    showError(err, t('template.delete'));
   }
-  await loadTemplates();
-  alert('Vorlage gelöscht.');
 }
 
 async function removeReferenceAt(index) {
@@ -833,17 +1115,23 @@ async function loadTemplates() {
   renderTemplateList('template-list', session.templateId, async (id) => {
     await selectTemplate(id);
   });
-  renderTemplateList('editor-template-list', editorTemplateId || session.templateId, selectEditorTemplate);
+  await refreshImageSettingsUi();
+  await refreshEditorUi();
+  writeSettingsToUi();
 }
 
-async function selectEditorTemplate(id) {
+async function selectEditorTemplate(id, options = {}) {
+  if ((editorLocked || editorGenerating) && !options.force) {
+    alert(t('template.lockedHint'));
+    return;
+  }
   editorTemplateId = id;
-  renderTemplateList('editor-template-list', id, selectEditorTemplate);
   const url = await api.templatesGetImage(id);
   if (url) $('editor-original').src = url;
-  $('editor-preview').classList.add('hidden');
-  $('editor-preview-empty').classList.remove('hidden');
-  $('accept-row').classList.add('hidden');
+  if (!options.preservePreview) {
+    clearEditorPreview();
+  }
+  await refreshEditorUi();
 }
 
 async function init() {
@@ -859,12 +1147,33 @@ async function init() {
   });
 
   session = await api.sessionGet();
+  await refreshImageSettingsUi();
   writeSettingsToUi();
   restorePromptFromSession();
   await loadTemplates();
   renderRefs();
   await refreshBridgeStatus();
   await renderHelp($('help-sidebar'), $('help-content'));
+
+  const pendingEdit = await api.templatesGetPendingEdit();
+  if (pendingEdit?.templateId) {
+    editorTemplateId = pendingEdit.templateId;
+    editorLocked = true;
+    $('change-request').value = pendingEdit.changeRequest || '';
+    $('optimized-prompt').value = pendingEdit.optimizedEditPrompt || '';
+    $('change-summary').textContent = pendingEdit.changeSummary || '';
+    updateEditorLockUi();
+    await selectEditorTemplate(pendingEdit.templateId, { preservePreview: true, force: true });
+    if (pendingEdit.previewB64) {
+      $('editor-preview').src = `data:image/png;base64,${pendingEdit.previewB64}`;
+      $('editor-preview').classList.remove('hidden');
+      $('editor-preview-empty').classList.add('hidden');
+      $('accept-row').classList.remove('hidden');
+    }
+  } else {
+    editorTemplateId = session.templateId;
+    if (editorTemplateId) await selectEditorTemplate(editorTemplateId);
+  }
 
   const exampleImg = await api.examplesGetImage();
   if (exampleImg) $('example-image').src = exampleImg;
@@ -970,8 +1279,16 @@ async function init() {
       if (result.preflightPrompt) {
         await updateSession({
           preflightPrompt: result.preflightPrompt,
+          imagePrompt: result.preflightPrompt,
           preflightFingerprint: result.preflightFingerprint || session.preflightFingerprint,
         });
+        if (promptData) {
+          promptData.finalPrompt = result.preflightPrompt;
+          promptData.imagePrompt = result.preflightPrompt;
+        }
+        refreshPromptImageField();
+        const details = document.querySelector('.prompt-details');
+        if (details) details.open = true;
       }
       showPreview(result.path, result.b64);
       await updateSession({ lastPreviewPath: result.path, compositingMode: settings.compositingMode });
@@ -1013,57 +1330,58 @@ async function init() {
     alert('Bitte melden Sie sich im geöffneten Terminal mit codex login an.');
   });
 
-  $('btn-optimize-prompt').addEventListener('click', async () => {
+  $('editor-template-select').addEventListener('change', async () => {
+    const id = $('editor-template-select').value;
+    if (!id || id === editorTemplateId) return;
+    await selectEditorTemplate(id);
+  });
+
+  $('btn-generate-edit').addEventListener('click', async () => {
     if (!(await ensureBridgeReady())) return;
     const id = editorTemplateId || session.templateId;
     const changeRequest = $('change-request').value.trim();
     if (!changeRequest) return alert('Bitte Änderungswunsch eingeben.');
     try {
-      showWait(t('template.optimizePrompt'));
-      const result = await api.templatesOptimizePrompt({
+      editorGenerating = true;
+      updateEditorLockUi();
+      showWait(t('template.generateEdit'));
+      const result = await api.templatesRunEdit({
         templateId: id,
         changeRequest,
+        quality: $('editor-quality').value,
         pairingCode: getPairingCode(),
       });
       $('optimized-prompt').value = result.optimizedEditPrompt || '';
       $('change-summary').textContent = result.changeSummary || '';
-      hideWait();
-    } catch (err) {
-      hideWait();
-      showError(err);
-    }
-  });
-
-  $('btn-apply-edit').addEventListener('click', async () => {
-    if (!(await ensureBridgeReady())) return;
-    try {
-      showWait(t('template.applyEdit'));
-      const settings = readSettingsFromUi();
-      const result = await api.templatesApplyEdit({
-        settings,
-        optimizedPrompt: $('optimized-prompt').value,
-        pairingCode: getPairingCode(),
-      });
       if (result.previewB64) {
         $('editor-preview').src = `data:image/png;base64,${result.previewB64}`;
         $('editor-preview').classList.remove('hidden');
         $('editor-preview-empty').classList.add('hidden');
         $('accept-row').classList.remove('hidden');
       }
+      editorLocked = true;
       hideWait();
     } catch (err) {
       hideWait();
       showError(err);
+    } finally {
+      editorGenerating = false;
+      updateEditorLockUi();
+      await refreshEditorUi();
     }
   });
 
   $('btn-accept').addEventListener('click', async () => {
     try {
       const accepted = await api.templatesAcceptEdit();
+      editorLocked = false;
+      $('change-request').value = '';
+      clearEditorPreview();
+      updateEditorLockUi();
       await loadTemplates();
       await updateSession({ templateId: accepted.templateId });
-      $('accept-row').classList.add('hidden');
-      alert('Vorlage wurde gespeichert.');
+      await selectEditorTemplate(accepted.templateId);
+      alert(t('template.editSuccess'));
     } catch (err) {
       showError(err);
     }
@@ -1071,9 +1389,10 @@ async function init() {
 
   $('btn-reject').addEventListener('click', async () => {
     await api.templatesRejectEdit();
-    $('editor-preview').classList.add('hidden');
-    $('editor-preview-empty').classList.remove('hidden');
-    $('accept-row').classList.add('hidden');
+    editorLocked = false;
+    clearEditorPreview();
+    updateEditorLockUi();
+    await refreshEditorUi();
   });
 
   $('btn-wait-cancel').addEventListener('click', () => hideWait());
@@ -1082,6 +1401,7 @@ async function init() {
   api.on('bridge:progress', (p) => updateWait(p));
   api.on('session:loaded', async (s) => {
     session = s;
+    await refreshImageSettingsUi();
     writeSettingsToUi();
     restorePromptFromSession();
     renderRefs();
@@ -1111,7 +1431,10 @@ async function init() {
   });
   api.on('action:template-clone', async () => {
     const id = session.templateId || editorTemplateId;
-    if (!id) return;
+    if (!id) {
+      alert(t('template.selectFirst'));
+      return;
+    }
     await cloneTemplate(id);
   });
   api.on('action:template-delete', async () => {
@@ -1119,9 +1442,6 @@ async function init() {
     if (!id) return;
     await deleteTemplate(id);
   });
-
-  editorTemplateId = session.templateId;
-  if (editorTemplateId) await selectEditorTemplate(editorTemplateId);
 }
 
 init().catch((err) => {

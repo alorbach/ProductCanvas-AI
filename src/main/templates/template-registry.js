@@ -60,6 +60,37 @@ class TemplateRegistry {
     return path.join(paths.userTemplatesDir(), template.file);
   }
 
+  async readTemplateDimensions(filePath) {
+    if (!filePath || !fs.existsSync(filePath) || !isImagePath(filePath)) {
+      return null;
+    }
+    const meta = await sharp(filePath).rotate().metadata();
+    const width = meta.width || 0;
+    const height = meta.height || 0;
+    if (!width || !height) return null;
+    return { width, height };
+  }
+
+  async getDimensions(template) {
+    if (!template) return null;
+    if (template.width > 0 && template.height > 0) {
+      return { width: template.width, height: template.height };
+    }
+    const dims = await this.readTemplateDimensions(this.resolveTemplatePath(template));
+    if (!dims) return null;
+    this.persistTemplateDimensions(template.id, dims);
+    return dims;
+  }
+
+  persistTemplateDimensions(id, dims) {
+    const reg = this.getUserRegistry();
+    const entry = reg.templates.find((t) => t.id === id);
+    if (!entry || !dims?.width || !dims?.height) return;
+    entry.width = dims.width;
+    entry.height = dims.height;
+    this.saveUserRegistry(reg);
+  }
+
   listAll() {
     return (this.getUserRegistry().templates || []).map((t) => enrichTemplateMeta({
       ...t,
@@ -76,6 +107,9 @@ class TemplateRegistry {
     const source = this.getById(sourceId);
     if (!source) throw new Error('Vorlage nicht gefunden.');
     const srcPath = this.resolveTemplatePath(source);
+    if (!fs.existsSync(srcPath)) {
+      throw new Error('Vorlagendatei nicht gefunden.');
+    }
     const newId = `user-${crypto.randomUUID().slice(0, 8)}`;
     const baseName = name || `${source.name} – Kopie`;
     const fileName = `${newId}.png`;
@@ -87,6 +121,8 @@ class TemplateRegistry {
       file: fileName,
       type: 'user',
       parentId: source.id,
+      width: source.width || 0,
+      height: source.height || 0,
       accent: source.accent,
       accentHex: source.accentHex,
       textGold: source.textGold,
@@ -129,6 +165,7 @@ class TemplateRegistry {
     const fileName = `${newId}.png`;
     const destPath = path.join(paths.userTemplatesDir(), fileName);
     await this.normalizeTemplateImage(filePath, destPath);
+    const dims = await this.readTemplateDimensions(destPath);
 
     const entry = {
       id: newId,
@@ -136,6 +173,8 @@ class TemplateRegistry {
       file: fileName,
       type: 'user',
       parentId: null,
+      width: dims?.width || 0,
+      height: dims?.height || 0,
       accent: templateMeta.accent,
       accentHex: templateMeta.accentHex,
       textGold: templateMeta.textGold,

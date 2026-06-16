@@ -7,7 +7,7 @@ const paths = require('../paths');
 const DEFAULTS = {
   templateId: '',
   mode: 'werbung',
-  size: '1536x1024',
+  size: 'template',
   quality: 'high',
   bridgeUrl: 'http://127.0.0.1:8765',
   productCategory: 'LAUTSPRECHER',
