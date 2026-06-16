@@ -3,7 +3,24 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const sharp = require('sharp');
 const paths = require('../paths');
+const { isImagePath } = require('../generate/image-prep');
+const { enrichTemplateMeta, inferAccentMeta } = require('./template-accent');
+
+const DEFAULT_TEMPLATE_META = {
+  accent: 'yellow',
+  accentHex: '#FFD700',
+  textGold: '#c9a227',
+  stageHint: 'TELE-KOHLGRAF Werbevorlage mit Produktbühne und Footer',
+  textZones: {
+    brandName: { x: 80, y: 280, fontSize: 72, color: 'gold' },
+    seriesName: { x: 80, y: 360, fontSize: 28 },
+    tagline: { x: 80, y: 400, fontSize: 18 },
+  },
+  productStage: { x: 48, y: 200, width: 1440, height: 580 },
+  categories: ['TV', 'BEAMER', 'LEINWÄNDE', 'LAUTSPRECHER', 'AV-RECEIVER', 'SUBWOOFER', 'KINOSESSEL'],
+};
 
 function readJson(filePath, fallback) {
   try {
@@ -20,8 +37,8 @@ function writeJson(filePath, data) {
 
 class TemplateRegistry {
   constructor() {
-    this.systemMeta = readJson(path.join(paths.systemTemplatesDir(), 'templates.json'), { templates: [] });
     this.ensureUserRegistry();
+    fs.mkdirSync(paths.userTemplatesDir(), { recursive: true });
   }
 
   ensureUserRegistry() {
@@ -40,24 +57,15 @@ class TemplateRegistry {
   }
 
   resolveTemplatePath(template) {
-    if (template.type === 'system') {
-      return path.join(paths.systemTemplatesDir(), template.file);
-    }
     return path.join(paths.userTemplatesDir(), template.file);
   }
 
   listAll() {
-    const system = (this.systemMeta.templates || []).map((t) => ({
-      ...t,
-      type: 'system',
-      path: path.join(paths.systemTemplatesDir(), t.file),
-    }));
-    const user = (this.getUserRegistry().templates || []).map((t) => ({
+    return (this.getUserRegistry().templates || []).map((t) => enrichTemplateMeta({
       ...t,
       type: 'user',
       path: path.join(paths.userTemplatesDir(), t.file),
     }));
-    return [...system, ...user];
   }
 
   getById(id) {
@@ -84,6 +92,7 @@ class TemplateRegistry {
       textGold: source.textGold,
       stageHint: source.stageHint,
       textZones: source.textZones,
+      productStage: source.productStage,
       categories: source.categories,
       createdAt: new Date().toISOString(),
     };
@@ -93,22 +102,48 @@ class TemplateRegistry {
     return { ...entry, path: destPath };
   }
 
-  importFromFile(filePath, name) {
+  getDefaultTemplateMeta() {
+    return { ...DEFAULT_TEMPLATE_META };
+  }
+
+  async normalizeTemplateImage(sourcePath, destPath) {
+    await sharp(sourcePath)
+      .rotate()
+      .resize(1536, 1024, { fit: 'inside', withoutEnlargement: true })
+      .png()
+      .toFile(destPath);
+  }
+
+  async importFromFile(filePath, name) {
+    if (!filePath || !fs.existsSync(filePath)) {
+      throw new Error('Bilddatei nicht gefunden.');
+    }
+    if (!isImagePath(filePath)) {
+      throw new Error('Nur PNG, JPG oder WebP können als Vorlage importiert werden.');
+    }
+
+    const meta = this.getDefaultTemplateMeta();
+    const inferred = inferAccentMeta(name || path.basename(filePath));
+    const templateMeta = inferred ? { ...meta, ...inferred } : meta;
     const newId = `user-${crypto.randomUUID().slice(0, 8)}`;
     const fileName = `${newId}.png`;
     const destPath = path.join(paths.userTemplatesDir(), fileName);
-    fs.copyFileSync(filePath, destPath);
+    await this.normalizeTemplateImage(filePath, destPath);
+
     const entry = {
       id: newId,
-      name: name || path.basename(filePath, path.extname(filePath)),
+      name: (name || path.basename(filePath, path.extname(filePath))).trim() || 'Importierte Vorlage',
       file: fileName,
       type: 'user',
       parentId: null,
-      accent: 'blue',
-      accentHex: '#31b4f2',
-      textGold: '#c9a227',
-      stageHint: 'Imported template',
-      categories: ['TV', 'BEAMER', 'LEINWÄNDE', 'LAUTSPRECHER', 'AV-RECEIVER', 'SUBWOOFER', 'KINOSESSEL'],
+      accent: templateMeta.accent,
+      accentHex: templateMeta.accentHex,
+      textGold: templateMeta.textGold,
+      stageHint: templateMeta.stageHint,
+      textZones: templateMeta.textZones,
+      productStage: templateMeta.productStage,
+      categories: templateMeta.categories,
+      importedFrom: path.basename(filePath),
       createdAt: new Date().toISOString(),
     };
     const reg = this.getUserRegistry();
@@ -117,10 +152,22 @@ class TemplateRegistry {
     return { ...entry, path: destPath };
   }
 
+  async importFromPaths(filePaths, name) {
+    const valid = (filePaths || []).filter((p) => p && fs.existsSync(p) && isImagePath(p));
+    if (!valid.length) {
+      throw new Error('Keine gültigen Bilddateien zum Importieren.');
+    }
+    const imported = [];
+    for (let i = 0; i < valid.length; i++) {
+      imported.push(await this.importFromFile(valid[i], i === 0 ? name : undefined));
+    }
+    return imported;
+  }
+
   deleteUserTemplate(id) {
     const reg = this.getUserRegistry();
     const idx = reg.templates.findIndex((t) => t.id === id);
-    if (idx < 0) throw new Error('Benutzer-Vorlage nicht gefunden.');
+    if (idx < 0) throw new Error('Vorlage nicht gefunden.');
     const entry = reg.templates[idx];
     const filePath = path.join(paths.userTemplatesDir(), entry.file);
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
@@ -132,7 +179,7 @@ class TemplateRegistry {
   renameUserTemplate(id, name) {
     const reg = this.getUserRegistry();
     const entry = reg.templates.find((t) => t.id === id);
-    if (!entry) throw new Error('Benutzer-Vorlage nicht gefunden.');
+    if (!entry) throw new Error('Vorlage nicht gefunden.');
     entry.name = name;
     this.saveUserRegistry(reg);
     return entry;
@@ -146,4 +193,4 @@ class TemplateRegistry {
   }
 }
 
-module.exports = { TemplateRegistry };
+module.exports = { TemplateRegistry, DEFAULT_TEMPLATE_META };

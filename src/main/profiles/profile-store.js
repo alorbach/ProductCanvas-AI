@@ -5,7 +5,7 @@ const path = require('path');
 const paths = require('../paths');
 
 const DEFAULTS = {
-  templateId: 'blau',
+  templateId: '',
   mode: 'werbung',
   size: '1536x1024',
   quality: 'high',
@@ -16,8 +16,16 @@ const DEFAULTS = {
   tagline: '',
   extraPrompt: '',
   compositingMode: false,
+  mediaAnalysisEnabled: false,
   referenceImages: [],
   lastPreviewPath: '',
+  imagePrompt: '',
+  productDescription: '',
+  placementInstructions: '',
+  productAnalysis: '',
+  promptFingerprint: '',
+  preflightPrompt: '',
+  preflightFingerprint: '',
 };
 
 function readJson(filePath, fallback) {

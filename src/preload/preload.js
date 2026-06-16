@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('werbungMaker', {
   getBuildInfo: () => ipcRenderer.invoke('app:getBuildInfo'),
   bridgeGetStatus: () => ipcRenderer.invoke('bridge:getStatus'),
   bridgeEnsureReady: (code) => ipcRenderer.invoke('bridge:ensureReady', code),
+  bridgeRequirePaired: (code) => ipcRenderer.invoke('bridge:requirePaired', code),
   codexLogin: () => ipcRenderer.invoke('codex:login'),
   sessionGet: () => ipcRenderer.invoke('session:get'),
   sessionUpdate: (patch) => ipcRenderer.invoke('session:update', patch),
@@ -13,7 +14,10 @@ contextBridge.exposeInMainWorld('werbungMaker', {
   profileSaveDialog: (name) => ipcRenderer.invoke('profile:saveDialog', name),
   profileListRecent: () => ipcRenderer.invoke('profile:listRecent'),
   refsAddDialog: () => ipcRenderer.invoke('refs:addDialog'),
+  refsAddPaths: (paths) => ipcRenderer.invoke('refs:addPaths', paths),
   templatesList: () => ipcRenderer.invoke('templates:list'),
+  templatesImportDialog: () => ipcRenderer.invoke('templates:importDialog'),
+  templatesImportPaths: (opts) => ipcRenderer.invoke('templates:importPaths', opts),
   templatesClone: (opts) => ipcRenderer.invoke('templates:clone', opts),
   templatesDelete: (id) => ipcRenderer.invoke('templates:delete', id),
   templatesRename: (opts) => ipcRenderer.invoke('templates:rename', opts),
@@ -23,6 +27,7 @@ contextBridge.exposeInMainWorld('werbungMaker', {
   templatesAcceptEdit: () => ipcRenderer.invoke('templates:acceptEdit'),
   templatesRejectEdit: () => ipcRenderer.invoke('templates:rejectEdit'),
   generateBuildPrompt: (opts) => ipcRenderer.invoke('generate:buildPrompt', opts),
+  generateSuggestTagline: (opts) => ipcRenderer.invoke('generate:suggestTagline', opts),
   generateImage: (opts) => ipcRenderer.invoke('generate:image', opts),
   generateAbort: (key) => ipcRenderer.invoke('generate:abort', key),
   exportSavePng: (path) => ipcRenderer.invoke('export:savePng', path),
@@ -32,8 +37,16 @@ contextBridge.exposeInMainWorld('werbungMaker', {
   docsList: () => ipcRenderer.invoke('docs:list'),
   docsLoad: (id) => ipcRenderer.invoke('docs:load', id),
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
+  showItemInFolder: (filePath) => ipcRenderer.invoke('shell:showItemInFolder', filePath),
+  showContextMenu: (opts) => ipcRenderer.invoke('context:show', opts),
+  debugGetLog: () => ipcRenderer.invoke('debug:getLog'),
+  debugClear: () => ipcRenderer.invoke('debug:clear'),
   on: (channel, cb) => {
-    const allowed = ['session:loaded', 'session:saved', 'bridge:progress', 'job:progress', 'help:open', 'nav:template-editor', 'action:template-clone', 'action:template-delete', 'action:save-as', 'templates:updated', 'template:selected'];
+    const allowed = [
+      'session:loaded', 'session:saved', 'bridge:progress', 'job:progress',
+      'help:open', 'nav:template-editor', 'action:template-clone', 'action:template-delete',
+      'action:save-as', 'templates:updated', 'template:selected', 'action:template-import', 'debug:entry', 'debug:show',
+    ];
     if (allowed.includes(channel)) {
       ipcRenderer.on(channel, (_, data) => cb(data));
     }

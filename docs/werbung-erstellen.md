@@ -6,12 +6,15 @@
 
 Links sehen Sie alle System- und eigenen Vorlagen. Die **zuletzt verwendete** Vorlage ist vorausgewählt.
 
+**Eigene Vorlage importieren:** Button **Vorlage importieren**, Menü **Vorlagen → Importieren…**, oder PNG/JPG/WebP per Drag-and-Drop auf die Vorlagenliste ziehen. Importierte Vorlagen werden unter `%APPDATA%\WerbungMaker\templates\` gespeichert.
+
 Das Beispielbild zeigt das Ziel-Layout (Markenname, Serie, Tagline, Produkt auf Bühne).
 
 ### 2. Referenz-Produktbilder
 
-- **Bilder hinzufügen** – ein oder mehrere Produktfotos
+- **Bilder hinzufügen** – ein oder mehrere Produktfotos (per Dialog oder Drag-and-Drop)
 - Thumbnails können per × entfernt werden
+- Referenzbilder werden bei **Prompt erstellen** (Produktanalyse) und bei **Werbung generieren** (als Anhang an die Bridge) genutzt, damit das Produkt möglichst originalgetreu bleibt
 
 ### 3. Einstellungen
 
@@ -22,14 +25,17 @@ Das Beispielbild zeigt das Ziel-Layout (Markenname, Serie, Tagline, Produkt auf 
 | Produktkategorie | Footer-Icon wird hervorgehoben |
 | Markenname / Serie / Tagline | Nach Prompt-Erstellung editierbar |
 | Zusatz-Prompt | Optionale Hinweise an die KI |
+| **Produkt originalgetreu (Compositing)** | **Empfohlen:** Ihr Referenzfoto wird pixelgenau auf die Vorlage gelegt (kein KI-Neuziechnen). Ideal für Produktfotos auf schwarzem Hintergrund. |
 
 ### 4. Prompt erstellen
 
-Die KI analysiert Ihre Referenzbilder und erstellt einen strukturierten Bild-Prompt (Markenname, Platzierung, Footer-Highlight).
+Die KI analysiert Ihre Referenzbilder detailliert (Stückzahl, Treiber, Tweeter, Finish) und erstellt einen strukturierten Bild-Prompt mit strengen Regeln zur Produkt-Treue.
 
 ### 5. Werbung generieren
 
-Der Warte-Dialog zeigt den Fortschritt der Bridge. Nach Abschluss erscheint die Vorschau.
+Mit aktiviertem **Compositing** (Standard bei Referenzbildern) wird das Produktfoto direkt auf die Vorlage gelegt – schnell und originalgetreu. Ohne Compositing nutzt die App die KI mit Referenz-Anhang (kann Details leicht verändern).
+
+Der Warte-Dialog zeigt den Fortschritt. Nach Abschluss erscheint die Vorschau.
 
 ### 6. Export
 

@@ -29,17 +29,21 @@
   </div>
 
   <main id="view-werbung" class="view active">
-    <section class="panel templates-panel">
+    <section class="panel templates-panel" id="templates-panel">
       <h2 id="lbl-template">Vorlage</h2>
-      <div id="template-list" class="template-list"></div>
+      <p id="templates-import-hint" class="muted templates-import-hint"></p>
+      <div id="template-list" class="template-list templates-drop-zone"></div>
+      <button type="button" class="btn secondary btn-sm" id="btn-import-template">Vorlage importieren</button>
       <div class="example-thumb">
         <p id="lbl-example">So soll es aussehen (Beispiel)</p>
         <img id="example-image" alt="Beispiel" />
       </div>
     </section>
-    <section class="panel refs-panel">
+    <section class="panel refs-panel" id="refs-panel">
       <h2 id="lbl-refs">Referenz-Produktbilder</h2>
-      <div id="refs-list" class="refs-list"></div>
+      <p id="refs-drop-hint" class="refs-drop-hint muted">Bilder hierher ziehen oder Button nutzen</p>
+      <p id="refs-usage-hint" class="refs-usage-hint muted"></p>
+      <div id="refs-list" class="refs-list refs-drop-zone"></div>
       <button type="button" class="btn secondary" id="btn-add-refs">Bilder hinzufügen</button>
     </section>
     <section class="panel settings-panel">
@@ -60,9 +64,26 @@
       <label><span id="lbl-category">Produktkategorie</span>
         <select id="setting-category"></select>
       </label>
+      <label class="checkbox-row">
+        <input type="checkbox" id="setting-compositing">
+        <span id="lbl-compositing">Produkt originalgetreu (Compositing)</span>
+      </label>
+      <p id="compositing-hint" class="muted compositing-hint"></p>
+      <label class="checkbox-row">
+        <input type="checkbox" id="setting-media-analysis">
+        <span id="lbl-media-analysis">Produktbild-Analyse (media_analysis)</span>
+      </label>
+      <p id="media-analysis-hint" class="muted compositing-hint"></p>
       <label><span id="lbl-brand">Markenname</span><input type="text" id="setting-brand"></label>
       <label><span id="lbl-series">Serie</span><input type="text" id="setting-series"></label>
-      <label><span id="lbl-tagline">Werbetext (Tagline)</span><input type="text" id="setting-tagline"></label>
+      <label><span id="lbl-tagline">Werbetext (Tagline)</span>
+        <div class="input-with-action">
+          <input type="text" id="setting-tagline">
+          <button type="button" class="btn-icon" id="btn-suggest-tagline" title="KI-Vorschlag">
+            <svg class="ai-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2l1.2 4.2L17.5 7.5 13.2 8.7 12 13l-1.2-4.3L6.5 7.5l4.3-1.3L12 2zm7 9l.8 2.8L22.5 15l-2.7.8L19 18.5l-.8-2.7L15.5 15l2.7-.8L19 11zm-14 1l.6 2.1L7.5 15l-2.1.6L5 17.7l-.6-2.1L2.3 15l2.1-.6L5 12.3z"/></svg>
+          </button>
+        </div>
+      </label>
       <label><span id="lbl-extra">Zusatz-Prompt</span><textarea id="setting-extra" rows="3"></textarea></label>
       <details class="prompt-details">
         <summary id="lbl-prompt-image">Bild-Prompt</summary>
@@ -76,7 +97,7 @@
     <section class="panel preview-panel">
       <h2 id="lbl-preview">Vorschau</h2>
       <div class="preview-wrap">
-        <img id="preview-image" alt="Vorschau" class="hidden" />
+        <img id="preview-image" alt="Vorschau" class="hidden preview-clickable" title="" />
         <p id="preview-empty" class="muted">Noch keine Vorschau.</p>
       </div>
       <button type="button" class="btn secondary hidden" id="btn-export">Als PNG speichern</button>
@@ -121,6 +142,12 @@
     <article class="help-content" id="help-content"></article>
   </main>
 
+  <div id="preview-lightbox" class="preview-lightbox hidden" role="dialog" aria-modal="true" aria-labelledby="preview-lightbox-hint">
+    <button type="button" class="preview-lightbox-close" id="preview-lightbox-close" aria-label="Schließen">×</button>
+    <img id="preview-lightbox-image" alt="Vorschau Vollbild" />
+    <p id="preview-lightbox-hint" class="preview-lightbox-hint">Klicken oder Esc zum Schließen</p>
+  </div>
+
   <dialog id="wait-dialog">
     <h2 id="wait-title">Bitte warten</h2>
     <p id="wait-status">Generierung läuft…</p>
@@ -128,6 +155,17 @@
     <pre id="wait-output" class="wait-output"></pre>
     <button type="button" class="btn secondary" id="btn-wait-cancel">Abbrechen</button>
   </dialog>
+
+  <aside id="debug-panel" class="debug-panel collapsed">
+    <header class="debug-header">
+      <button type="button" id="debug-toggle" class="debug-toggle">▸ Debug-Log</button>
+      <div class="debug-actions">
+        <button type="button" class="btn secondary btn-sm" id="btn-debug-copy">Kopieren</button>
+        <button type="button" class="btn secondary btn-sm" id="btn-debug-clear">Leeren</button>
+      </div>
+    </header>
+    <pre id="debug-log-output" class="debug-log-output"></pre>
+  </aside>
 
   <script type="module" src="app.js"></script>
 </body>

@@ -4,6 +4,7 @@ const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron')
 const path = require('path');
 const fs = require('fs');
 const { BridgeManager } = require('./bridge/bridge-manager');
+const { subscribeBridgeJobProgress } = require('./bridge/bridge-job-progress');
 const { CodexManager } = require('./bridge/codex-manager');
 const { TemplateRegistry } = require('./templates/template-registry');
 const { TemplateEditorService } = require('./templates/template-editor-service');
@@ -12,6 +13,9 @@ const { PromptBuilder } = require('./generate/prompt-builder');
 const { ImagePipeline } = require('./generate/image-pipeline');
 const { DocLoader } = require('./docs/doc-loader');
 const paths = require('./paths');
+const debugLog = require('./debug/logger');
+const { isImagePath } = require('./generate/image-prep');
+const { collectReferencePaths } = require('./generate/image-request');
 
 let mainWindow = null;
 let bridgeManager;
@@ -65,6 +69,17 @@ function send(channel, data) {
   }
 }
 
+async function importTemplateFiles(filePaths, name) {
+  const imported = await templateRegistry.importFromPaths(filePaths, name);
+  if (imported.length && session) {
+    session.templateId = imported[imported.length - 1].id;
+    scheduleAutosave();
+    send('session:loaded', session);
+  }
+  send('templates:updated', templateRegistry.listAll());
+  return imported;
+}
+
 function buildMenu() {
   const recent = profileStore.listRecent();
   const recentSubmenu = recent.length
@@ -92,14 +107,12 @@ function buildMenu() {
           label: 'Importieren…',
           click: async () => {
             const r = await dialog.showOpenDialog(mainWindow, {
-              filters: [{ name: 'PNG', extensions: ['png'] }],
-              properties: ['openFile'],
+              filters: [{ name: 'Bilder', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
+              properties: ['openFile', 'multiSelections'],
             });
-            if (!r.canceled && r.filePaths[0]) {
+            if (!r.canceled && r.filePaths.length) {
               try {
-                const t = templateRegistry.importFromFile(r.filePaths[0]);
-                send('templates:updated', templateRegistry.listAll());
-                send('template:selected', t.id);
+                await importTemplateFiles(r.filePaths);
               } catch (err) {
                 dialog.showErrorBox('Fehler', err.message);
               }
@@ -115,6 +128,8 @@ function buildMenu() {
         { label: 'Erste Schritte', click: () => send('help:open', 'einrichtung') },
         { label: 'Benutzerhandbuch', click: () => send('help:open', 'benutzerhandbuch') },
         { label: 'Vorlagen bearbeiten', click: () => send('help:open', 'vorlagen-bearbeiten') },
+        { type: 'separator' },
+        { label: 'Debug-Log anzeigen', click: () => send('debug:show', {}) },
         { type: 'separator' },
         {
           label: 'Über WerbungMaker…',
@@ -189,12 +204,21 @@ function buildMenu() {
 function registerIpc() {
   ipcMain.handle('app:getBuildInfo', () => getBuildInfo());
 
-  ipcMain.handle('bridge:getStatus', async () => bridgeManager.checkStatus());
+  ipcMain.handle('bridge:getStatus', async () => bridgeManager.getFullStatus());
 
   ipcMain.handle('bridge:ensureReady', async (_, pairingCode) => {
     const onProgress = (p) => send('bridge:progress', p);
     await codexManager.ensureInstalled(onProgress);
     return bridgeManager.ensureReady(pairingCode, onProgress);
+  });
+
+  ipcMain.handle('bridge:requirePaired', async (_, pairingCode) => {
+    try {
+      return await bridgeManager.requirePaired(pairingCode);
+    } catch (err) {
+      debugLog.warn('main', 'Bridge-Pairing erforderlich', { message: err.message, origin: err.origin });
+      throw err;
+    }
   });
 
   ipcMain.handle('codex:login', async () => codexManager.startLogin());
@@ -233,7 +257,25 @@ function registerIpc() {
     return r.canceled ? [] : r.filePaths.map((p) => ({ path: p, name: path.basename(p) }));
   });
 
+  ipcMain.handle('refs:addPaths', (_, filePaths) => {
+    const valid = (filePaths || []).filter((p) => p && fs.existsSync(p) && isImagePath(p));
+    return valid.map((p) => ({ path: p, name: path.basename(p) }));
+  });
+
   ipcMain.handle('templates:list', () => templateRegistry.listAll());
+
+  ipcMain.handle('templates:importDialog', async () => {
+    const r = await dialog.showOpenDialog(mainWindow, {
+      filters: [{ name: 'Bilder', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
+      properties: ['openFile', 'multiSelections'],
+    });
+    if (r.canceled) return [];
+    return importTemplateFiles(r.filePaths);
+  });
+
+  ipcMain.handle('templates:importPaths', async (_, { paths: filePaths, name }) => {
+    return importTemplateFiles(filePaths || [], name);
+  });
 
   ipcMain.handle('templates:clone', (_, { sourceId, name }) => templateRegistry.clone(sourceId, name));
 
@@ -248,12 +290,14 @@ function registerIpc() {
     return templateRegistry.imageToDataUrl(p);
   });
 
-  ipcMain.handle('templates:optimizePrompt', async (_, { templateId, changeRequest }, evt) => {
+  ipcMain.handle('templates:optimizePrompt', async (_, { templateId, changeRequest, pairingCode }) => {
+    await bridgeManager.requirePaired(pairingCode);
     const signalKey = `edit-${Date.now()}`;
     return templateEditor.optimizePrompt(templateId, changeRequest, signalKey);
   });
 
-  ipcMain.handle('templates:applyEdit', async (_, { settings, optimizedPrompt }) => {
+  ipcMain.handle('templates:applyEdit', async (_, { settings, optimizedPrompt, pairingCode }) => {
+    await bridgeManager.requirePaired(pairingCode);
     const signalKey = `apply-${Date.now()}`;
     const onProgress = (p) => send('job:progress', p);
     return templateEditor.applyEdit(settings, optimizedPrompt, onProgress, signalKey);
@@ -262,16 +306,42 @@ function registerIpc() {
   ipcMain.handle('templates:acceptEdit', () => templateEditor.acceptEdit());
   ipcMain.handle('templates:rejectEdit', () => templateEditor.rejectEdit());
 
-  ipcMain.handle('generate:buildPrompt', async (_, options) => {
+  ipcMain.handle('generate:buildPrompt', async (_, options = {}) => {
+    const { pairingCode, ...promptOpts } = options;
     const signalKey = `prompt-${Date.now()}`;
     const onProgress = (p) => send('job:progress', p);
-    send('job:progress', { status: 'running', message: 'Prompt wird erstellt…' });
-    const result = await promptBuilder.buildWerbungPrompt(options, signalKey);
-    send('job:progress', { status: 'completed' });
-    return result;
+    const unsubscribe = subscribeBridgeJobProgress(bridgeManager.getClient(), onProgress);
+    try {
+      await bridgeManager.requirePaired(pairingCode);
+      const result = await promptBuilder.buildWerbungPrompt(promptOpts, signalKey, onProgress);
+      send('job:progress', { status: 'completed', messageKey: 'wait.status.completed' });
+      return result;
+    } catch (err) {
+      debugLog.error('main', 'generate:buildPrompt fehlgeschlagen', { message: err.message, details: err.details });
+      throw err;
+    } finally {
+      unsubscribe();
+    }
   });
 
-  ipcMain.handle('generate:image', async (_, { promptData, settings }) => {
+  ipcMain.handle('generate:suggestTagline', async (_, options = {}) => {
+    const { pairingCode, ...taglineOpts } = options;
+    const signalKey = `tagline-${Date.now()}`;
+    try {
+      await bridgeManager.requirePaired(pairingCode);
+      return await promptBuilder.suggestTagline(taglineOpts, signalKey);
+    } catch (err) {
+      debugLog.error('main', 'generate:suggestTagline fehlgeschlagen', { message: err.message });
+      throw err;
+    }
+  });
+
+  ipcMain.handle('generate:image', async (_, { promptData, settings, pairingCode }) => {
+    const useCompositing = settings?.compositingMode === true
+      && collectReferencePaths(settings?.referenceImages).length > 0;
+    if (!useCompositing) {
+      await bridgeManager.requirePaired(pairingCode);
+    }
     const signalKey = `image-${Date.now()}`;
     const onProgress = (p) => send('job:progress', p);
     return imagePipeline.generateImage(promptData, settings, onProgress, signalKey);
@@ -320,6 +390,50 @@ function registerIpc() {
   ipcMain.handle('docs:load', (_, id) => docLoader.load(id));
 
   ipcMain.handle('shell:openExternal', (_, url) => shell.openExternal(url));
+
+  ipcMain.handle('shell:showItemInFolder', (_, filePath) => {
+    if (filePath && fs.existsSync(filePath)) {
+      shell.showItemInFolder(filePath);
+      return true;
+    }
+    return false;
+  });
+
+  ipcMain.handle('context:show', async (event, { x, y, items }) => {
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (id) => {
+        if (settled) return;
+        settled = true;
+        resolve(id ?? null);
+      };
+
+      const template = (items || []).map((entry) => {
+        if (entry.separator) {
+          return { type: 'separator' };
+        }
+        return {
+          label: entry.label || '',
+          enabled: entry.enabled !== false,
+          click: () => finish(entry.id),
+        };
+      });
+
+      const menu = Menu.buildFromTemplate(template);
+      menu.popup({
+        window: BrowserWindow.fromWebContents(event.sender),
+        x: Math.round(x),
+        y: Math.round(y),
+        callback: () => finish(null),
+      });
+    });
+  });
+
+  ipcMain.handle('debug:getLog', () => debugLog.getLog());
+  ipcMain.handle('debug:clear', () => {
+    debugLog.clear();
+    return { success: true };
+  });
 }
 
 app.whenReady().then(() => {
@@ -329,10 +443,11 @@ app.whenReady().then(() => {
   profileStore = new ProfileStore();
   const client = bridgeManager.getClient();
   promptBuilder = new PromptBuilder(client, templateRegistry);
-  imagePipeline = new ImagePipeline(client);
+  imagePipeline = new ImagePipeline(client, templateRegistry);
   templateEditor = new TemplateEditorService(client, templateRegistry, imagePipeline);
   docLoader = new DocLoader();
   session = profileStore.loadSession();
+  debugLog.setBroadcast((entry) => send('debug:entry', entry));
   registerIpc();
   createWindow();
 

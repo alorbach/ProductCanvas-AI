@@ -4,7 +4,6 @@ const fs = require('fs');
 const path = require('path');
 
 const root = path.join(__dirname, '..');
-const templatesDir = path.join(root, 'assets', 'templates');
 const examplesDir = path.join(root, 'assets', 'examples');
 
 async function ensurePng(filePath, accent) {
@@ -32,10 +31,7 @@ async function ensurePng(filePath, accent) {
 }
 
 async function main() {
-  fs.mkdirSync(templatesDir, { recursive: true });
   fs.mkdirSync(examplesDir, { recursive: true });
-  await ensurePng(path.join(templatesDir, 'Vorlage-gelb.png'), 'yellow');
-  await ensurePng(path.join(templatesDir, 'Vorlage-blau.png'), 'blue');
   const examplePath = path.join(examplesDir, 'Beispiel-Martin-Logan.png');
   if (!fs.existsSync(examplePath)) {
     await ensurePng(examplePath, 'blue');

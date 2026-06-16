@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const https = require('https');
-const { BridgeClient, DEFAULT_BRIDGE_URL } = require('./bridge-client');
+const { BridgeClient, APP_ORIGIN, DEFAULT_BRIDGE_URL } = require('./bridge-client');
 const paths = require('../paths');
 
 const GITHUB_RELEASES = 'https://api.github.com/repos/alorbach/codex-local-bridge/releases/latest';
@@ -64,6 +64,40 @@ class BridgeManager {
     } catch {
       return { running: false, ready: false, status: null };
     }
+  }
+
+  originListedAsPaired(status) {
+    const origins = status?.bridge?.paired_origins || [];
+    return origins.includes(this.client.origin);
+  }
+
+  async isPaired(statusResponse) {
+    if (this.originListedAsPaired(statusResponse)) {
+      return true;
+    }
+    if (!this.client.token) {
+      return false;
+    }
+    try {
+      await this.client.validatePairing();
+      return true;
+    } catch (err) {
+      if (BridgeClient.isPairingError(err)) {
+        this.client.clearToken();
+      }
+      return false;
+    }
+  }
+
+  async getFullStatus() {
+    const check = await this.checkStatus();
+    const paired = check.running ? await this.isPaired(check.status) : false;
+    return {
+      ...check,
+      paired,
+      hasToken: !!this.client.token,
+      origin: this.client.origin,
+    };
   }
 
   findBridgeExe() {
@@ -146,22 +180,78 @@ class BridgeManager {
         message: check.status?.message || 'Codex CLI ist nicht bereit. Bitte codex login ausführen.',
         needsCodexLogin: true,
         status: check.status,
+        origin: this.client.origin,
       };
     }
-    if (!this.client.token && pairingCode) {
+
+    const code = String(pairingCode || '').trim();
+    let paired = await this.isPaired(check.status);
+
+    if (!paired && code) {
       onProgress?.({ step: 'pair', message: 'Verbinde mit Bridge…' });
-      await this.client.pair(pairingCode);
+      try {
+        await this.client.pair(code);
+        check = await this.checkStatus();
+        paired = await this.isPaired(check.status);
+      } catch (err) {
+        return {
+          success: false,
+          message: err.message || 'Pairing fehlgeschlagen. Prüfen Sie den 6-stelligen Code im Bridge-Tray.',
+          needsPairing: true,
+          status: check.status,
+          origin: this.client.origin,
+        };
+      }
     }
-    if (!this.client.token) {
+
+    if (!paired) {
       return {
         success: false,
-        message: 'Pairing-Code erforderlich. Code aus dem Bridge-Tray-Menü eingeben.',
+        message: 'Pairing-Code erforderlich. Öffnen Sie das Tray-Menü der Codex Local Bridge und geben Sie den 6-stelligen Code ein.',
         needsPairing: true,
         status: check.status,
+        origin: this.client.origin,
       };
     }
-    return { success: true, status: check.status };
+
+    return { success: true, status: check.status, origin: this.client.origin };
+  }
+
+  pairingRequiredError() {
+    const err = new Error(
+      'Diese App ist noch nicht mit der Codex Local Bridge verbunden. Bitte den Pairing-Code aus dem Bridge-Tray eingeben und auf Verbinden klicken.',
+    );
+    err.needsPairing = true;
+    err.origin = this.client.origin;
+    return err;
+  }
+
+  async requirePaired(pairingCode) {
+    const status = await this.getFullStatus();
+    if (!status.running || !status.ready) {
+      const ready = await this.ensureReady(pairingCode);
+      if (!ready.success) {
+        const err = new Error(ready.message);
+        err.needsPairing = !!ready.needsPairing;
+        err.needsCodexLogin = !!ready.needsCodexLogin;
+        err.origin = ready.origin;
+        throw err;
+      }
+      return ready;
+    }
+    if (!status.paired) {
+      const code = String(pairingCode || '').trim();
+      if (!code) {
+        throw this.pairingRequiredError();
+      }
+      await this.client.pair(code);
+      const paired = await this.isPaired((await this.checkStatus()).status);
+      if (!paired) {
+        throw this.pairingRequiredError();
+      }
+    }
+    return { success: true };
   }
 }
 
-module.exports = { BridgeManager, DEFAULT_BRIDGE_URL };
+module.exports = { BridgeManager, APP_ORIGIN, DEFAULT_BRIDGE_URL };

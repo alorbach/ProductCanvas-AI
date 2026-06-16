@@ -3,6 +3,8 @@
 const fs = require('fs');
 const path = require('path');
 const paths = require('../paths');
+const debugLog = require('../debug/logger');
+const { prepareBridgeFrame, frameByteSize } = require('../generate/image-prep');
 
 function extractJson(text) {
   const match = text.match(/\{[\s\S]*\}/);
@@ -30,7 +32,11 @@ class TemplateEditorService {
     const template = this.registry.getById(templateId);
     if (!template) throw new Error('Vorlage nicht gefunden.');
     const templatePath = this.registry.resolveTemplatePath(template);
-    const frame = this.registry.imageToDataUrl(templatePath);
+    const frame = await prepareBridgeFrame(templatePath);
+    debugLog.info('template-editor', 'Vorlage für Analyse vorbereitet', {
+      path: templatePath,
+      frameBytes: frameByteSize(frame),
+    });
 
     const analyzeResult = await this.client.mediaAnalyze({
       model: 'codex-local:auto',
@@ -109,19 +115,11 @@ Antworte NUR mit JSON:
     const template = this.registry.getById(this.pendingEdit.templateId);
     if (!template) throw new Error('Vorlage nicht gefunden.');
 
-    let targetPath;
-    let targetId = template.id;
-
-    if (template.type === 'system') {
-      const cloned = this.registry.clone(template.id, `${template.name} – bearbeitet`);
-      targetPath = cloned.path;
-      targetId = cloned.id;
-    } else {
-      targetPath = this.registry.resolveTemplatePath(template);
-      const historyDir = paths.userTemplatesHistoryDir(template.id);
-      const histFile = path.join(historyDir, `${Date.now()}.png`);
-      fs.copyFileSync(targetPath, histFile);
-    }
+    let targetPath = this.registry.resolveTemplatePath(template);
+    const targetId = template.id;
+    const historyDir = paths.userTemplatesHistoryDir(template.id);
+    const histFile = path.join(historyDir, `${Date.now()}.png`);
+    fs.copyFileSync(targetPath, histFile);
 
     fs.copyFileSync(this.pendingEdit.previewPath, targetPath);
     const accepted = { templateId: targetId, path: targetPath };

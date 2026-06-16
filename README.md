@@ -14,7 +14,7 @@ Desktop-Anwendung für **TELE-KOHLGRAF** zur Erstellung von Produktwerbebildern 
 
 - Windows 10+
 - Node.js 20+
-- Optional für KI: Codex CLI + Codex Local Bridge
+- Optional für KI: Codex CLI + Codex Local Bridge **≥ 1.0.4** (Referenzbilder bei `/v1/images`)
 
 ## Installation & Start
 
