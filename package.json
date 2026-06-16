@@ -1,0 +1,49 @@
+{
+  "name": "werbungmaker",
+  "version": "1.0.0",
+  "description": "TELE-KOHLGRAF Werbebild-Generator mit KI über Codex Local Bridge",
+  "private": true,
+  "main": "src/main/main.js",
+  "scripts": {
+    "postinstall": "node scripts/generate-placeholders.js",
+    "icons": "node scripts/generate-icons.js",
+    "start": "electron .",
+    "test": "node test/basic.test.js",
+    "dist:win": "npm run icons && node scripts/build-win.js"
+  },
+  "author": "TELE-KOHLGRAF",
+  "license": "GPL-2.0-or-later",
+  "dependencies": {
+    "sharp": "^0.33.5"
+  },
+  "devDependencies": {
+    "electron": "^42.4.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "de.tele-kohlgraf.werbungmaker",
+    "productName": "WerbungMaker",
+    "artifactName": "WerbungMaker-${version}-${os}-${arch}.${ext}",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "docs/**/*",
+      "package.json"
+    ],
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

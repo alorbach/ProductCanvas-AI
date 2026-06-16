@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.build/build-number
+src/build-info.json
+*.log
+.DS_Store
+Thumbs.db

@@ -1,0 +1,38 @@
+{
+  "templates": [
+    {
+      "id": "gelb",
+      "name": "Vorlage Gelb",
+      "file": "Vorlage-gelb.png",
+      "type": "system",
+      "accent": "yellow",
+      "accentHex": "#FFD700",
+      "textGold": "#c9a227",
+      "stageHint": "Dark concrete showroom stage with glowing yellow neon side bars and floor mist",
+      "exampleReference": "Beispiel-Martin-Logan.png",
+      "textZones": {
+        "brandName": { "x": 80, "y": 280, "fontSize": 72, "color": "gold" },
+        "seriesName": { "x": 80, "y": 360, "fontSize": 28 },
+        "tagline": { "x": 80, "y": 400, "fontSize": 18 }
+      },
+      "categories": ["TV", "BEAMER", "LEINWÄNDE", "LAUTSPRECHER", "AV-RECEIVER", "SUBWOOFER", "KINOSESSEL"]
+    },
+    {
+      "id": "blau",
+      "name": "Vorlage Blau",
+      "file": "Vorlage-blau.png",
+      "type": "system",
+      "accent": "blue",
+      "accentHex": "#31b4f2",
+      "textGold": "#c9a227",
+      "stageHint": "Dark concrete showroom with blue neon side bars and floor mist",
+      "exampleReference": "Beispiel-Martin-Logan.png",
+      "textZones": {
+        "brandName": { "x": 80, "y": 280, "fontSize": 72, "color": "gold" },
+        "seriesName": { "x": 80, "y": 360, "fontSize": 28 },
+        "tagline": { "x": 80, "y": 400, "fontSize": 18 }
+      },
+      "categories": ["TV", "BEAMER", "LEINWÄNDE", "LAUTSPRECHER", "AV-RECEIVER", "SUBWOOFER", "KINOSESSEL"]
+    }
+  ]
+}

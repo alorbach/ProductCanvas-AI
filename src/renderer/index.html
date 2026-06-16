@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:;">
+  <title>WerbungMaker</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <h1 id="app-title">WerbungMaker</h1>
+      <p id="app-subtitle">TELE-KOHLGRAF – Werbebild-Generator</p>
+    </div>
+    <nav class="main-nav">
+      <button type="button" class="nav-btn active" data-mode="werbung" id="nav-werbung">Werbung erstellen</button>
+      <button type="button" class="nav-btn" data-mode="templates" id="nav-templates">Vorlagen bearbeiten</button>
+      <button type="button" class="nav-btn" data-mode="help" id="nav-help">Hilfe</button>
+    </nav>
+    <div class="bridge-status" id="bridge-status" title="Bridge-Status">●</div>
+  </header>
+
+  <div id="setup-banner" class="setup-banner hidden">
+    <span id="setup-message">Codex Local Bridge wird eingerichtet…</span>
+    <input type="text" id="pairing-code" placeholder="Pairing-Code (6 Ziffern)" maxlength="6" pattern="[0-9]*">
+    <button type="button" id="btn-bridge-connect">Verbinden</button>
+    <button type="button" id="btn-codex-login">Codex anmelden</button>
+  </div>
+
+  <main id="view-werbung" class="view active">
+    <section class="panel templates-panel">
+      <h2 id="lbl-template">Vorlage</h2>
+      <div id="template-list" class="template-list"></div>
+      <div class="example-thumb">
+        <p id="lbl-example">So soll es aussehen (Beispiel)</p>
+        <img id="example-image" alt="Beispiel" />
+      </div>
+    </section>
+    <section class="panel refs-panel">
+      <h2 id="lbl-refs">Referenz-Produktbilder</h2>
+      <div id="refs-list" class="refs-list"></div>
+      <button type="button" class="btn secondary" id="btn-add-refs">Bilder hinzufügen</button>
+    </section>
+    <section class="panel settings-panel">
+      <h2 id="lbl-settings">Einstellungen</h2>
+      <label><span id="lbl-size">Bildauflösung</span>
+        <select id="setting-size">
+          <option value="1024x1024">1024×1024</option>
+          <option value="1536x1024" selected>1536×1024</option>
+          <option value="1024x1536">1024×1536</option>
+        </select>
+      </label>
+      <label><span id="lbl-quality">Qualität</span>
+        <select id="setting-quality">
+          <option value="standard">Standard</option>
+          <option value="high" selected>Hoch</option>
+        </select>
+      </label>
+      <label><span id="lbl-category">Produktkategorie</span>
+        <select id="setting-category"></select>
+      </label>
+      <label><span id="lbl-brand">Markenname</span><input type="text" id="setting-brand"></label>
+      <label><span id="lbl-series">Serie</span><input type="text" id="setting-series"></label>
+      <label><span id="lbl-tagline">Werbetext (Tagline)</span><input type="text" id="setting-tagline"></label>
+      <label><span id="lbl-extra">Zusatz-Prompt</span><textarea id="setting-extra" rows="3"></textarea></label>
+      <details class="prompt-details">
+        <summary id="lbl-prompt-image">Bild-Prompt</summary>
+        <textarea id="prompt-image" rows="6" readonly></textarea>
+      </details>
+      <div class="actions">
+        <button type="button" class="btn secondary" id="btn-build-prompt">Prompt erstellen</button>
+        <button type="button" class="btn primary" id="btn-generate">Werbung generieren</button>
+      </div>
+    </section>
+    <section class="panel preview-panel">
+      <h2 id="lbl-preview">Vorschau</h2>
+      <div class="preview-wrap">
+        <img id="preview-image" alt="Vorschau" class="hidden" />
+        <p id="preview-empty" class="muted">Noch keine Vorschau.</p>
+      </div>
+      <button type="button" class="btn secondary hidden" id="btn-export">Als PNG speichern</button>
+    </section>
+  </main>
+
+  <main id="view-templates" class="view">
+    <section class="panel full">
+      <h2>Vorlagen-Editor</h2>
+      <div id="editor-template-list" class="template-list horizontal"></div>
+      <div class="editor-workspace">
+        <div class="editor-col">
+          <h3 id="lbl-original">Original</h3>
+          <img id="editor-original" alt="Original" />
+        </div>
+        <div class="editor-controls">
+          <label><span id="lbl-change">Änderungswunsch</span>
+            <textarea id="change-request" rows="4" placeholder="z. B. Neon-Rahmen von blau auf rot…"></textarea>
+          </label>
+          <button type="button" class="btn secondary" id="btn-optimize-prompt">Prompt optimieren</button>
+          <label><span id="lbl-opt-prompt">Optimierter Prompt</span>
+            <textarea id="optimized-prompt" rows="6"></textarea>
+          </label>
+          <p id="change-summary" class="muted"></p>
+          <button type="button" class="btn primary" id="btn-apply-edit">Änderung anwenden</button>
+          <div class="accept-row hidden" id="accept-row">
+            <button type="button" class="btn primary" id="btn-accept">Änderung akzeptieren</button>
+            <button type="button" class="btn danger" id="btn-reject">Änderung verwerfen</button>
+          </div>
+        </div>
+        <div class="editor-col">
+          <h3 id="lbl-ki-preview">KI-Vorschau</h3>
+          <img id="editor-preview" alt="KI-Vorschau" class="hidden" />
+          <p id="editor-preview-empty" class="muted">Noch keine KI-Vorschau.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <main id="view-help" class="view">
+    <aside class="help-sidebar" id="help-sidebar"></aside>
+    <article class="help-content" id="help-content"></article>
+  </main>
+
+  <dialog id="wait-dialog">
+    <h2 id="wait-title">Bitte warten</h2>
+    <p id="wait-status">Generierung läuft…</p>
+    <p id="wait-elapsed" class="muted"></p>
+    <pre id="wait-output" class="wait-output"></pre>
+    <button type="button" class="btn secondary" id="btn-wait-cancel">Abbrechen</button>
+  </dialog>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
