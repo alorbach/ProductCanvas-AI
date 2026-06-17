@@ -12,6 +12,7 @@ const {
   normalizeQuality,
   resolveImageGenerationSettings,
   resolveOutputSize,
+  shouldOfferTemplate2x,
 } = require(path.join(root, 'src', 'main', 'generate', 'image-settings'));
 
 assert(GATEWAY_IMAGE_SIZES.includes('1536x1024'), 'gateway sizes include 1536x1024');
@@ -46,5 +47,9 @@ const resolved2x = resolveImageGenerationSettings(
 );
 assert.equal(resolved2x.size, '2730x2048', 'resolved template2x payload size');
 assert.equal(resolved2x.sizeMode, 'template2x', 'resolved template2x size mode');
+
+assert.equal(shouldOfferTemplate2x({ width: 1365, height: 1024 }), true, 'small template offers 2x');
+assert.equal(shouldOfferTemplate2x({ width: 2730, height: 2048 }), false, 'large template hides 2x');
+assert.equal(shouldOfferTemplate2x({ width: 5460, height: 4096 }), false, 'very large template hides 2x');
 
 console.log('All image-settings tests passed.');

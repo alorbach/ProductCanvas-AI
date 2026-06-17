@@ -73,13 +73,20 @@ class TemplateRegistry {
 
   async getDimensions(template) {
     if (!template) return null;
+    const filePath = this.resolveTemplatePath(template);
+    const fileDims = await this.readTemplateDimensions(filePath);
+    if (fileDims?.width && fileDims?.height) {
+      if (template.width !== fileDims.width || template.height !== fileDims.height) {
+        this.persistTemplateDimensions(template.id, fileDims);
+        template.width = fileDims.width;
+        template.height = fileDims.height;
+      }
+      return fileDims;
+    }
     if (template.width > 0 && template.height > 0) {
       return { width: template.width, height: template.height };
     }
-    const dims = await this.readTemplateDimensions(this.resolveTemplatePath(template));
-    if (!dims) return null;
-    this.persistTemplateDimensions(template.id, dims);
-    return dims;
+    return null;
   }
 
   persistTemplateDimensions(id, dims) {

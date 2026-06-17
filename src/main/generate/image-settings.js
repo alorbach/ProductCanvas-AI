@@ -21,6 +21,10 @@ const SIZE_FROM_TEMPLATE_2X = 'template2x';
 
 const DEFAULT_FALLBACK_SIZE = '1536x1024';
 
+/** Hide „Vorlage ×2“ when the native template is already large enough for export. */
+const TEMPLATE_2X_MAX_NATIVE_EDGE = 1920;
+const TEMPLATE_2X_MAX_OUTPUT_EDGE = 4096;
+
 function normalizeQuality(quality) {
   const q = String(quality || '').trim().toLowerCase();
   if (q === 'standard') return 'medium';
@@ -136,12 +140,23 @@ function resolveImageGenerationSettings(settings, templateDimensions) {
   };
 }
 
+function shouldOfferTemplate2x(dimensions) {
+  const width = Number(dimensions?.width || 0);
+  const height = Number(dimensions?.height || 0);
+  if (!width || !height) return true;
+  if (Math.max(width, height) >= TEMPLATE_2X_MAX_NATIVE_EDGE) return false;
+  if (Math.max(width * 2, height * 2) > TEMPLATE_2X_MAX_OUTPUT_EDGE) return false;
+  return true;
+}
+
 function getImageSettingsCatalog() {
   return {
     sizes: [...GATEWAY_IMAGE_SIZES],
     qualities: [...IMAGE_QUALITIES],
     sizeFromTemplate: SIZE_FROM_TEMPLATE,
     sizeFromTemplate2x: SIZE_FROM_TEMPLATE_2X,
+    template2xMaxNativeEdge: TEMPLATE_2X_MAX_NATIVE_EDGE,
+    template2xMaxOutputEdge: TEMPLATE_2X_MAX_OUTPUT_EDGE,
     defaultSize: SIZE_FROM_TEMPLATE,
     defaultQuality: 'high',
   };
@@ -153,6 +168,8 @@ module.exports = {
   IMAGE_QUALITIES,
   SIZE_FROM_TEMPLATE,
   SIZE_FROM_TEMPLATE_2X,
+  TEMPLATE_2X_MAX_NATIVE_EDGE,
+  TEMPLATE_2X_MAX_OUTPUT_EDGE,
   aspectLabel,
   formatSizeLabel,
   getImageSettingsCatalog,
@@ -160,4 +177,5 @@ module.exports = {
   normalizeSize,
   resolveImageGenerationSettings,
   resolveOutputSize,
+  shouldOfferTemplate2x,
 };

@@ -19,6 +19,7 @@ let editorOutputSize = 'template';
 let editorReferenceImage = null;
 let waitStart = 0;
 let waitTimer = null;
+let currentWaitContext = null;
 let openLightbox = () => {};
 let openEditorCompare = () => {};
 let suppressTemplateClick = false;
@@ -183,7 +184,7 @@ async function ensureBridgeReady() {
     return false;
   }
 
-  showWait(t('bridge.setup.title'));
+  showWait(t('bridge.setup.title'), waitContextForBridge(message));
   const result = await api.bridgeEnsureReady(code);
   hideWait();
   if (!result.success) {
@@ -745,7 +746,7 @@ async function connectBridgeFromUi() {
     return false;
   }
   try {
-    showWait(t('bridge.setup.title'));
+    showWait(t('bridge.setup.title'), waitContextForBridge(t('bridge.setup.title')));
     const result = await api.bridgeEnsureReady(code);
     hideWait();
     if (!result.success) {
@@ -811,7 +812,13 @@ async function updateSession(patch) {
   session = await api.sessionUpdate(patch);
 }
 
-function formatGatewaySizeLabel(size) {
+function formatGatewaySizeLabel(size, tmpl) {
+  if (size === imageSettingsCatalog?.sizeFromTemplate) {
+    return t('settings.sizeTemplate').replace('{size}', templateSizeLabel(tmpl));
+  }
+  if (size === imageSettingsCatalog?.sizeFromTemplate2x) {
+    return t('settings.sizeTemplate2x').replace('{size}', templateSizeLabel2x(tmpl));
+  }
   if (size === 'auto') return 'Auto';
   return String(size).replace(/x/i, '×');
 }
@@ -836,21 +843,35 @@ function templateSizeLabel2x(tmpl) {
   return `${tmpl.width * 2}×${tmpl.height * 2}`;
 }
 
+function shouldOfferTemplate2x(tmpl) {
+  if (!imageSettingsCatalog) return true;
+  const w = Number(tmpl?.width || 0);
+  const h = Number(tmpl?.height || 0);
+  if (!w || !h) return true;
+  const maxNative = imageSettingsCatalog.template2xMaxNativeEdge ?? 1920;
+  const maxOutput = imageSettingsCatalog.template2xMaxOutputEdge ?? 4096;
+  if (Math.max(w, h) >= maxNative) return false;
+  if (Math.max(w * 2, h * 2) > maxOutput) return false;
+  return true;
+}
+
 function appendTemplateSizeOptions(sizeSelect, tmpl) {
   const templateOpt = document.createElement('option');
   templateOpt.value = imageSettingsCatalog.sizeFromTemplate;
   templateOpt.textContent = t('settings.sizeTemplate').replace('{size}', templateSizeLabel(tmpl));
   sizeSelect.appendChild(templateOpt);
-  const template2xOpt = document.createElement('option');
-  template2xOpt.value = imageSettingsCatalog.sizeFromTemplate2x;
-  template2xOpt.textContent = t('settings.sizeTemplate2x').replace('{size}', templateSizeLabel2x(tmpl));
-  sizeSelect.appendChild(template2xOpt);
+  if (shouldOfferTemplate2x(tmpl)) {
+    const template2xOpt = document.createElement('option');
+    template2xOpt.value = imageSettingsCatalog.sizeFromTemplate2x;
+    template2xOpt.textContent = t('settings.sizeTemplate2x').replace('{size}', templateSizeLabel2x(tmpl));
+    sizeSelect.appendChild(template2xOpt);
+  }
 }
 
-function templateSizeModeValues() {
+function templateSizeModeValues(tmpl) {
   return [
     imageSettingsCatalog.sizeFromTemplate,
-    imageSettingsCatalog.sizeFromTemplate2x,
+    ...(shouldOfferTemplate2x(tmpl) ? [imageSettingsCatalog.sizeFromTemplate2x] : []),
     ...imageSettingsCatalog.sizes,
   ];
 }
@@ -951,8 +972,11 @@ async function refreshEditorUi() {
       opt.textContent = formatGatewaySizeLabel(size);
       sizeSelect.appendChild(opt);
     }
-    const validSizes = templateSizeModeValues();
-    const nextSize = validSizes.includes(prevSize) ? prevSize : imageSettingsCatalog.defaultSize;
+    const validSizes = templateSizeModeValues(displayTmpl);
+    let nextSize = validSizes.includes(prevSize) ? prevSize : imageSettingsCatalog.defaultSize;
+    if (prevSize === imageSettingsCatalog.sizeFromTemplate2x && !shouldOfferTemplate2x(displayTmpl)) {
+      nextSize = imageSettingsCatalog.defaultSize;
+    }
     sizeSelect.value = nextSize;
     editorOutputSize = nextSize;
     sizeSelect.disabled = editorLocked || editorGenerating;
@@ -1086,7 +1110,7 @@ async function refreshImageSettingsUi() {
     imageSettingsCatalog = await api.getImageSettingsCatalog();
   }
   const selected = getSelectedTemplate();
-  if (selected?.id && (!selected.width || !selected.height)) {
+  if (selected?.id) {
     const dims = await api.templatesGetDimensions(selected.id);
     if (dims?.width && dims?.height) {
       selected.width = dims.width;
@@ -1108,8 +1132,15 @@ async function refreshImageSettingsUi() {
     sizeSelect.appendChild(opt);
   }
 
-  const validSizes = templateSizeModeValues();
-  sizeSelect.value = validSizes.includes(prevSize) ? prevSize : imageSettingsCatalog.defaultSize;
+  const validSizes = templateSizeModeValues(getSelectedTemplate());
+  let nextSize = validSizes.includes(prevSize) ? prevSize : imageSettingsCatalog.defaultSize;
+  if (prevSize === imageSettingsCatalog.sizeFromTemplate2x && !shouldOfferTemplate2x(getSelectedTemplate())) {
+    nextSize = imageSettingsCatalog.defaultSize;
+    if (session.size === imageSettingsCatalog.sizeFromTemplate2x) {
+      await updateSession({ size: nextSize });
+    }
+  }
+  sizeSelect.value = nextSize;
 
   qualitySelect.innerHTML = '';
   for (const quality of imageSettingsCatalog.qualities) {
@@ -1232,7 +1263,10 @@ async function applyBuiltPrompt(data, fingerprint) {
 }
 
 async function buildAndPersistPrompt(settings, waitMessage) {
-  showWait(waitMessage || t('wait.status.buildingPrompt'));
+  showWait(
+    waitMessage || t('wait.status.buildingPrompt'),
+    waitContextForGeneration(settings, 'prompt'),
+  );
   const data = await api.generateBuildPrompt(withPairing(settings));
   const fingerprint = computePromptFingerprint(settings);
   await applyBuiltPrompt(data, fingerprint);
@@ -1551,11 +1585,119 @@ function resolveWaitMessage(progress) {
   return '';
 }
 
-function showWait(message) {
+function waitContextExcerpt(text, max = 200) {
+  const s = String(text || '').trim().replace(/\s+/g, ' ');
+  if (!s) return '';
+  return s.length <= max ? s : `${s.slice(0, max)}…`;
+}
+
+function resolvePromptExcerpt(settings, pdata) {
+  const fromData = pdata?.preflightPrompt || pdata?.finalPrompt || pdata?.imagePrompt;
+  if (fromData) return waitContextExcerpt(fromData);
+  const fromSession = session.preflightPrompt || session.imagePrompt;
+  if (fromSession) return waitContextExcerpt(fromSession);
+  if (settings?.extraPrompt) return waitContextExcerpt(settings.extraPrompt);
+  return '';
+}
+
+function waitContextForGeneration(settings, kind, pdata) {
+  const tmpl = templates.find((item) => item.id === (settings.templateId || session.templateId));
+  return {
+    kind,
+    template: tmpl?.name || tmpl?.id || '',
+    brand: settings.brandName || '',
+    series: settings.seriesName || '',
+    category: settings.productCategory || '',
+    size: settings.size || '',
+    quality: settings.quality || '',
+    refs: (settings.referenceImages || []).length,
+    prompt: resolvePromptExcerpt(settings, pdata),
+  };
+}
+
+function waitContextForTemplateEdit({ templateId, changeRequest, size, quality }) {
+  const tmpl = templates.find((item) => item.id === templateId) || getEditorTemplate();
+  return {
+    kind: 'templateEdit',
+    template: tmpl?.name || tmpl?.id || '',
+    size: size || '',
+    quality: quality || '',
+    change: waitContextExcerpt(changeRequest, 240),
+  };
+}
+
+function waitContextForTagline(settings) {
+  return {
+    kind: 'tagline',
+    brand: settings.brandName || '',
+    series: settings.seriesName || '',
+    category: settings.productCategory || '',
+  };
+}
+
+function waitContextForBridge(detail) {
+  return {
+    kind: 'bridge',
+    detail: detail || '',
+  };
+}
+
+function renderWaitContext(ctx) {
+  const el = $('wait-context');
+  if (!el) return;
+  if (!ctx) {
+    el.classList.add('hidden');
+    el.innerHTML = '';
+    return;
+  }
+  el.classList.remove('hidden');
+  const rows = [];
+  const add = (labelKey, value) => {
+    if (value == null || value === '') return;
+    rows.push(`<dt>${escapeHtml(t(labelKey))}</dt><dd>${escapeHtml(String(value))}</dd>`);
+  };
+
+  const kindKey = `wait.context.task.${ctx.kind}`;
+  const kindLabel = t(kindKey);
+  add('wait.context.task', kindLabel === kindKey ? ctx.kind : kindLabel);
+
+  if (ctx.kind === 'image' || ctx.kind === 'prompt') {
+    add('wait.context.template', ctx.template);
+    add('wait.context.brand', ctx.brand);
+    add('wait.context.series', ctx.series);
+    add('wait.context.category', ctx.category);
+    const sizeTmpl = getSelectedTemplate();
+    if (ctx.size) add('wait.context.size', formatGatewaySizeLabel(ctx.size, sizeTmpl));
+    if (ctx.quality) add('wait.context.quality', qualityLabel(ctx.quality));
+    if (ctx.refs != null) add('wait.context.refs', ctx.refs);
+  } else if (ctx.kind === 'templateEdit') {
+    add('wait.context.template', ctx.template);
+    const sizeTmpl = getEditorTemplate();
+    if (ctx.size) add('wait.context.size', formatGatewaySizeLabel(ctx.size, sizeTmpl));
+    if (ctx.quality) add('wait.context.quality', qualityLabel(ctx.quality));
+    add('wait.context.change', ctx.change);
+  } else if (ctx.kind === 'tagline') {
+    add('wait.context.brand', ctx.brand);
+    add('wait.context.series', ctx.series);
+    add('wait.context.category', ctx.category);
+  } else if (ctx.kind === 'bridge') {
+    add('wait.context.detail', ctx.detail);
+  }
+
+  let html = `<dl class="wait-context-grid">${rows.join('')}</dl>`;
+  if (ctx.prompt && (ctx.kind === 'image' || ctx.kind === 'prompt')) {
+    html += `<p class="wait-context-prompt"><strong>${escapeHtml(t('wait.context.prompt'))}:</strong> ${escapeHtml(ctx.prompt)}</p>`;
+  }
+  el.innerHTML = html;
+}
+
+function showWait(message, context) {
+  currentWaitContext = context || null;
   waitStart = Date.now();
   $('wait-status').textContent = message || t('wait.status.running');
   $('wait-elapsed').textContent = '';
   $('wait-output').textContent = '';
+  renderWaitContext(currentWaitContext);
   if (waitTimer) clearInterval(waitTimer);
   waitTimer = setInterval(() => updateWait({ status: 'running' }), 1000);
   $('wait-dialog').showModal();
@@ -1577,11 +1719,13 @@ function updateWait(progress) {
 }
 
 function hideWait() {
+  currentWaitContext = null;
   if (waitTimer) {
     clearInterval(waitTimer);
     waitTimer = null;
   }
   $('wait-dialog').close();
+  renderWaitContext(null);
 }
 
 function showPreview(path, b64) {
@@ -1737,8 +1881,9 @@ function setupInteractionHandlers() {
     if (!(await ensureBridgeReady())) return;
     try {
       $('btn-suggest-tagline').disabled = true;
-      showWait(t('tagline.suggesting'));
-      const result = await api.generateSuggestTagline(withPairing(readSettingsFromUi()));
+      const settings = readSettingsFromUi();
+      showWait(t('tagline.suggesting'), waitContextForTagline(settings));
+      const result = await api.generateSuggestTagline(withPairing(settings));
       $('setting-tagline').value = result.tagline || '';
       await updateSession({ tagline: result.tagline });
       hideWait();
@@ -1777,7 +1922,7 @@ function setupInteractionHandlers() {
       } else {
         promptData = promptDataForGenerate(settings);
       }
-      showWait(t('wait.status.running'));
+      showWait(t('wait.status.running'), waitContextForGeneration(settings, 'image', promptData));
       const result = await api.generateImage({
         promptData,
         settings,
@@ -1859,7 +2004,15 @@ function setupInteractionHandlers() {
       editorGenerating = true;
       editorOutputSize = size;
       updateEditorLockUi();
-      showWait(t('template.generateEdit'));
+      showWait(
+        t('template.generateEdit'),
+        waitContextForTemplateEdit({
+          templateId: id,
+          changeRequest,
+          size,
+          quality: $('editor-quality').value,
+        }),
+      );
       const result = await api.templatesRunEdit({
         templateId: id,
         changeRequest,
