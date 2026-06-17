@@ -196,6 +196,24 @@ async function ensureBridgeReady() {
   return true;
 }
 
+let statusTimer = null;
+
+function showStatus(message, { level = 'info', ms = 5000 } = {}) {
+  const el = $('app-status');
+  if (!el || !String(message || '').trim()) return;
+  if (statusTimer) {
+    clearTimeout(statusTimer);
+    statusTimer = null;
+  }
+  el.textContent = String(message).trim();
+  el.className = `app-status app-status-${level}`;
+  statusTimer = setTimeout(() => {
+    el.textContent = '';
+    el.classList.add('hidden');
+    statusTimer = null;
+  }, ms);
+}
+
 function showError(err, context = '') {
   const message = formatError(err);
   const full = context ? `${context}: ${message}` : message;
@@ -203,8 +221,18 @@ function showError(err, context = '') {
   appendDebugLine({ time: new Date().toISOString(), level: 'error', source: 'ui', message: full, details: err?.details || null });
   if (err?.needsPairing || message === t('error.needsPairing')) {
     showBridgeSetup(message);
+    return;
   }
-  alert(full);
+  showStatus(full, { level: 'error', ms: 8000 });
+}
+
+function focusDialogField(el) {
+  if (!el) return;
+  const focus = () => {
+    el.focus({ preventScroll: true });
+    if (typeof el.select === 'function') el.select();
+  };
+  requestAnimationFrame(() => requestAnimationFrame(focus));
 }
 
 function askPrompt(title, defaultValue = '') {
@@ -236,8 +264,7 @@ function askPrompt(title, defaultValue = '') {
     $('prompt-cancel').addEventListener('click', onCancel);
     dialog.addEventListener('cancel', onCancel);
     dialog.showModal();
-    input.focus();
-    input.select();
+    focusDialogField(input);
   });
 }
 
@@ -334,7 +361,7 @@ function setupTemplateImport() {
       return;
     }
     await loadTemplates();
-    alert(`${t('template.importSuccess')}: ${imported.length}`);
+    showStatus(`${t('template.importSuccess')}: ${imported.length}`, { level: 'success' });
   }
 
   bindClick('btn-import-template', () => importTemplatesDialog(), t('template.import'));
@@ -635,7 +662,7 @@ function setupDebugPanel() {
   $('btn-debug-copy').addEventListener('click', async () => {
     const text = debugLines.map(formatDebugEntry).join('\n');
     await navigator.clipboard.writeText(text);
-    alert(t('debug.copied'));
+    showStatus(t('debug.copied'), { level: 'info' });
   });
   $('btn-debug-clear').addEventListener('click', async () => {
     await api.debugClear();
@@ -783,7 +810,7 @@ function setupBridgeDialog() {
 
   $('bridge-dialog-codex-login').addEventListener('click', async () => {
     await api.codexLogin();
-    alert(t('bridge.dialog.hintLogin'));
+    showStatus(t('bridge.dialog.hintLogin'), { level: 'info', ms: 7000 });
   });
 
   $('bridge-dialog-open-status').addEventListener('click', () => {
@@ -794,7 +821,7 @@ function setupBridgeDialog() {
     await api.bridgeResetPairing();
     syncPairingCodeInputs('');
     await refreshBridgeStatus();
-    alert(t('bridge.dialog.resetDone'));
+    showStatus(t('bridge.dialog.resetDone'), { level: 'success' });
     showBridgeSetup(t('bridge.status.needsPairing'), { focusPairing: true });
   });
 
@@ -804,7 +831,7 @@ function setupBridgeDialog() {
 
   $('btn-codex-login').addEventListener('click', async () => {
     await api.codexLogin();
-    alert(t('bridge.dialog.hintLogin'));
+    showStatus(t('bridge.dialog.hintLogin'), { level: 'info', ms: 7000 });
   });
 }
 
@@ -1344,7 +1371,7 @@ async function renameTemplate(id) {
 async function cloneTemplate(id) {
   const tmpl = templates.find((item) => item.id === id);
   if (!tmpl) {
-    alert(t('template.empty'));
+    showStatus(t('template.empty'), { level: 'warn' });
     return;
   }
   const name = await askPrompt(t('template.clone'), `${tmpl.name} – Kopie`);
@@ -1357,7 +1384,7 @@ async function cloneTemplate(id) {
       editorTemplateId = cloned.id;
       await selectEditorTemplate(cloned.id);
     }
-    alert(t('template.cloneSuccess'));
+    showStatus(t('template.cloneSuccess'), { level: 'success' });
   } catch (err) {
     showError(err, t('template.clone'));
   }
@@ -1375,7 +1402,7 @@ async function deleteTemplate(id) {
       await updateSession({ templateId: fallback?.id || '' });
     }
     await loadTemplates();
-    alert(t('template.deleteSuccess'));
+    showStatus(t('template.deleteSuccess'), { level: 'success' });
   } catch (err) {
     showError(err, t('template.delete'));
   }
@@ -1392,7 +1419,7 @@ async function importTemplatesDialog() {
   const imported = await api.templatesImportDialog();
   if (!imported?.length) return;
   await loadTemplates();
-  alert(`${t('template.importSuccess')}: ${imported.length}`);
+  showStatus(`${t('template.importSuccess')}: ${imported.length}`, { level: 'success' });
 }
 
 async function addReferenceImagesDialog() {
@@ -1744,6 +1771,22 @@ function showPreview(path, b64) {
 
 async function refreshBridgeStatus(options = {}) {
   const status = await api.bridgeGetStatus();
+  if (
+    options.autoOpen
+    && !options._retried
+    && !bridgeDialogAutoShown
+    && status.running
+    && status.ready
+    && status.hasToken
+    && !status.paired
+  ) {
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    return refreshBridgeStatus({ ...options, _retried: true });
+  }
+  return applyBridgeStatusUi(status, options);
+}
+
+async function applyBridgeStatusUi(status, options = {}) {
   const el = $('bridge-status');
   const banner = $('setup-banner');
   if (status.running && status.ready && status.paired) {
@@ -1814,7 +1857,7 @@ async function loadTemplates() {
 
 async function selectEditorTemplate(id, options = {}) {
   if ((editorLocked || editorGenerating) && !options.force) {
-    alert(t('template.lockedHint'));
+    showStatus(t('template.lockedHint'), { level: 'warn', ms: 7000 });
     return;
   }
   editorTemplateId = id;
@@ -1897,7 +1940,7 @@ function setupInteractionHandlers() {
 
   $('btn-build-prompt').addEventListener('click', async () => {
     if (!session.templateId) {
-      alert(t('template.empty'));
+      showStatus(t('template.empty'), { level: 'warn' });
       return;
     }
     if (!(await ensureBridgeReady())) return;
@@ -1911,7 +1954,7 @@ function setupInteractionHandlers() {
 
   $('btn-generate').addEventListener('click', async () => {
     if (!session.templateId) {
-      alert(t('template.empty'));
+      showStatus(t('template.empty'), { level: 'warn' });
       return;
     }
     const settings = readSettingsFromUi();
@@ -1997,7 +2040,7 @@ function setupInteractionHandlers() {
     const size = $('editor-size').value;
     const tmpl = getEditorTemplate();
     if (!isEditorFormatOnly(changeRequest, size, tmpl) && !changeRequest) {
-      alert(t('template.needChangeOrSize'));
+      showStatus(t('template.needChangeOrSize'), { level: 'warn' });
       return;
     }
     try {
@@ -2051,7 +2094,7 @@ function setupInteractionHandlers() {
       await loadTemplates();
       await updateSession({ templateId: accepted.templateId });
       await selectEditorTemplate(accepted.templateId);
-      alert(t('template.editSuccess'));
+      showStatus(t('template.editSuccess'), { level: 'success' });
     } catch (err) {
       showError(err);
     }
@@ -2108,7 +2151,7 @@ function setupInteractionHandlers() {
   api.on('action:template-clone', async () => {
     const id = session.templateId || editorTemplateId;
     if (!id) {
-      alert(t('template.selectFirst'));
+      showStatus(t('template.selectFirst'), { level: 'warn' });
       return;
     }
     await cloneTemplate(id);
@@ -2180,5 +2223,5 @@ async function init() {
 
 init().catch((err) => {
   console.error(err);
-  alert(err.message || 'Startfehler');
+  showStatus(err.message || 'Startfehler', { level: 'error', ms: 10000 });
 });

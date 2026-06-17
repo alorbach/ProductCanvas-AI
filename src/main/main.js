@@ -536,6 +536,7 @@ function registerIpc() {
 
   ipcMain.handle('context:show', async (event, { x, y, items }) => {
     return new Promise((resolve) => {
+      let selectedId = null;
       let settled = false;
       const finish = (id) => {
         if (settled) return;
@@ -548,16 +549,23 @@ function registerIpc() {
         return {
           label: entry.label || '',
           enabled: entry.enabled !== false,
-          click: () => finish(entry.id),
+          click: () => { selectedId = entry.id; },
         };
       });
 
+      const win = BrowserWindow.fromWebContents(event.sender);
       const menu = Menu.buildFromTemplate(template);
       menu.popup({
-        window: BrowserWindow.fromWebContents(event.sender),
+        window: win,
         x: Math.round(x),
         y: Math.round(y),
-        callback: () => finish(null),
+        callback: () => {
+          if (win && !win.isDestroyed()) {
+            win.focus();
+            win.webContents.focus();
+          }
+          finish(selectedId);
+        },
       });
     });
   });
@@ -568,6 +576,8 @@ function registerIpc() {
     return { success: true };
   });
 }
+
+app.setName('productcanvas-ai');
 
 app.whenReady().then(() => {
   registerIpc();

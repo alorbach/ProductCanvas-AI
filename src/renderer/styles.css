@@ -650,17 +650,44 @@ body.lightbox-open { overflow: hidden; }
 .ai-icon { width: 20px; height: 20px; }
 
 .debug-panel {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  flex: 1 1 auto;
+  min-width: 0;
   background: #111;
   border-top: 1px solid var(--border);
-  z-index: 100;
   max-height: 40vh;
   display: flex;
   flex-direction: column;
 }
+
+.app-footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+  display: flex;
+  align-items: stretch;
+}
+
+.app-status {
+  flex: 0 1 min(420px, 42vw);
+  display: flex;
+  align-items: center;
+  padding: 8px 14px;
+  background: #151515;
+  border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+  font-size: 0.85rem;
+  line-height: 1.35;
+  color: var(--text);
+}
+
+.app-status.hidden { display: none; }
+
+.app-status-success { color: #6fdc8c; }
+.app-status-info { color: var(--accent); }
+.app-status-warn { color: #f39c12; }
+.app-status-error { color: #e74c3c; }
 
 .debug-panel.collapsed .debug-log-output,
 .debug-panel.collapsed .debug-actions { display: none; }

@@ -149,10 +149,10 @@ class TemplateRegistry {
     return { ...DEFAULT_TEMPLATE_META };
   }
 
+  /** EXIF straighten + PNG speichern – Auflösung bleibt unverändert (Skalierung nur im Editor). */
   async normalizeTemplateImage(sourcePath, destPath) {
     await sharp(sourcePath)
       .rotate()
-      .resize(1536, 1024, { fit: 'inside', withoutEnlargement: true })
       .png()
       .toFile(destPath);
   }

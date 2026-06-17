@@ -175,7 +175,7 @@
   <dialog id="prompt-dialog">
     <form method="dialog" id="prompt-form" class="prompt-form">
       <h2 id="prompt-title"></h2>
-      <input id="prompt-input" type="text" class="prompt-input" />
+      <input id="prompt-input" type="text" class="prompt-input" autocomplete="off" />
       <div class="prompt-actions">
         <button type="button" class="btn secondary" id="prompt-cancel">Abbrechen</button>
         <button type="submit" class="btn primary" id="prompt-ok">OK</button>
@@ -222,16 +222,19 @@
     <button type="button" class="btn secondary" id="btn-wait-cancel">Abbrechen</button>
   </dialog>
 
-  <aside id="debug-panel" class="debug-panel collapsed">
-    <header class="debug-header">
-      <button type="button" id="debug-toggle" class="debug-toggle">▸ Debug-Log</button>
-      <div class="debug-actions">
-        <button type="button" class="btn secondary btn-sm" id="btn-debug-copy">Kopieren</button>
-        <button type="button" class="btn secondary btn-sm" id="btn-debug-clear">Leeren</button>
-      </div>
-    </header>
-    <pre id="debug-log-output" class="debug-log-output"></pre>
-  </aside>
+  <footer id="app-footer" class="app-footer">
+    <aside id="debug-panel" class="debug-panel collapsed">
+      <header class="debug-header">
+        <button type="button" id="debug-toggle" class="debug-toggle">▸ Debug-Log</button>
+        <div class="debug-actions">
+          <button type="button" class="btn secondary btn-sm" id="btn-debug-copy">Kopieren</button>
+          <button type="button" class="btn secondary btn-sm" id="btn-debug-clear">Leeren</button>
+        </div>
+      </header>
+      <pre id="debug-log-output" class="debug-log-output"></pre>
+    </aside>
+    <div id="app-status" class="app-status hidden" aria-live="polite"></div>
+  </footer>
 
   <script type="module" src="app.js"></script>
 </body>

@@ -5,6 +5,7 @@ const fs = require('fs');
 const { Agent } = require('undici');
 const paths = require('../paths');
 const debugLog = require('../debug/logger');
+const { readBridgeServerToken, readLegacyAppToken } = require('./bridge-pairing-store');
 
 const APP_ORIGIN = 'http://127.0.0.1:9473';
 const DEFAULT_BRIDGE_URL = 'http://127.0.0.1:8765';
@@ -75,6 +76,36 @@ class BridgeClient {
     this.token = options.token || state.token || '';
     this.abortControllers = new Map();
     this._capabilities = null;
+    this.importKnownToken();
+  }
+
+  reloadBridgeState() {
+    const state = loadBridgeState();
+    this.bridgeUrl = (state.bridgeUrl || DEFAULT_BRIDGE_URL).replace(/\/$/, '');
+    this.origin = state.origin || APP_ORIGIN;
+    this.token = state.token || '';
+  }
+
+  importKnownToken() {
+    if (this.token) return false;
+    const legacy = readLegacyAppToken();
+    if (legacy) {
+      this.setToken(legacy);
+      return true;
+    }
+    const fromBridge = readBridgeServerToken(this.origin);
+    if (fromBridge) {
+      this.setToken(fromBridge);
+      return true;
+    }
+    return false;
+  }
+
+  syncTokenFromBridgeServer() {
+    const fromBridge = readBridgeServerToken(this.origin);
+    if (!fromBridge || fromBridge === this.token) return false;
+    this.setToken(fromBridge);
+    return true;
   }
 
   setToken(token) {
@@ -148,9 +179,6 @@ class BridgeClient {
         err.route = route;
         err.requestId = requestId;
         if (BridgeClient.isPairingError(err)) {
-          if (this.token) {
-            this.clearToken();
-          }
           err.needsPairing = true;
         }
         debugLog.error('bridge-client', `Bridge-Fehler ${route}`, {
@@ -216,7 +244,22 @@ class BridgeClient {
   }
 
   async validatePairing() {
-    return this.fetchJson('/v1/models');
+    return this.fetchJson('/v1/models', { timeout: STATUS_TIMEOUT_MS });
+  }
+
+  async validatePairingWithRetry({ attempts = 3, delayMs = 400 } = {}) {
+    let lastErr;
+    for (let i = 0; i < attempts; i += 1) {
+      try {
+        return await this.validatePairing();
+      } catch (err) {
+        lastErr = err;
+        if (i < attempts - 1) {
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
+      }
+    }
+    throw lastErr;
   }
 
   async jobEnvelope(type, payload) {

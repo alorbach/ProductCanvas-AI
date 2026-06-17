@@ -72,14 +72,28 @@ class BridgeManager {
   }
 
   async isPaired(statusResponse) {
+    this.client.reloadBridgeState();
+    if (!this.client.token) {
+      this.client.importKnownToken();
+    }
     if (!this.client.token) {
       return false;
     }
     try {
-      await this.client.validatePairing();
+      await this.client.validatePairingWithRetry();
       return true;
     } catch (err) {
       if (BridgeClient.isPairingError(err)) {
+        if (this.originListedAsPaired(statusResponse) && this.client.syncTokenFromBridgeServer()) {
+          try {
+            await this.client.validatePairingWithRetry();
+            return true;
+          } catch (retryErr) {
+            if (!BridgeClient.isPairingError(retryErr)) {
+              return false;
+            }
+          }
+        }
         this.client.clearToken();
       }
       return false;
