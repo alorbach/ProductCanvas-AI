@@ -5,6 +5,7 @@ import { renderHelp, openHelpDoc } from './help/help-viewer.js';
 import { showContextMenu, menuItem } from './context-menu.js';
 
 import { api } from './bridge-api.js';
+import { pathsFromDataTransfer, isFileDrag } from './image-paths.js';
 let session = {};
 let templates = [];
 let imageSettingsCatalog = null;
@@ -40,10 +41,29 @@ const CATEGORIES = ['TV', 'BEAMER', 'LEINWÄNDE', 'LAUTSPRECHER', 'AV-RECEIVER',
 const IMAGE_EXT = /\.(png|jpe?g|webp)$/i;
 
 function imagePathsFromDataTransfer(dataTransfer) {
-  return api.collectDroppedImagePaths(dataTransfer?.files);
+  return pathsFromDataTransfer(dataTransfer);
+}
+
+function setupGlobalFileDragAccept() {
+  document.addEventListener('dragover', (e) => {
+    if (!isFileDrag(e.dataTransfer) || isInternalSortDrag(e.dataTransfer)) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+  });
 }
 
 function $(id) { return document.getElementById(id); }
+
+function bindClick(id, handler, context = '') {
+  const el = $(id);
+  if (!el) {
+    console.error(`Missing button #${id}`);
+    return;
+  }
+  el.addEventListener('click', () => {
+    Promise.resolve(handler()).catch((err) => showError(err, context));
+  });
+}
 
 function formatError(err) {
   const raw = String(err?.message || err || '');
@@ -259,9 +279,7 @@ function setupTemplateImport() {
     alert(`${t('template.importSuccess')}: ${imported.length}`);
   }
 
-  $('btn-import-template').addEventListener('click', () => {
-    importTemplatesDialog().catch((err) => showError(err, t('template.import')));
-  });
+  bindClick('btn-import-template', () => importTemplatesDialog(), t('template.import'));
 
   [panel, zone].forEach((el) => {
     el.addEventListener('dragenter', (e) => {
@@ -309,15 +327,21 @@ function setupSortableDnD() {
   });
 
   templateList.addEventListener('dragover', (e) => {
-    if (!templateDragId) return;
-    const card = e.target.closest('.template-card');
-    if (!card) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    templateList.querySelectorAll('.template-card.drop-target').forEach((el) => {
-      el.classList.remove('drop-target');
-    });
-    card.classList.add('drop-target');
+    if (templateDragId) {
+      const card = e.target.closest('.template-card');
+      if (!card) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      templateList.querySelectorAll('.template-card.drop-target').forEach((el) => {
+        el.classList.remove('drop-target');
+      });
+      card.classList.add('drop-target');
+      return;
+    }
+    if (isFileDrag(e.dataTransfer)) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    }
   });
 
   templateList.addEventListener('drop', async (e) => {
@@ -363,15 +387,21 @@ function setupSortableDnD() {
   });
 
   refsList.addEventListener('dragover', (e) => {
-    if (refDragIndex === null || Number.isNaN(refDragIndex)) return;
-    const thumb = e.target.closest('.ref-thumb');
-    if (!thumb) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    refsList.querySelectorAll('.ref-thumb.drop-target').forEach((el) => {
-      el.classList.remove('drop-target');
-    });
-    thumb.classList.add('drop-target');
+    if (refDragIndex !== null && !Number.isNaN(refDragIndex)) {
+      const thumb = e.target.closest('.ref-thumb');
+      if (!thumb) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      refsList.querySelectorAll('.ref-thumb.drop-target').forEach((el) => {
+        el.classList.remove('drop-target');
+      });
+      thumb.classList.add('drop-target');
+      return;
+    }
+    if (isFileDrag(e.dataTransfer)) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    }
   });
 
   refsList.addEventListener('drop', async (e) => {
@@ -876,11 +906,11 @@ async function addEditorReferencePaths(filePaths) {
 }
 
 function setupEditorReference() {
-  $('btn-editor-ref-add').addEventListener('click', async () => {
+  bindClick('btn-editor-ref-add', async () => {
     if (editorLocked || editorGenerating) return;
     const picked = await api.refsAddDialog();
     if (picked?.length) await addEditorReferencePaths([picked[0].path]);
-  });
+  }, t('template.editorRefAdd'));
 
   const drop = $('editor-ref-drop');
   const prevent = (e) => { e.preventDefault(); e.stopPropagation(); };
@@ -1190,18 +1220,16 @@ async function removeReferenceAt(index) {
 
 async function importTemplatesDialog() {
   const imported = await api.templatesImportDialog();
-  if (imported?.length) {
-    await loadTemplates();
-    alert(`${t('template.importSuccess')}: ${imported.length}`);
-  }
+  if (!imported?.length) return;
+  await loadTemplates();
+  alert(`${t('template.importSuccess')}: ${imported.length}`);
 }
 
 async function addReferenceImagesDialog() {
   const added = await api.refsAddDialog();
-  if (added.length) {
-    await updateSession({ referenceImages: [...(session.referenceImages || []), ...added] });
-    renderRefs();
-  }
+  if (!added?.length) return;
+  await updateSession({ referenceImages: [...(session.referenceImages || []), ...added] });
+  renderRefs();
 }
 
 function templateContextItems(tmpl) {
@@ -1518,59 +1546,8 @@ async function reloadLocale(prefs) {
   await renderHelp($('help-sidebar'), $('help-content'));
 }
 
-async function init() {
-  const prefs = await api.getPreferences();
-  await loadI18n(prefs.resolvedLocale || 'en');
-  document.documentElement.lang = prefs.resolvedLocale || 'en';
-  applyLabels();
-
-  const catSelect = $('setting-category');
-  CATEGORIES.forEach((c) => {
-    const opt = document.createElement('option');
-    opt.value = c;
-    opt.textContent = c;
-    catSelect.appendChild(opt);
-  });
-
-  session = await api.sessionGet();
-  await refreshImageSettingsUi();
-  writeSettingsToUi();
-  restorePromptFromSession();
-  await loadTemplates();
-  renderRefs();
-  await refreshBridgeStatus();
-  await renderHelp($('help-sidebar'), $('help-content'));
-
-  const pendingEdit = await api.templatesGetPendingEdit();
-  if (pendingEdit?.templateId) {
-    editorTemplateId = pendingEdit.templateId;
-    editorLocked = true;
-    $('change-request').value = pendingEdit.changeRequest || '';
-    $('optimized-prompt').value = pendingEdit.optimizedEditPrompt || '';
-    $('change-summary').textContent = pendingEdit.changeSummary || '';
-    if (pendingEdit.referenceImagePath) {
-      setEditorReferenceImage({
-        path: pendingEdit.referenceImagePath,
-        name: pendingEdit.referenceImagePath.split(/[/\\]/).pop() || '',
-      });
-    }
-    updateEditorLockUi();
-    await selectEditorTemplate(pendingEdit.templateId, {
-      preservePreview: true,
-      preserveReference: true,
-      force: true,
-    });
-    if (pendingEdit.previewB64) {
-      $('editor-preview').src = `data:image/png;base64,${pendingEdit.previewB64}`;
-      $('editor-preview').classList.remove('hidden');
-      $('editor-preview-empty').classList.add('hidden');
-      $('accept-row').classList.remove('hidden');
-    }
-  } else {
-    editorTemplateId = session.templateId;
-    if (editorTemplateId) await selectEditorTemplate(editorTemplateId);
-  }
-
+function setupInteractionHandlers() {
+  setupGlobalFileDragAccept();
   setupTemplateImport();
   setupSortableDnD();
   setupDragDrop();
@@ -1580,22 +1557,26 @@ async function init() {
   setupEditorImageContextMenus();
   setupPanelContextMenus();
   setupDebugPanel();
-  await loadDebugLog();
 
   document.querySelectorAll('.nav-btn').forEach((btn) => {
     btn.addEventListener('click', () => showView(btn.dataset.mode));
   });
 
   ['setting-size', 'setting-quality', 'setting-category', 'setting-brand', 'setting-series', 'setting-tagline', 'setting-extra'].forEach((id) => {
-    $(id).addEventListener('change', async () => {
+    const el = $(id);
+    if (!el) {
+      console.error(`Missing control #${id}`);
+      return;
+    }
+    el.addEventListener('change', async () => {
       await updateSession(readSettingsFromUi());
     });
-    $(id).addEventListener('input', async () => {
+    el.addEventListener('input', async () => {
       await updateSession(readSettingsFromUi());
     });
   });
 
-  $('btn-add-refs').addEventListener('click', () => addReferenceImagesDialog());
+  bindClick('btn-add-refs', () => addReferenceImagesDialog(), t('refs.add'));
 
   $('btn-suggest-tagline').addEventListener('click', async () => {
     if (!(await ensureBridgeReady())) return;
@@ -1834,7 +1815,7 @@ async function init() {
   api.on('templates:updated', async () => {
     await loadTemplates();
   });
-  api.on('action:template-import', () => importTemplatesDialog().catch((err) => showError(err, t('template.import'))));
+  api.on('action:template-import', () => importTemplatesDialog());
   api.on('template:selected', async (id) => {
     editorTemplateId = id;
     await selectEditorTemplate(id);
@@ -1853,6 +1834,64 @@ async function init() {
     if (!id) return;
     await deleteTemplate(id);
   });
+}
+
+async function init() {
+  const prefs = await api.getPreferences();
+  await loadI18n(prefs.resolvedLocale || 'en');
+  document.documentElement.lang = prefs.resolvedLocale || 'en';
+  applyLabels();
+
+  const catSelect = $('setting-category');
+  CATEGORIES.forEach((c) => {
+    const opt = document.createElement('option');
+    opt.value = c;
+    opt.textContent = c;
+    catSelect.appendChild(opt);
+  });
+
+  setupInteractionHandlers();
+
+  session = await api.sessionGet();
+  await refreshImageSettingsUi();
+  writeSettingsToUi();
+  restorePromptFromSession();
+  await loadTemplates();
+  renderRefs();
+  await refreshBridgeStatus();
+  await renderHelp($('help-sidebar'), $('help-content'));
+
+  const pendingEdit = await api.templatesGetPendingEdit();
+  if (pendingEdit?.templateId) {
+    editorTemplateId = pendingEdit.templateId;
+    editorLocked = true;
+    $('change-request').value = pendingEdit.changeRequest || '';
+    $('optimized-prompt').value = pendingEdit.optimizedEditPrompt || '';
+    $('change-summary').textContent = pendingEdit.changeSummary || '';
+    if (pendingEdit.referenceImagePath) {
+      setEditorReferenceImage({
+        path: pendingEdit.referenceImagePath,
+        name: pendingEdit.referenceImagePath.split(/[/\\]/).pop() || '',
+      });
+    }
+    updateEditorLockUi();
+    await selectEditorTemplate(pendingEdit.templateId, {
+      preservePreview: true,
+      preserveReference: true,
+      force: true,
+    });
+    if (pendingEdit.previewB64) {
+      $('editor-preview').src = `data:image/png;base64,${pendingEdit.previewB64}`;
+      $('editor-preview').classList.remove('hidden');
+      $('editor-preview-empty').classList.add('hidden');
+      $('accept-row').classList.remove('hidden');
+    }
+  } else {
+    editorTemplateId = session.templateId;
+    if (editorTemplateId) await selectEditorTemplate(editorTemplateId);
+  }
+
+  await loadDebugLog();
 }
 
 init().catch((err) => {

@@ -11,13 +11,9 @@ function getBridge() {
   return bridge;
 }
 
+// Return preload exports as-is — re-wrapping contextBridge functions can break IPC calls.
 export const api = new Proxy({}, {
   get(_target, prop) {
-    const bridge = getBridge();
-    const value = bridge[prop];
-    if (typeof value === 'function') {
-      return (...args) => value.apply(bridge, args);
-    }
-    return value;
+    return getBridge()[prop];
   },
 });

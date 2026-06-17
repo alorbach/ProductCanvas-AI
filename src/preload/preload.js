@@ -1,7 +1,27 @@
 'use strict';
 
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
-const { collectDroppedImagePaths } = require('./dropped-files');
+
+// Sandboxed preload cannot require local sibling modules — keep in sync with dropped-files.js
+const IMAGE_EXT = /\.(png|jpe?g|webp)$/i;
+const IMAGE_MIME = new Set(['image/png', 'image/jpeg', 'image/webp']);
+
+function isDroppedImageFile(file, filePath) {
+  const mime = String(file?.type || '').toLowerCase();
+  if (IMAGE_MIME.has(mime)) return true;
+  return Boolean(filePath && IMAGE_EXT.test(filePath));
+}
+
+function collectDroppedImagePaths(files, getPathForFile) {
+  const paths = [];
+  for (const file of files || []) {
+    if (!file) continue;
+    const filePath = getPathForFile(file);
+    if (!filePath || !isDroppedImageFile(file, filePath)) continue;
+    paths.push(filePath);
+  }
+  return paths;
+}
 
 contextBridge.exposeInMainWorld('productCanvas', {
   getBuildInfo: () => ipcRenderer.invoke('app:getBuildInfo'),

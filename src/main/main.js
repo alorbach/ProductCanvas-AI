@@ -70,6 +70,13 @@ function send(channel, data) {
   }
 }
 
+function focusMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
 function broadcastPreferences() {
   const prefs = getPreferences(systemLocale());
   resolvedLocale = prefs.resolvedLocale;
@@ -334,6 +341,7 @@ function registerIpc() {
   ipcMain.handle('profile:listRecent', () => profileStore.listRecent());
 
   ipcMain.handle('refs:addDialog', async () => {
+    focusMainWindow();
     const r = await dialog.showOpenDialog(mainWindow, {
       filters: [{ name: mt('menu.images'), extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
       properties: ['openFile', 'multiSelections'],
@@ -356,6 +364,7 @@ function registerIpc() {
   });
 
   ipcMain.handle('templates:importDialog', async () => {
+    focusMainWindow();
     const r = await dialog.showOpenDialog(mainWindow, {
       filters: [{ name: mt('menu.images'), extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
       properties: ['openFile', 'multiSelections'],
@@ -533,6 +542,8 @@ function registerIpc() {
 }
 
 app.whenReady().then(() => {
+  registerIpc();
+
   migrateIfNeeded(paths.userDataRoot(), paths.bridgeDir());
   refreshLocale();
   bridgeManager = new BridgeManager();
@@ -551,7 +562,6 @@ app.whenReady().then(() => {
     session.bridgeUrl = prefs.bridgeUrl;
   }
   debugLog.setBroadcast((entry) => send('debug:entry', entry));
-  registerIpc();
   createWindow();
 
   app.on('activate', () => {

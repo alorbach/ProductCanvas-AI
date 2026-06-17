@@ -1,6 +1,6 @@
 'use strict';
 
-import { api } from './bridge-api.js';
+import { api } from '../bridge-api.js';
 
 import { getLocale } from '../i18n/i18n.js';
 
