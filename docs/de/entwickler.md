@@ -12,7 +12,6 @@ Siehe auch [AGENTS.md](../../AGENTS.md) im Repository-Root.
 src/main/          Electron Main Process (Bridge, Profile, Generierung, Vorlagen)
 src/preload/       contextBridge IPC
 src/renderer/      UI (HTML/CSS/ES-Module, i18n en.json + de.json)
-assets/templates/  System-Vorlagen + templates.json
 assets/examples/   Beispiel-Referenzbilder
 docs/en/ docs/de/  Benutzer-Hilfe (DocLoader)
 test/              Node.js-Tests (ohne Electron-GUI)
@@ -23,13 +22,13 @@ scripts/           Icons, Windows-Build, Platzhalter
 
 | Modul | Aufgabe |
 |-------|---------|
-| `bridge/bridge-client.js` | HTTP zur Codex Local Bridge, Job-Envelope, Pairing |
+| `bridge/bridge-client.js` | HTTP zur [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge), Job-Envelope, Pairing |
 | `bridge/bridge-manager.js` | Bridge-Lebenszyklus, ensure-ready, Status |
 | `bridge/codex-manager.js` | Codex-CLI-Installation/Login |
 | `generate/prompt-builder.js` | Referenzanalyse, Werbe-Prompt |
 | `generate/image-pipeline.js` | Preflight + `/v1/images` |
 | `generate/template-edit-pipeline.js` | KI-Vorlagenbearbeitung |
-| `templates/template-registry.js` | System- + Benutzer-Vorlagen |
+| `templates/template-registry.js` | Benutzer-Vorlagen-Index (`user-templates.json` + PNG-Dateien) |
 | `profiles/profile-store.js` | Sitzung, `.pcprofile.json`, Zuletzt geöffnet |
 | `docs/doc-loader.js` | Locale-aware Hilfe-Dateien |
 
@@ -44,7 +43,7 @@ Bridge-Requests enthalten `job_token`, `request_hash` und `request_id` gemäß B
 - **Windows 10+** (Hauptzielplattform)
 - **Node.js 20+**
 - **npm** (Lockfile im Repo)
-- Optional für Live-KI: Codex CLI + Codex Local Bridge ≥ 1.0.4
+- Optional für Live-KI: Codex CLI + [Codex Local Bridge ≥ 1.0.4](https://github.com/alorbach/codex-local-bridge)
 
 ## Lokales Setup
 
@@ -59,9 +58,8 @@ npm start
 
 ### Hinweise
 
-- System-Vorlagen aus `assets/templates/`.
-- Benutzer-Vorlagen nach `%APPDATA%\productcanvas-ai\templates\` – nicht committen.
-- System-Vorlagen im Repo nicht überschreiben; zum Testen klonen.
+- Benutzer-Vorlagen aus `%APPDATA%\productcanvas-ai\templates\` über `template-registry.js` – nicht committen.
+- `assets/templates/` im Repo ist nur ein Legacy-Pfad; Vorlagen werden zur Laufzeit importiert.
 
 ## Tests
 
@@ -134,6 +132,8 @@ git push origin v1.0.1
 ```
 
 ## Bridge-Integration (Entwicklung)
+
+Partner-Projekt: [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) ([Releases](https://github.com/alorbach/codex-local-bridge/releases))
 
 | Konstante | Wert |
 |-----------|------|

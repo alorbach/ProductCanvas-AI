@@ -6,7 +6,7 @@ The **Create image** tab is where you combine a layout template, reference produ
 
 ### 1. Choose a template
 
-The template panel on the left lists **system templates** (shipped with the app) and **your templates** (imported or cloned).
+The template panel lists **your imported templates** (PNG/JPG/WebP layout masters). If the list is empty, import a template first.
 
 - Click a thumbnail to select it.
 - The **last used template** is pre-selected when you start the app.
@@ -18,7 +18,7 @@ The template panel on the left lists **system templates** (shipped with the app)
 - Menu **Templates → Import…**
 - Drag PNG, JPG, or WebP onto the template list
 
-Imported files are copied to `%APPDATA%\productcanvas-ai\templates\` and registered as user templates. System templates cannot be overwritten; clone them instead (see [Edit Templates](edit-templates.md)).
+Imported files are copied to `%APPDATA%\productcanvas-ai\templates\` and registered in your template library. See [Edit Templates](edit-templates.md) to clone, rename, or AI-edit layouts.
 
 The template defines canvas size, background design, text areas, and optional category icons in the footer.
 
@@ -51,7 +51,7 @@ The settings panel controls output options and text that appears on the layout.
 |-------|-------------|
 | **Image resolution** | Output size sent to Codex. **Template (WxH)** matches the selected template dimensions; **Template ×2** doubles them. Fixed presets (e.g. 1536×1024) are also available. |
 | **Quality** | Low, Medium, or High – passed to the bridge like AI Gateway / PMS image settings. **High** is recommended for final exports. |
-| **Product category** | Highlights the matching icon in the template footer (e.g. speakers, displays). Choose the category closest to your product or the accent you want emphasized. |
+| **Product category** | Highlights the matching icon in the template footer. **Labels** follow your UI language (EN/DE); **values** sent to the AI stay stable (e.g. `LAUTSPRECHER`, `TV`). |
 | **Brand name** | Primary brand line on the layout. |
 | **Series** | Product line or model family. |
 | **Tagline** | Short promotional line (keep to one line when possible). Use the **AI suggestion** button (sparkle icon) for an automatic draft. |
@@ -65,7 +65,7 @@ Click **Build prompt** (or **Build prompt** after changing references).
 
 The app:
 
-1. Sends your reference images to Codex via the bridge
+1. Sends your reference images to Codex via [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge)
 2. Runs product analysis on each reference (progress: “Analyzing product image X of Y…”)
 3. Builds a structured **image prompt** with rules for layout fidelity and product accuracy
 4. Fills **Brand name**, **Series**, and **Tagline** when the analysis suggests values (you can edit them afterward)
@@ -84,7 +84,7 @@ The wait dialog shows queue status, elapsed time, and the current phase:
 - Image preflight (optimizing prompt with references)
 - Queued / Generating
 
-Generation may take **from one minute to 30 minutes** depending on resolution, quality, and bridge load. You can **Cancel** to abort the active job.
+Generation may take **from one minute to 30 minutes** depending on resolution, quality, and bridge load. **Cancel** aborts the active bridge job (not just the wait dialog).
 
 When complete, the preview panel shows the result. Click the preview for fullscreen view (Esc to close).
 
@@ -102,7 +102,7 @@ ProductCanvas AI is designed to keep products close to your reference photos:
 - Preflight merges template layout constraints with product analysis.
 - Use **Extra prompt** to tighten rules when small details drift (material, grille pattern, driver count).
 
-If the debug log warns that references were not forwarded, update Codex Local Bridge to the latest version.
+If the debug log warns that references were not forwarded, update [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) to the [latest release](https://github.com/alorbach/codex-local-bridge/releases).
 
 ## Autosave and profiles
 
@@ -124,7 +124,7 @@ For named, shareable projects, use **File → Save as…** to write a `.pcprofil
 
 - [Edit Templates](edit-templates.md) – create or adapt layouts
 - [Troubleshooting](troubleshooting.md) – timeouts, bridge errors, quality issues
-- [Settings](settings.md) – bridge URL and language
+- [Settings](settings.md) – [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) URL and language
 
 ---
 

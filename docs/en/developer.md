@@ -12,7 +12,6 @@ See also the root [AGENTS.md](../../AGENTS.md) for agent and contribution conven
 src/main/          Electron main process (bridge, profiles, generation, templates)
 src/preload/       contextBridge IPC surface
 src/renderer/      UI (HTML/CSS/ES modules, i18n en.json + de.json)
-assets/templates/  System templates + templates.json registry
 assets/examples/   Example reference imagery
 docs/en/ docs/de/  User-facing help (loaded by DocLoader)
 test/              Node.js unit/integration tests (no Electron GUI)
@@ -23,13 +22,13 @@ scripts/           Icons, Windows build, placeholders
 
 | Module | Responsibility |
 |--------|----------------|
-| `bridge/bridge-client.js` | HTTP to Codex Local Bridge, job envelope, pairing state |
+| `bridge/bridge-client.js` | HTTP to [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge), job envelope, pairing state |
 | `bridge/bridge-manager.js` | Bridge lifecycle, ensure-ready, status |
 | `bridge/codex-manager.js` | Codex CLI install/login helpers |
 | `generate/prompt-builder.js` | Reference analysis, werbung prompt |
 | `generate/image-pipeline.js` | Preflight + `/v1/images` generation |
 | `generate/template-edit-pipeline.js` | Template AI edits |
-| `templates/template-registry.js` | System + user template index |
+| `templates/template-registry.js` | User template index (`user-templates.json` + PNG files) |
 | `profiles/profile-store.js` | Session, `.pcprofile.json`, recent list |
 | `docs/doc-loader.js` | Locale-aware help file loading |
 
@@ -44,7 +43,7 @@ Job requests to the bridge include `job_token`, `request_hash`, and `request_id`
 - **Windows 10+** (primary target; dev on Windows recommended)
 - **Node.js 20+**
 - **npm** (lockfile in repo)
-- Optional for live AI: Codex CLI + Codex Local Bridge ≥ 1.0.4
+- Optional for live AI: Codex CLI + [Codex Local Bridge ≥ 1.0.4](https://github.com/alorbach/codex-local-bridge)
 
 ## Local setup
 
@@ -59,9 +58,8 @@ npm start
 
 ### Environment notes
 
-- System templates load from `assets/templates/`.
-- User templates write to `%APPDATA%\productcanvas-ai\templates\`—never commit user data.
-- Do not overwrite system templates in the repo when testing edits; clone to user space instead.
+- User templates load from `%APPDATA%\productcanvas-ai\templates\` via `template-registry.js`—never commit user data.
+- `assets/templates/` in the repo is a legacy path constant only; templates are user-imported at runtime.
 
 ## Tests
 
@@ -81,6 +79,9 @@ The test script runs Node tests sequentially:
 | `test/image-preflight.test.js` | Preflight fingerprint/prompt |
 | `test/layout-fidelity.test.js` | Layout constraint text |
 | `test/template-edit-pipeline.test.js` | Template edit flow |
+| `test/safe-paths.test.js` | Path allowlists, bridge URL normalization |
+| `test/profile-store.test.js` | Profile reference copy |
+| `test/i18n-interpolation.test.js` | Renderer i18n placeholders |
 
 Tests do not require a running bridge unless explicitly noted in a test case. Run `npm test` before every pull request.
 
@@ -134,6 +135,8 @@ git push origin v1.0.1
 ```
 
 ## Bridge integration (development)
+
+Partner project: [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) ([releases](https://github.com/alorbach/codex-local-bridge/releases))
 
 | Constant | Value |
 |----------|-------|

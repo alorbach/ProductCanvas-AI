@@ -37,7 +37,7 @@ flowchart LR
 | **ProductCanvas AI** | Electron app: UI, templates, profiles, prompt building, image pipeline |
 | **Codex Local Bridge** | Local HTTP server; pairs with the app; forwards jobs to Codex CLI |
 | **Codex CLI** | Command-line interface to AI models (text + image) |
-| **Templates** | PNG layout masters (system + user) |
+| **Templates** | User-imported PNG layout masters (`%APPDATA%\productcanvas-ai\templates\`) |
 | **Profiles** | Saved projects (`.pcprofile.json`) |
 
 ### Process boundaries
@@ -62,7 +62,7 @@ ProductCanvas AI expects a bridge instance at `http://127.0.0.1:8765` by default
 - **Reference images:** Require bridge **≥ 1.0.4** for attachment forwarding to Codex.
 - **Timeouts:** Up to 30 minutes per long-running image job.
 
-The app can download, install, and launch the bridge on first use (Windows). Manual installation from [codex-local-bridge](https://github.com/alorbach/codex-local-bridge) is also supported.
+The app can download, install, and launch the bridge on first use (Windows). Manual installation from [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) ([latest release](https://github.com/alorbach/codex-local-bridge/releases)) is also supported.
 
 ## Local privacy and data
 
@@ -85,7 +85,7 @@ ProductCanvas AI does not operate a central image-upload service. Images and pro
 | Template library | Import PNG masters from any design tool |
 | Non-destructive AI edits | Accept/reject gate on template changes |
 
-Replace bundled system templates with your own artwork to match any visual identity.
+Import your own PNG masters from any design tool to build a template library for any visual identity.
 
 ## Default behavior
 
@@ -97,7 +97,7 @@ Replace bundled system templates with your own artwork to match any visual ident
 ## Dependencies and license
 
 - **ProductCanvas AI** – GPL-2.0-or-later
-- **Codex Local Bridge** – separate project ([alorbach/codex-local-bridge](https://github.com/alorbach/codex-local-bridge))
+- **Codex Local Bridge** – separate project ([Codex Local Bridge](https://github.com/alorbach/codex-local-bridge), [releases](https://github.com/alorbach/codex-local-bridge/releases))
 - **Codex CLI** – required runtime for AI features
 
 Copyright © [Andre Lorbach](https://github.com/alorbach).

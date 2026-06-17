@@ -1,6 +1,6 @@
 # ProductCanvas AI – Benutzerhandbuch
 
-ProductCanvas AI ist eine Windows-Desktop-Anwendung, die Layout-Vorlagen und Referenz-Produktfotos über lokale KI (Codex Local Bridge) zu fertigen Marketingbildern zusammensetzt.
+ProductCanvas AI ist eine Windows-Desktop-Anwendung, die Layout-Vorlagen und Referenz-Produktfotos über lokale KI ([Codex Local Bridge](https://github.com/alorbach/codex-local-bridge)) zu fertigen Marketingbildern zusammensetzt.
 
 ## Inhaltsverzeichnis
 
@@ -18,7 +18,7 @@ ProductCanvas AI verbindet drei Bausteine:
 
 - **Layout-Vorlagen** definieren den visuellen Rahmen (Hintergrund, Textbereiche, Akzente).
 - **Referenzfotos** zeigen das Produkt, das im Layout erscheinen soll.
-- **Lokale KI** (Codex CLI über Codex Local Bridge) analysiert Referenzen, erstellt Prompts und generiert oder verfeinert Bilder – alles auf Ihrem PC.
+- **Lokale KI** (Codex CLI über [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge)) analysiert Referenzen, erstellt Prompts und generiert oder verfeinert Bilder – alles auf Ihrem PC.
 
 Typischer Ablauf:
 
@@ -58,7 +58,7 @@ Profile werden als `.pcprofile.json` gespeichert. Referenzbilder werden in einen
 
 ## Bridge-Statusanzeige
 
-Der farbige Punkt in der Kopfzeile zeigt den Verbindungsstatus zur Codex Local Bridge:
+Der farbige Punkt in der Kopfzeile zeigt den Verbindungsstatus zur [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge):
 
 - **Grün** – Bridge verbunden und gepairt
 - **Gelb / Orange** – Einrichtung oder Anmeldung nötig
@@ -69,6 +69,16 @@ Bei Bedarf erscheint ein Banner oben mit Pairing-Code-Eingabe und **Codex anmeld
 ## Hilfe in der App
 
 Tab **Hilfe** oder Menü **Hilfe → Benutzerhandbuch**. Die Dokumentationssprache folgt Ihrer UI-Sprache (Deutsch oder Englisch).
+
+## Externe Abhängigkeiten
+
+| Projekt | Rolle |
+|---------|-------|
+| [ProductCanvas AI](https://github.com/alorbach/productcanvas-ai) | Diese Desktop-App |
+| [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) | Lokaler HTTP-Server; Pairing, Job-Weiterleitung an Codex CLI |
+| **Codex CLI** | Kommandozeile zu KI-Modellen (separat installieren und anmelden) |
+
+Bridge-Releases: [github.com/alorbach/codex-local-bridge/releases](https://github.com/alorbach/codex-local-bridge/releases), wenn Sie nicht die automatische Einrichtung der App nutzen.
 
 ---
 

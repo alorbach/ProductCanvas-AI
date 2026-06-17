@@ -1,15 +1,18 @@
 # Edit Templates
 
-The **Edit templates** tab lets you adapt layout templates using natural-language instructions and AI-generated previews. You always review changes before they are saved.
+The **Edit templates** tab lets you adapt your imported layout templates using natural-language instructions and AI-generated previews via [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge). You always review changes before they are saved.
 
-## Template types
+## Your template library
 
-| Type | Location | Editable? |
-|------|----------|-----------|
-| **System templates** | Shipped in the app bundle | Read-only – **clone** to create an editable copy |
-| **User templates** | `%APPDATA%\productcanvas-ai\templates\` | Full edit, rename, delete |
+All templates live under `%APPDATA%\productcanvas-ai\templates\`. You import them as PNG, JPG, or WebP files—they are not bundled with the app.
 
-System templates are never modified in place. Accepting an AI edit on a system template automatically saves a **new user template**.
+| Action | Description |
+|--------|-------------|
+| **Import** | Add a new layout master from disk |
+| **Clone** | Duplicate an existing template with a new name |
+| **Rename** | Change the display name |
+| **Delete** | Remove template and file (with confirmation) |
+| **Reorder** | Drag thumbnails in the gallery |
 
 ## Overview of the editor
 
@@ -26,15 +29,15 @@ When an AI preview is pending, the template is **locked** until you **Accept cha
 Start from any PNG/JPG/WebP layout:
 
 1. **Templates → Import…**, the **Import template** button on the Create image tab, or drag-and-drop onto the template gallery.
-2. The file is copied to your user templates folder and appears under **Your templates**.
+2. The file is copied to your templates folder and appears in the gallery.
 
 Imported templates are ideal starting points for brand-specific layouts.
 
-## Clone a system template
+## Clone a template
 
-1. Select a system template in the gallery or the **Current template** dropdown.
+1. Select a template in the gallery or the **Current template** dropdown.
 2. Choose **Clone** from the context menu or **Templates → Clone**.
-3. A user copy is created with a new name; edit the clone freely.
+3. An editable copy is created with a new name.
 
 ## AI edit workflow
 
@@ -60,13 +63,15 @@ Add a **reference image** when your change request refers to a mood, texture, or
 - Drag an image into the reference drop zone, or use **Add reference image**.
 - Mention it in the change request, e.g. “Use the warm studio lighting from the reference”.
 
+The optional editor reference path is stored in your session (`editorReferenceImagePath`) so thumbnails reload after restart.
+
 ### 4. Optimize prompt
 
 Click **Optimize prompt** (or proceed directly to generation—the pipeline optimizes internally). The AI analyzes the template and your request, producing a precise edit prompt shown in the prompt area. Adjust it if needed before applying.
 
 ### 5. Generate AI preview
 
-Click **Generate AI preview**. The wait dialog tracks prompt optimization and image generation.
+Click **Generate AI preview**. The wait dialog tracks prompt optimization and image generation via the bridge.
 
 When finished, the **AI preview** panel on the right shows the proposed result. Use **Compare fullscreen** to view original and preview side by side.
 
@@ -74,14 +79,14 @@ When finished, the **AI preview** panel on the right shows the proposed result. 
 
 | Button | Effect |
 |--------|--------|
-| **Accept change** | Saves the preview as the new template version (user folder). System templates become new user templates. |
+| **Accept change** | Saves the preview as the new template version in your library |
 | **Reject change** | Discards the preview; original template unchanged |
 
 After accept, the preview becomes the new **Original** for further edits.
 
 ## Version history
 
-When you accept an edit on an **existing user template**, the previous version is archived under:
+When you accept an edit on an **existing template**, the previous version is archived under:
 
 ```
 %APPDATA%\productcanvas-ai\templates\history\<template-id>\
@@ -91,12 +96,10 @@ This lets you recover earlier artwork manually if needed. History is not exposed
 
 ## Rename and delete
 
-Right-click a **user template**:
+Right-click a template:
 
-- **Rename…** – change display name
+- **Rename…** – change display name (empty names are rejected)
 - **Delete** – remove template and registry entry (confirmation dialog)
-
-System templates cannot be deleted.
 
 ## Output format in the editor
 
@@ -111,7 +114,7 @@ If you only need a different size without visual changes, select a new output fo
 ## Best practices
 
 - **One change at a time** – smaller requests produce more predictable previews.
-- **Clone before experiments** – keep a known-good user template as backup.
+- **Clone before experiments** – keep a known-good template as backup.
 - **Accept only when satisfied** – rejected previews cost time but protect your library.
 - **Import high-resolution masters** – editing downscales less gracefully than editing at full size.
 
@@ -120,6 +123,7 @@ If you only need a different size without visual changes, select a new output fo
 - [Create Image](create-image.md) – use edited templates in production
 - [Troubleshooting](troubleshooting.md) – AI edit failures or slow previews
 - [Product](product.md) – how template storage is organized
+- [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) – local server for AI jobs
 
 ---
 

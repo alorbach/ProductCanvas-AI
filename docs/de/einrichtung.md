@@ -1,13 +1,13 @@
 # Erste Schritte
 
-Dieses Kapitel führt Sie durch Installation, Einrichtung der Codex Local Bridge, Codex-CLI-Anmeldung und Ihr erstes Bild mit ProductCanvas AI.
+Dieses Kapitel führt Sie durch Installation, Einrichtung der [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge), Codex-CLI-Anmeldung und Ihr erstes Bild mit ProductCanvas AI.
 
 ## Systemvoraussetzungen
 
 - **Windows 10 oder neuer** (64-Bit)
 - Internetzugang für die Ersteinrichtung von Codex CLI / Bridge und für KI-Anfragen
 - **Codex CLI** mit aktivem Login
-- **Codex Local Bridge ≥ 1.0.4** (Referenzbilder unter `/v1/images` erfordern diese Version)
+- **[Codex Local Bridge ≥ 1.0.4](https://github.com/alorbach/codex-local-bridge)** (Referenzbilder unter `/v1/images` erfordern diese Version; [Releases](https://github.com/alorbach/codex-local-bridge/releases))
 
 ProductCanvas AI kann die Bridge beim ersten Start automatisch herunterladen und starten. Den Pairing-Code geben Sie in der Regel nur einmal ein.
 
@@ -29,11 +29,11 @@ Für die normale Nutzung sind keine Administratorrechte nötig. Einstellungen li
 
 ## Erster Start
 
-Beim Start prüft ProductCanvas AI, ob die Codex Local Bridge unter der konfigurierten URL erreichbar ist (Standard: `http://127.0.0.1:8765`).
+Beim Start prüft ProductCanvas AI, ob die [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) unter der konfigurierten URL erreichbar ist (Standard: `http://127.0.0.1:8765`).
 
 Ist die Bridge nicht bereit, erscheint ein **Einrichtungs-Banner** oben. Die App kann:
 
-1. Die neueste Codex Local Bridge herunterladen (Ablage: `%LOCALAPPDATA%\productcanvas-ai\bridge\`)
+1. Die neueste [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge/releases) herunterladen (Ablage: `%LOCALAPPDATA%\productcanvas-ai\bridge\`)
 2. Die Bridge starten (Tray-Symbol in der Taskleiste)
 3. Nach einem **Pairing-Code** fragen
 
@@ -71,9 +71,9 @@ Ist die Codex CLI nicht installiert, kann ProductCanvas AI während der Bridge-E
 
 Bei gültigem Login zeigt der Bridge-Status **Bridge bereit** – Prompt- und Bildgenerierung sind verfügbar.
 
-## Erste Vorlage importieren (falls nötig)
+## Erste Vorlage importieren
 
-System-Vorlagen sind in der App enthalten. Bei leerer Liste oder eigenem Layout:
+Vorlagen werden **nicht mit der App mitgeliefert** – Sie importieren eigene Layout-Master (PNG, JPG oder WebP). Beim ersten Start kann die Liste leer sein, bis Sie importieren:
 
 1. Tab **Bild erstellen** öffnen.
 2. **Vorlage importieren**, Menü **Vorlagen → Importieren…** oder PNG/JPG/WebP auf die Vorlagenliste ziehen.

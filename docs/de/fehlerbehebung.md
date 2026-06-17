@@ -1,6 +1,6 @@
 # Fehlerbehebung
 
-Häufige Probleme mit Codex Local Bridge, Pairing, langen Jobs und Bildqualität in ProductCanvas AI.
+Häufige Probleme mit [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge), Pairing, langen Jobs und Bildqualität in ProductCanvas AI.
 
 ## Kurzübersicht
 
@@ -12,7 +12,7 @@ Häufige Probleme mit Codex Local Bridge, Pairing, langen Jobs und Bildqualität
 | Prompt-Erstellung schlägt fehl | Referenzen prüfen (PNG/JPG/WebP); Debug-Log |
 | Zeitüberschreitung | Bis 30 Min. warten; abbrechen und wiederholen |
 | Produkt sieht falsch aus | Prompt neu generieren; Referenzen ergänzen; **Zusatz-Prompt** |
-| Referenzen ohne Wirkung | Bridge ≥ 1.0.4; Debug-Log Anhang-Modus |
+| Referenzen ohne Wirkung | [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) ≥ 1.0.4; Debug-Log Anhang-Modus |
 
 ## Bridge nicht erreichbar
 
@@ -20,7 +20,7 @@ Häufige Probleme mit Codex Local Bridge, Pairing, langen Jobs und Bildqualität
 
 **Prüfen:**
 
-1. **Codex Local Bridge** im Tray – fehlt das Symbol: ProductCanvas AI neu starten oder Bridge manuell aus `%LOCALAPPDATA%\productcanvas-ai\bridge\` starten.
+1. **[Codex Local Bridge](https://github.com/alorbach/codex-local-bridge)** im Tray – fehlt das Symbol: ProductCanvas AI neu starten, von [Releases](https://github.com/alorbach/codex-local-bridge/releases) installieren oder Bridge manuell aus `%LOCALAPPDATA%\productcanvas-ai\bridge\` starten.
 2. **Einstellungen → Bridge-URL** = tatsächlicher Bridge-Endpunkt (Standard `http://127.0.0.1:8765`).
 3. VPN/Sicherheitssoftware blockiert **localhost**?
 4. Bridge im Tray neu starten, danach ProductCanvas AI.
@@ -66,7 +66,7 @@ Jobs können **bis zu 30 Minuten** laufen, bevor eine Zeitüberschreitung gemeld
 
 - Warte-Dialog: **Warteschlange**, **Generierung**, verstrichene Zeit.
 - Bridge-Tray auf aktive Jobs prüfen.
-- **Abbrechen** bei hängendem Job, dann erneut versuchen.
+- **Abbrechen** bricht den aktiven Bridge-Job ab (nicht nur den Dialog), dann erneut versuchen.
 
 **Fehlercodes (Debug-Log):**
 
@@ -109,7 +109,7 @@ Sehr große Referenzen werden ggf. automatisch verkleinert. Meldung „body too 
 
 Debug-Log: „Referenzen im HTTP-Payload, aber nicht an Codex gesendet“.
 
-**Fix:** **Codex Local Bridge 1.0.4 oder neuer**. Ältere Versionen ignorieren `/v1/images`-Anhänge.
+**Fix:** **[Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) 1.0.4 oder neuer** ([Releases](https://github.com/alorbach/codex-local-bridge/releases)). Ältere Versionen ignorieren `/v1/images`-Anhänge.
 
 Erfolg: „Referenzen an Codex weitergeleitet (N Anhänge)“.
 
@@ -120,7 +120,7 @@ Erfolg: „Referenzen an Codex weitergeleitet (N Anhänge)“.
 | Vorlage gesperrt | KI-Vorschau akzeptieren oder verwerfen |
 | „Änderungswunsch eingeben…“ | Text eingeben oder anderes Ausgabeformat |
 | Vorschau stark abweichend | Änderung eingrenzen; Vorlage klonen |
-| Löschen nicht möglich | Nur eigene Vorlagen löschbar |
+| Löschen nicht möglich | Importierte Vorlagen können aus der Bibliothek gelöscht werden |
 
 ## Export und Vorschau
 

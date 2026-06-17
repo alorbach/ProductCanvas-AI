@@ -1,13 +1,13 @@
 # Getting Started
 
-This chapter walks you through installation, Codex Local Bridge setup, Codex CLI login, and creating your first image with ProductCanvas AI.
+This chapter walks you through installation, [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) setup, Codex CLI login, and creating your first image with ProductCanvas AI.
 
 ## System requirements
 
 - **Windows 10 or later** (64-bit)
 - Internet access for initial Codex CLI / Bridge setup and AI requests
 - **Codex CLI** with an active login
-- **Codex Local Bridge ≥ 1.0.4** (reference images on `/v1/images` require this version)
+- **[Codex Local Bridge ≥ 1.0.4](https://github.com/alorbach/codex-local-bridge)** (reference images on `/v1/images` require this version; [releases](https://github.com/alorbach/codex-local-bridge/releases))
 
 ProductCanvas AI can download and start the bridge automatically on first use. You only need to enter a pairing code once.
 
@@ -29,11 +29,11 @@ No administrator rights are required for normal use. The app stores settings und
 
 ## First launch
 
-When you start ProductCanvas AI for the first time, it checks whether Codex Local Bridge is running at the configured URL (default `http://127.0.0.1:8765`).
+When you start ProductCanvas AI for the first time, it checks whether [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) is running at the configured URL (default `http://127.0.0.1:8765`).
 
 If the bridge is not ready, a **setup banner** appears at the top of the window. The app may:
 
-1. Download the latest Codex Local Bridge release (stored under `%LOCALAPPDATA%\productcanvas-ai\bridge\`)
+1. Download the latest [Codex Local Bridge release](https://github.com/alorbach/codex-local-bridge/releases) (cached under `%LOCALAPPDATA%\productcanvas-ai\bridge\`)
 2. Start the bridge process (look for the tray icon in the taskbar notification area)
 3. Prompt you for a **pairing code**
 
@@ -71,9 +71,9 @@ If Codex CLI is not installed, ProductCanvas AI may attempt installation via **w
 
 When login is valid, the bridge status shows **Bridge ready** and prompt/image generation becomes available.
 
-## Import your first template (if needed)
+## Import your first template
 
-Built-in system templates ship with the app. If you start with an empty template list or want your own layout:
+Templates are **not bundled** with the app—you import your own layout masters (PNG, JPG, or WebP). On first launch the template list may be empty until you import one:
 
 1. Go to **Create image**.
 2. Click **Import template**, use **Templates → Import…**, or drag a PNG/JPG/WebP file onto the template list.

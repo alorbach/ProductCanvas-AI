@@ -37,7 +37,7 @@ flowchart LR
 | **ProductCanvas AI** | Electron-App: UI, Vorlagen, Profile, Prompt-Builder, Bild-Pipeline |
 | **Codex Local Bridge** | Lokaler HTTP-Server; Pairing mit der App; Jobs an Codex CLI |
 | **Codex CLI** | Kommandozeile zu KI-Modellen (Text + Bild) |
-| **Vorlagen** | PNG-Layout-Master (System + Benutzer) |
+| **Vorlagen** | Vom Benutzer importierte PNG-Layout-Master (`%APPDATA%\productcanvas-ai\templates\`) |
 | **Profile** | Gespeicherte Projekte (`.pcprofile.json`) |
 
 ### Prozessgrenzen
@@ -62,7 +62,7 @@ Standard-Endpunkt: `http://127.0.0.1:8765`.
 - **Referenzbilder:** Bridge **≥ 1.0.4** für Weiterleitung an Codex.
 - **Timeouts:** Bis 30 Minuten pro langem Bild-Job.
 
-Die App kann Bridge unter Windows beim Erststart laden und starten. Manuelle Installation von [codex-local-bridge](https://github.com/alorbach/codex-local-bridge) möglich.
+Die App kann Bridge unter Windows beim Erststart laden und starten. Manuelle Installation von [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) ([neueste Version](https://github.com/alorbach/codex-local-bridge/releases)) möglich.
 
 ## Lokaler Datenschutz
 
@@ -85,7 +85,7 @@ ProductCanvas AI betreibt keinen zentralen Bild-Upload-Dienst. Bilder und Prompt
 | Vorlagen-Bibliothek | PNG-Master aus beliebigem Design-Tool importieren |
 | Nicht-destruktive KI-Edits | Akzeptieren/Verwerfen bei Vorlagenänderungen |
 
-Ersetzen Sie mitgelieferte System-Vorlagen durch eigene Layouts für jede visuelle Identität.
+Importieren Sie eigene PNG-Master aus beliebigen Design-Tools für eine Vorlagen-Bibliothek passend zu jeder visuellen Identität.
 
 ## Standardverhalten
 
@@ -97,7 +97,7 @@ Ersetzen Sie mitgelieferte System-Vorlagen durch eigene Layouts für jede visuel
 ## Abhängigkeiten und Lizenz
 
 - **ProductCanvas AI** – GPL-2.0-or-later
-- **Codex Local Bridge** – separates Projekt ([alorbach/codex-local-bridge](https://github.com/alorbach/codex-local-bridge))
+- **Codex Local Bridge** – separates Projekt ([Codex Local Bridge](https://github.com/alorbach/codex-local-bridge), [Releases](https://github.com/alorbach/codex-local-bridge/releases))
 - **Codex CLI** – Laufzeitvoraussetzung für KI-Funktionen
 
 Copyright © [Andre Lorbach](https://github.com/alorbach).

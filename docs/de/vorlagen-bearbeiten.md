@@ -1,15 +1,18 @@
 # Vorlagen bearbeiten
 
-Im Tab **Vorlagen bearbeiten** passen Sie Layout-Vorlagen per natürlicher Sprache und KI-Vorschau an. Änderungen werden erst nach Ihrer Bestätigung gespeichert.
+Im Tab **Vorlagen bearbeiten** passen Sie importierte Layout-Vorlagen per natürlicher Sprache und KI-Vorschau über die [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) an. Änderungen werden erst nach Ihrer Bestätigung gespeichert.
 
-## Vorlagen-Typen
+## Ihre Vorlagen-Bibliothek
 
-| Typ | Speicherort | Bearbeitbar? |
-|-----|-------------|--------------|
-| **System-Vorlagen** | Im App-Bundle | Schreibgeschützt – per **Klonen** kopieren |
-| **Eigene Vorlagen** | `%APPDATA%\productcanvas-ai\templates\` | Bearbeiten, umbenennen, löschen |
+Alle Vorlagen liegen unter `%APPDATA%\productcanvas-ai\templates\`. Sie importieren sie als PNG-, JPG- oder WebP-Dateien – sie sind nicht mit der App gebündelt.
 
-System-Vorlagen werden nie direkt geändert. Beim Akzeptieren einer KI-Änderung auf einer System-Vorlage entsteht automatisch eine **neue eigene Vorlage**.
+| Aktion | Beschreibung |
+|--------|--------------|
+| **Importieren** | Neues Layout-Master von der Festplatte hinzufügen |
+| **Klonen** | Bestehende Vorlage mit neuem Namen duplizieren |
+| **Umbenennen** | Anzeigenamen ändern |
+| **Löschen** | Vorlage und Datei entfernen (mit Bestätigung) |
+| **Umsortieren** | Thumbnails in der Galerie per Drag-and-Drop |
 
 ## Editor-Überblick
 
@@ -24,11 +27,13 @@ Bei ausstehender KI-Vorschau ist die Vorlage **gesperrt**, bis Sie **Änderung a
 Ausgangspunkt ist jedes PNG/JPG/WebP-Layout:
 
 1. **Vorlagen → Importieren…**, Button **Vorlage importieren** (Tab Bild erstellen) oder Drag-and-Drop auf die Galerie.
-2. Datei wird in den Benutzer-Vorlagenordner kopiert und unter **Eigene Vorlagen** gelistet.
+2. Datei wird in den Vorlagenordner kopiert und erscheint in der Galerie.
 
-## System-Vorlage klonen
+Importierte Vorlagen eignen sich als Ausgangspunkt für markenspezifische Layouts.
 
-1. System-Vorlage in Galerie oder Dropdown **Aktuelle Vorlage** wählen.
+## Vorlage klonen
+
+1. Vorlage in Galerie oder Dropdown **Aktuelle Vorlage** wählen.
 2. **Klonen** im Kontextmenü oder **Vorlagen → Klonen**.
 3. Bearbeitbare Kopie mit neuem Namen.
 
@@ -56,13 +61,15 @@ Alternativ nur **Ausgabeformat** ändern – ohne Textänderung neue Größe erz
 - Bild in die Drop-Zone ziehen oder **Referenzbild hinzufügen**.
 - Im Änderungswunsch erwähnen, z. B. „Warmes Studiolicht wie im Referenzbild“.
 
+Der optionale Editor-Referenzpfad wird in der Sitzung (`editorReferenceImagePath`) gespeichert, damit Thumbnails nach einem Neustart wieder geladen werden.
+
 ### 4. Prompt optimieren
 
 **Prompt optimieren** (oder direkt generieren – interne Optimierung). Die KI erstellt einen präzisen Bearbeitungs-Prompt. Vor dem Anwenden anpassen.
 
 ### 5. KI-Vorschau generieren
 
-**KI-Änderung generieren**. Warte-Dialog zeigt Optimierung und Bildgenerierung.
+**KI-Änderung generieren**. Warte-Dialog zeigt Optimierung und Bildgenerierung über die Bridge.
 
 Rechts erscheint die **KI-Vorschau**. **Vollbild-Vergleich** für Original und Vorschau nebeneinander.
 
@@ -70,14 +77,14 @@ Rechts erscheint die **KI-Vorschau**. **Vollbild-Vergleich** für Original und V
 
 | Schaltfläche | Wirkung |
 |--------------|---------|
-| **Änderung akzeptieren** | Vorschau wird neue Vorlagenversion (eigener Ordner). System-Vorlagen → neue Benutzer-Vorlage. |
+| **Änderung akzeptieren** | Vorschau wird neue Vorlagenversion in Ihrer Bibliothek |
 | **Änderung verwerfen** | Vorschau verworfen; Original unverändert |
 
 Nach Akzeptieren wird die Vorschau zum neuen **Original** für weitere Bearbeitungen.
 
 ## Versionshistorie
 
-Beim Akzeptieren auf einer **bestehenden eigenen Vorlage** wird die alte Version archiviert unter:
+Beim Akzeptieren auf einer **bestehenden Vorlage** wird die alte Version archiviert unter:
 
 ```
 %APPDATA%\productcanvas-ai\templates\history\<template-id>\
@@ -87,12 +94,10 @@ Wiederherstellung manuell über den Explorer. Keine UI-Anbindung.
 
 ## Umbenennen und löschen
 
-Kontextmenü auf **eigener Vorlage**:
+Kontextmenü auf einer Vorlage:
 
-- **Umbenennen…**
-- **Löschen** (mit Bestätigung)
-
-System-Vorlagen sind nicht löschbar.
+- **Umbenennen…** – Anzeigenamen ändern (leere Namen werden abgelehnt)
+- **Löschen** – Vorlage und Registereintrag entfernen (Bestätigungsdialog)
 
 ## Ausgabeformat im Editor
 
@@ -116,6 +121,7 @@ Nur Größenänderung ohne visuelle Anpassung: neues Ausgabeformat wählen und o
 - [Bild erstellen](bild-erstellen.md)
 - [Fehlerbehebung](fehlerbehebung.md)
 - [Produkt](produkt.md)
+- [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge)
 
 ---
 

@@ -25,16 +25,20 @@ Click **Save** to apply. The main window refreshes labels without restart.
 
 ## Bridge URL
 
-Default: `http://127.0.0.1:8765`
+Default: `http://127.0.0.1:8765` ([Codex Local Bridge](https://github.com/alorbach/codex-local-bridge))
 
 Change this only when:
 
-- Codex Local Bridge listens on a non-default host or port
+- [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) listens on a non-default host or port
 - You run multiple bridge instances and need a specific endpoint
 
-After saving, ProductCanvas AI uses the new URL for status checks and all AI requests. If a session is open, its stored `bridgeUrl` field updates as well.
+After saving, ProductCanvas AI updates:
 
-Ensure the URL has no trailing slash. Use `http://` for local bridge instances unless your bridge documentation specifies HTTPS.
+- `%APPDATA%\productcanvas-ai\defaults.json`
+- `%APPDATA%\productcanvas-ai\bridge-state.json` and the active bridge client
+- The open session’s `bridgeUrl` field (if a session is loaded)
+
+Only **`http://` and `https://`** URLs are accepted. Invalid values fall back to `http://127.0.0.1:8765`. Use no trailing slash.
 
 ## Project settings (Create image tab)
 
@@ -94,6 +98,7 @@ When you save a profile to `Campaign.pcprofile.json`, reference images are copie
 
 - Template ID and mode
 - All reference image paths (rebased on save)
+- Optional template-editor reference path (`editorReferenceImagePath`)
 - Prompts, fingerprints, and analysis text
 - Project metadata and image settings
 - Last preview path (if still valid)
@@ -112,7 +117,6 @@ Profiles do **not** include application language preference or global bridge URL
 | Template version history | `%APPDATA%\productcanvas-ai\templates\history\` |
 | Temp previews | `%APPDATA%\productcanvas-ai\temp-previews\` |
 | Bridge installer cache | `%LOCALAPPDATA%\productcanvas-ai\bridge\` |
-| System templates | Inside the app installation (`assets/templates/`) |
 
 On first run after upgrading from an older app name, user data may migrate automatically into `productcanvas-ai` if the new folder was empty.
 
@@ -122,7 +126,7 @@ The footer **Debug log** panel records bridge calls, attachment modes, and error
 
 ## Related topics
 
-- [Getting Started](getting-started.md) – initial bridge pairing
+- [Getting Started](getting-started.md) – initial [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) pairing
 - [Create Image](create-image.md) – project fields explained
 - [Developer](developer.md) – preference files in development builds
 

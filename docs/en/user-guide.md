@@ -70,6 +70,16 @@ When setup is required, a banner appears at the top with pairing code entry and 
 
 Open the **Help** tab or use **Help → User Guide** in the menu. Documentation language follows your UI language setting (English or German).
 
+## External dependencies
+
+| Project | Role |
+|---------|------|
+| [ProductCanvas AI](https://github.com/alorbach/productcanvas-ai) | This desktop app |
+| [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) | Local HTTP server; pairing, job forwarding to Codex CLI |
+| **Codex CLI** | Command-line interface to AI models (install and sign in separately) |
+
+Download bridge releases from [github.com/alorbach/codex-local-bridge/releases](https://github.com/alorbach/codex-local-bridge/releases) when not using the app’s automatic setup.
+
 ---
 
 Copyright © [Andre Lorbach](https://github.com/alorbach). Licensed under [GPL-2.0-or-later](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html).

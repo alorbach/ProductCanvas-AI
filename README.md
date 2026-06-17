@@ -2,20 +2,35 @@
 
 Universal desktop app for creating AI-generated product images from **layout templates** and **reference photos** via [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge).
 
+## Architecture
+
+```
+ProductCanvas AI  →  Codex Local Bridge  →  Codex CLI  →  AI provider
+     (Electron)         (localhost HTTP)      (CLI)
+```
+
+The app handles UI, templates, profiles, and prompt building. [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) pairs with the desktop app and forwards jobs to **Codex CLI** on your PC.
+
 ## Features
 
-- Generate images from templates + reference product photos
+- Generate images from imported templates + reference product photos
 - Clone and AI-edit templates (accept/reject workflow)
 - Save/load profiles with autosave and recent files
 - Automatic Bridge and Codex CLI setup (Windows)
 - English UI by default, German supported — system locale or user override in Settings
-- Integrated help viewer with bilingual documentation
+- Integrated help viewer with bilingual documentation (same files as `docs/` below)
+
+## Prerequisites (end users)
+
+- **Windows 10+** (64-bit)
+- **[Codex Local Bridge ≥ 1.0.4](https://github.com/alorbach/codex-local-bridge)** — reference images on `/v1/images` require this version ([releases](https://github.com/alorbach/codex-local-bridge/releases))
+- **Codex CLI** with an active login
 
 ## Requirements (development)
 
 - Windows 10+
 - Node.js 20+
-- Optional for AI: Codex CLI + Codex Local Bridge **≥ 1.0.4** (reference images on `/v1/images`)
+- Optional for live AI: Codex CLI + [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) **≥ 1.0.4**
 
 ## Install & run
 
@@ -54,6 +69,8 @@ GitHub Actions creates release artifacts automatically (`.github/workflows/relea
 
 ## Documentation
 
+The in-app **Help** tab loads these Markdown files (locale-aware).
+
 | English | Deutsch |
 |---------|---------|
 | [docs/en/user-guide.md](docs/en/user-guide.md) | [docs/de/benutzerhandbuch.md](docs/de/benutzerhandbuch.md) |
@@ -71,7 +88,7 @@ Agent notes: [AGENTS.md](AGENTS.md)
 
 ## Deutsch
 
-**ProductCanvas AI** ist ein markenneutrales KI-Bildstudio: Layout-Vorlagen + Referenzfotos → fertiges Bild über Codex Local Bridge. Marke, Serie und Tagline legen Sie pro Projekt fest.
+**ProductCanvas AI** ist ein markenneutrales KI-Bildstudio: Layout-Vorlagen + Referenzfotos → fertiges Bild über [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge). Marke, Serie und Tagline legen Sie pro Projekt fest.
 
 Installation, Tests und Release wie oben. Hilfe in der App oder unter `docs/de/`.
 

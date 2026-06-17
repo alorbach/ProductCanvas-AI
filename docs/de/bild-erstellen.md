@@ -6,7 +6,7 @@ Im Tab **Bild erstellen** kombinieren Sie Layout-Vorlage, Referenz-Produktfotos 
 
 ### 1. Vorlage wählen
 
-Das Vorlagen-Panel links listet **System-Vorlagen** (mit der App geliefert) und **eigene Vorlagen** (importiert oder geklont).
+Das Vorlagen-Panel listet **Ihre importierten Vorlagen** (PNG/JPG/WebP-Layout-Master). Ist die Liste leer, zuerst eine Vorlage importieren.
 
 - Thumbnail anklicken zur Auswahl.
 - Die **zuletzt verwendete** Vorlage ist beim Start vorausgewählt.
@@ -18,7 +18,7 @@ Das Vorlagen-Panel links listet **System-Vorlagen** (mit der App geliefert) und 
 - Menü **Vorlagen → Importieren…**
 - PNG, JPG oder WebP auf die Vorlagenliste ziehen
 
-Importierte Dateien werden nach `%APPDATA%\productcanvas-ai\templates\` kopiert. System-Vorlagen werden nicht überschrieben – stattdessen klonen (siehe [Vorlagen bearbeiten](vorlagen-bearbeiten.md)).
+Importierte Dateien werden nach `%APPDATA%\productcanvas-ai\templates\` kopiert. Siehe [Vorlagen bearbeiten](vorlagen-bearbeiten.md) zum Klonen, Umbenennen oder KI-Bearbeiten.
 
 Die Vorlage legt Canvas-Größe, Hintergrund, Textbereiche und optionale Kategorie-Icons in der Fußzeile fest.
 
@@ -49,7 +49,7 @@ Formate: **PNG, JPG, WebP**.
 |------|--------------|
 | **Bildauflösung** | Ausgabegröße für Codex. **Vorlage (B×H)** entspricht der Vorlage; **Vorlage ×2** verdoppelt die Maße. Feste Presets (z. B. 1536×1024) verfügbar. |
 | **Qualität** | Niedrig, Mittel oder Hoch – wie AI Gateway / PMS. **Hoch** für finale Exporte empfohlen. |
-| **Produktkategorie** | Hebt das passende Icon in der Vorlagen-Fußzeile hervor. Kategorie wählen, die zum Produkt oder gewünschten Akzent passt. |
+| **Produktkategorie** | Hebt das passende Icon in der Vorlagen-Fußzeile hervor. **Anzeigenamen** folgen der UI-Sprache (DE/EN); **Werte** für die KI bleiben stabil (z. B. `LAUTSPRECHER`, `TV`). |
 | **Markenname** | Primäre Markenzeile im Layout. |
 | **Serie** | Produktlinie oder Modellfamilie. |
 | **Werbetext (Tagline)** | Kurzer Werbesatz (möglichst eine Zeile). **KI-Vorschlag** (Funkeln-Symbol) für automatischen Entwurf. |
@@ -63,7 +63,7 @@ Auflösung und Qualität beeinflussen Generierungsdauer und Codex-Kosten. Vorlag
 
 Die App:
 
-1. Sendet Referenzbilder über die Bridge an Codex
+1. Sendet Referenzbilder über die [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) an Codex
 2. Analysiert jedes Referenzbild (Fortschritt: „Produktbild X von Y wird analysiert…“)
 3. Erstellt einen strukturierten **Bild-Prompt** mit Regeln für Layout- und Produkttreue
 4. Füllt **Markenname**, **Serie** und **Tagline**, wenn die Analyse Vorschläge liefert (editierbar)
@@ -82,7 +82,7 @@ Der Warte-Dialog zeigt Warteschlange, verstrichene Zeit und Phase:
 - Bild-Preflight (Prompt-Optimierung mit Referenzen)
 - Warteschlange / Generierung
 
-Die Generierung kann **1 bis 30 Minuten** dauern. Mit **Abbrechen** den aktiven Job stoppen.
+Die Generierung kann **1 bis 30 Minuten** dauern. **Abbrechen** bricht den aktiven Bridge-Job ab (nicht nur den Warte-Dialog).
 
 Nach Abschluss erscheint die Vorschau. Klick für Vollbild (Esc zum Schließen).
 
@@ -100,7 +100,7 @@ ProductCanvas AI hält Produkte nah an Ihren Referenzfotos:
 - Preflight verbindet Layout-Vorgaben mit Produktanalyse.
 - **Zusatz-Prompt** verschärft Regeln bei Abweichungen (Material, Muster, Anzahl der Elemente).
 
-Warnt das Debug-Log, dass Referenzen nicht weitergeleitet wurden: Codex Local Bridge aktualisieren.
+Warnt das Debug-Log, dass Referenzen nicht weitergeleitet wurden: [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) auf die [neueste Version](https://github.com/alorbach/codex-local-bridge/releases) aktualisieren.
 
 ## Autosave und Profile
 
@@ -122,7 +122,7 @@ Benannte Projekte: **Datei → Speichern unter…** als `.pcprofile.json`. Siehe
 
 - [Vorlagen bearbeiten](vorlagen-bearbeiten.md)
 - [Fehlerbehebung](fehlerbehebung.md)
-- [Einstellungen](einstellungen.md)
+- [Einstellungen](einstellungen.md) – [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge)-URL und Sprache
 
 ---
 

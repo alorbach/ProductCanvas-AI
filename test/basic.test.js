@@ -37,6 +37,27 @@ for (const chapter of docChapters) {
   assert(fs.existsSync(path.join(root, 'docs', chapter)), `doc exists: ${chapter}`);
 }
 
+const { DOC_ENTRIES } = require(path.join(root, 'src', 'main', 'docs', 'doc-loader'));
+for (const entry of DOC_ENTRIES) {
+  for (const loc of ['en', 'de']) {
+    const rel = entry.file[loc];
+    assert(rel, `doc entry ${entry.id} missing ${loc} file mapping`);
+    assert(fs.existsSync(path.join(root, 'docs', rel)), `doc exists: ${rel}`);
+  }
+}
+
+const docsDir = path.join(root, 'docs');
+const systemTemplateHits = [];
+for (const entry of DOC_ENTRIES) {
+  for (const rel of Object.values(entry.file)) {
+    const text = fs.readFileSync(path.join(docsDir, rel), 'utf8');
+    if (/\bsystem[- ]templates?\b/i.test(text) || /\bSystem-Vorlagen?\b/.test(text)) {
+      systemTemplateHits.push(rel);
+    }
+  }
+}
+assert.strictEqual(systemTemplateHits.length, 0, `no system-template narrative: ${systemTemplateHits.join(', ')}`);
+
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
 assert.strictEqual(pkg.name, 'productcanvas-ai');
 assert.strictEqual(pkg.build.productName, 'ProductCanvas AI');

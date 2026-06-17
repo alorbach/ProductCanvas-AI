@@ -1,6 +1,6 @@
 # Troubleshooting
 
-This chapter helps you resolve common issues with Codex Local Bridge, pairing, long-running jobs, and image quality in ProductCanvas AI.
+This chapter helps you resolve common issues with [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge), pairing, long-running jobs, and image quality in ProductCanvas AI.
 
 ## Quick reference
 
@@ -12,7 +12,7 @@ This chapter helps you resolve common issues with Codex Local Bridge, pairing, l
 | Prompt build fails | Verify references are valid PNG/JPG/WebP; check debug log |
 | Generation timeout | Wait up to 30 min; cancel and retry; check bridge queue |
 | Product looks wrong | Rebuild prompt; add references; tighten **Extra prompt** |
-| References not applied | Update bridge to ≥ 1.0.4; check debug log attachment mode |
+| References not applied | Update [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) to ≥ 1.0.4; check debug log attachment mode |
 
 ## Bridge not reachable
 
@@ -20,7 +20,7 @@ This chapter helps you resolve common issues with Codex Local Bridge, pairing, l
 
 **Checks:**
 
-1. Open the **Codex Local Bridge** tray icon – if missing, restart ProductCanvas AI to trigger auto-setup or start the bridge manually from `%LOCALAPPDATA%\productcanvas-ai\bridge\`.
+1. Open the **[Codex Local Bridge](https://github.com/alorbach/codex-local-bridge)** tray icon – if missing, restart ProductCanvas AI to trigger auto-setup, install from [releases](https://github.com/alorbach/codex-local-bridge/releases), or start the bridge manually from `%LOCALAPPDATA%\productcanvas-ai\bridge\`.
 2. Confirm **Settings → Bridge URL** matches where the bridge listens (default `http://127.0.0.1:8765`).
 3. Ensure no VPN or security software blocks **localhost** connections.
 4. Restart the bridge from its tray menu, then restart ProductCanvas AI.
@@ -66,7 +66,7 @@ Image and prompt jobs can run **up to 30 minutes** before the app reports a time
 
 - Watch the wait dialog for **Queued**, **Generating**, and elapsed time.
 - Check the bridge tray for active jobs or errors.
-- Use **Cancel** to stop a stuck job, then retry.
+- Use **Cancel** to abort the active bridge job (not just close the dialog), then retry.
 
 **Error codes (debug log):**
 
@@ -114,7 +114,7 @@ Large reference files may be resized automatically. If you see “body too large
 
 Debug log may show: “references in HTTP payload but not sent to Codex”.
 
-**Fix:** Upgrade **Codex Local Bridge to 1.0.4 or newer**. Older bridges ignore `/v1/images` attachments.
+**Fix:** Upgrade **[Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) to 1.0.4 or newer** ([releases](https://github.com/alorbach/codex-local-bridge/releases)). Older bridges ignore `/v1/images` attachments.
 
 Successful forwarding is logged as “References forwarded to Codex (N attachments)”.
 
@@ -125,7 +125,7 @@ Successful forwarding is logged as “References forwarded to Codex (N attachmen
 | Template locked | Accept or reject pending AI preview |
 | “Enter a change request…” | Type a change or pick different output format |
 | Preview wildly wrong | Narrow the change request; clone template and retry |
-| Cannot delete template | Only user templates are deletable |
+| Cannot delete template | All imported templates can be deleted from the user library |
 
 ## Export and preview
 

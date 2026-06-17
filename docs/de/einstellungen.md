@@ -25,16 +25,20 @@ UI-Texte kommen aus den i18n-Dateien; Hilfe aus `docs/de/` oder `docs/en/` je na
 
 ## Bridge-URL
 
-Standard: `http://127.0.0.1:8765`
+Standard: `http://127.0.0.1:8765` ([Codex Local Bridge](https://github.com/alorbach/codex-local-bridge))
 
 Nur ändern, wenn:
 
-- die Codex Local Bridge auf anderem Host/Port lauscht
+- die [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) auf anderem Host/Port lauscht
 - mehrere Bridge-Instanzen laufen und eine bestimmte angesprochen werden soll
 
-Nach dem Speichern nutzt ProductCanvas AI die neue URL für Status und alle KI-Anfragen. Bei offener Sitzung wird auch deren `bridgeUrl`-Feld aktualisiert.
+Nach dem Speichern aktualisiert ProductCanvas AI:
 
-URL ohne abschließenden Schrägstrich. Für lokale Bridges `http://` verwenden, sofern die Bridge-Doku nichts anderes vorschreibt.
+- `%APPDATA%\productcanvas-ai\defaults.json`
+- `%APPDATA%\productcanvas-ai\bridge-state.json` und den aktiven Bridge-Client
+- das `bridgeUrl`-Feld der offenen Sitzung (falls geladen)
+
+Nur **`http://`** und **`https://`** sind erlaubt. Ungültige Werte fallen auf `http://127.0.0.1:8765` zurück. Kein abschließender Schrägstrich.
 
 ## Projekteinstellungen (Tab Bild erstellen)
 
@@ -92,6 +96,7 @@ Beim Speichern als `Kampagne.pcprofile.json` werden Referenzbilder in den Ordner
 
 - Vorlagen-ID und Modus
 - Referenzbild-Pfade (beim Speichern angepasst)
+- Optionales Vorlagen-Editor-Referenzbild (`editorReferenceImagePath`)
 - Prompts, Fingerprints, Analysetexte
 - Projekt-Metadaten und Bildoptionen
 - Letzter Vorschau-Pfad (wenn gültig)
@@ -110,7 +115,6 @@ Globale Sprache und Bridge-URL gehören ins Einstellungsfenster, nicht zwingend 
 | Vorlagen-Historie | `%APPDATA%\productcanvas-ai\templates\history\` |
 | Temp-Vorschauen | `%APPDATA%\productcanvas-ai\temp-previews\` |
 | Bridge-Installer | `%LOCALAPPDATA%\productcanvas-ai\bridge\` |
-| System-Vorlagen | App-Installation (`assets/templates/`) |
 
 Nach Upgrade von älteren App-Namen kann eine Migration in `productcanvas-ai` erfolgen, wenn der neue Ordner leer war.
 
@@ -120,7 +124,7 @@ Im Footer protokolliert **Debug-Log** Bridge-Aufrufe, Anhang-Modi und Fehler. **
 
 ## Verwandte Themen
 
-- [Erste Schritte](einrichtung.md)
+- [Erste Schritte](einrichtung.md) – [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge)-Pairing
 - [Bild erstellen](bild-erstellen.md)
 - [Entwickler](entwickler.md)
 
