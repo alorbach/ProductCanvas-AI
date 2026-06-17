@@ -8,6 +8,7 @@ const {
   GATEWAY_IMAGE_SIZES,
   IMAGE_QUALITIES,
   SIZE_FROM_TEMPLATE,
+  SIZE_FROM_TEMPLATE_2X,
   normalizeQuality,
   resolveImageGenerationSettings,
   resolveOutputSize,
@@ -34,5 +35,16 @@ const resolved = resolveImageGenerationSettings(
 assert.equal(resolved.size, '1920x1080', 'resolved payload size');
 assert.equal(resolved.quality, 'medium', 'resolved payload quality');
 assert.equal(resolved.sizeMode, SIZE_FROM_TEMPLATE, 'resolved size mode');
+
+const fromTemplate2x = resolveOutputSize({ size: 'template2x' }, { width: 1365, height: 1024 });
+assert.equal(fromTemplate2x.size, '2730x2048', 'template2x mode doubles template dimensions');
+assert.equal(fromTemplate2x.sizeMode, 'template2x', 'template2x mode flagged');
+
+const resolved2x = resolveImageGenerationSettings(
+  { size: 'template2x', quality: 'high' },
+  { width: 1365, height: 1024 },
+);
+assert.equal(resolved2x.size, '2730x2048', 'resolved template2x payload size');
+assert.equal(resolved2x.sizeMode, 'template2x', 'resolved template2x size mode');
 
 console.log('All image-settings tests passed.');

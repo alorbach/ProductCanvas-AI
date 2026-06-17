@@ -19,6 +19,10 @@ assert(editRules.includes(changeRequest), 'edit rules include change request');
 assert(editRules.includes('1536x1024'), 'edit rules include target size');
 assert(editRules.includes('FROZEN'), 'edit rules include frozen zones');
 
+const styleRules = buildTemplateEditFrozenRules('Hintergrund wie IMAGE 2', { size: '1536x1024' }, { hasStyleReference: true });
+assert(styleRules.includes('IMAGE 2'), 'style rules mention IMAGE 2');
+assert(styleRules.includes('style/visual reference'), 'style rules describe style reference');
+
 class MockRegistry {
   constructor(templatePath) {
     this.template = {
@@ -106,6 +110,64 @@ class MockRegistry {
     try { fs.unlinkSync(result.previewPath); } catch { /* ignore */ }
   }
 
+  const stylePath = path.join(tmpDir, 'style-ref.png');
+  fs.writeFileSync(stylePath, png);
+  let styleChatImages = 0;
+  let styleImagesPayload = null;
+  const styleClient = {
+    async getCapabilities() {
+      return { features: { image_reference_attachments: true } };
+    },
+    async chat(body) {
+      const userContent = body.messages[1].content;
+      const textPart = userContent.find((p) => p.type === 'input_text' || p.type === 'text');
+      assert(textPart.text.includes('IMAGE 2'), 'style chat task mentions IMAGE 2');
+      styleChatImages = userContent.filter((p) => p.type === 'input_image' || p.type === 'image_url').length;
+      return {
+        response: {
+          choices: [{
+            message: {
+              content: JSON.stringify({
+                optimizedEditPrompt: 'Replace product-stage background using mood from IMAGE 2.',
+                changeSummary: 'Hintergrund angepasst.',
+                preservedElements: ['Header', 'Footer'],
+              }),
+            },
+          }],
+        },
+      };
+    },
+    async images(payload) {
+      styleImagesPayload = payload;
+      return {
+        response: {
+          data: [{ b64_json: png.toString('base64') }],
+          provider_details: { reference_attachment_count: 2, refs_forwarded_to_codex: true },
+        },
+        _attachmentMode: 'reference_images',
+      };
+    },
+  };
+
+  const styleResult = await new TemplateEditPipeline(styleClient, new MockRegistry(templatePath)).runTemplateEdit(
+    {
+      templateId: 'tpl-1',
+      changeRequest: 'Produktbühne-Hintergrund wie im Referenzbild',
+      quality: 'high',
+      referenceImagePath: stylePath,
+    },
+    () => {},
+    'sig-style',
+  );
+  assert.equal(styleChatImages, 2, 'style edit chat has two images');
+  assert.equal(styleImagesPayload.reference_images.length, 2, 'style edit images payload has two refs');
+  assert(styleImagesPayload.prompt.includes('visual style reference'), 'style hint in image prompt');
+  assert.equal(styleResult.referenceImagePath, stylePath, 'result stores reference path');
+
+  if (styleResult.previewPath && fs.existsSync(styleResult.previewPath)) {
+    try { fs.unlinkSync(styleResult.previewPath); } catch { /* ignore */ }
+  }
+
   let formatChatCalled = false;
   const formatClient = {
     async getCapabilities() {
@@ -118,6 +180,7 @@ class MockRegistry {
     async images(payload) {
       assert.equal(payload.size, '1792x1024', 'format-only uses selected size');
       assert(/Resize the attached/i.test(payload.prompt), 'format-only resize prompt');
+      assert.equal(payload.reference_images.length, 1, 'format-only ignores style reference');
       return {
         response: { data: [{ b64_json: png.toString('base64') }] },
         _attachmentMode: 'reference_images',
@@ -126,7 +189,7 @@ class MockRegistry {
   };
 
   const formatResult = await new TemplateEditPipeline(formatClient, new MockRegistry(templatePath)).runTemplateEdit(
-    { templateId: 'tpl-1', changeRequest: '', quality: 'high', size: '1792x1024' },
+    { templateId: 'tpl-1', changeRequest: '', quality: 'high', size: '1792x1024', referenceImagePath: stylePath },
     () => {},
     'sig-format',
   );

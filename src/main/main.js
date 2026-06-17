@@ -310,14 +310,14 @@ function registerIpc() {
     return templateRegistry.imageToDataUrl(p);
   });
 
-  ipcMain.handle('templates:runEdit', async (_, { templateId, changeRequest, quality, size, pairingCode }) => {
+  ipcMain.handle('templates:runEdit', async (_, { templateId, changeRequest, quality, size, referenceImagePath, pairingCode }) => {
     await bridgeManager.requirePaired(pairingCode);
     const signalKey = `edit-${Date.now()}`;
     const onProgress = (p) => send('job:progress', p);
     const unsubscribe = subscribeBridgeJobProgress(bridgeManager.getClient(), onProgress);
     try {
       return await templateEditor.runEdit(
-        { templateId, changeRequest, quality, size },
+        { templateId, changeRequest, quality, size, referenceImagePath },
         onProgress,
         signalKey,
       );

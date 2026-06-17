@@ -81,18 +81,29 @@ function appendLayoutLockBlock(prompt, template, imageSettings = {}) {
   return parts.filter(Boolean).join('\n\n');
 }
 
-function buildTemplateEditFrozenRules(changeRequest, imageSettings = {}) {
+function buildTemplateEditFrozenRules(changeRequest, imageSettings = {}, options = {}) {
   const sizeLine = imageSettings.size
     ? `Target output size: ${imageSettings.size} (exact layout template dimensions). Do not change aspect ratio or canvas size.`
     : 'Keep exact template canvas dimensions.';
-  return [
+  const lines = [
     'Edit the attached TELE-KOHLGRAF layout template image.',
     sizeLine,
     LAYOUT_FROZEN_RULES,
     'Only apply the user change inside allowed zones unless the user explicitly names a frozen element.',
     `User change request: ${changeRequest}`,
-    'Return ONLY JSON: {"optimizedEditPrompt":"english image edit prompt","changeSummary":"short german summary","preservedElements":["..."]}',
-  ].join('\n\n');
+  ];
+  if (options.hasStyleReference) {
+    lines.push(
+      'TWO ATTACHED IMAGES:',
+      '- IMAGE 1 = layout template to edit (authoritative for header, footer, contact bar, branding, neon accents).',
+      '- IMAGE 2 = style/visual reference only — use for background, texture, lighting mood, or colors as described in the user request.',
+      '- Do NOT copy header, footer, logos, or contact bar from IMAGE 2.',
+      '- Do NOT replace the template with IMAGE 2; merge the requested visual style into IMAGE 1 editable zones.',
+      'The optimizedEditPrompt must link the user request to IMAGE 2 (e.g. product-stage background like IMAGE 2).',
+    );
+  }
+  lines.push('Return ONLY JSON: {"optimizedEditPrompt":"english image edit prompt","changeSummary":"short german summary","preservedElements":["..."]}');
+  return lines.join('\n\n');
 }
 
 function buildResizeOnlyPrompt(template, imageSettings, sourceDims = {}) {

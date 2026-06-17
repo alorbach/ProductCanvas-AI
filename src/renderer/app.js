@@ -15,6 +15,7 @@ let editorTemplateId = '';
 let editorLocked = false;
 let editorGenerating = false;
 let editorOutputSize = 'template';
+let editorReferenceImage = null;
 let waitStart = 0;
 let waitTimer = null;
 let openLightbox = () => {};
@@ -613,11 +614,16 @@ function applyLabels() {
   $('editor-compare-lbl-preview').textContent = t('template.preview');
   $('editor-compare-hint').textContent = t('template.compareHint');
   $('editor-compare-close').setAttribute('aria-label', t('help.close'));
+  $('lbl-editor-ref').textContent = t('template.editorRef');
+  $('btn-editor-ref-add').textContent = t('template.editorRefAdd');
+  $('editor-ref-hint').textContent = t('template.editorRefHint');
+  $('editor-ref-empty').textContent = t('template.editorRefEmpty');
   $('prompt-cancel').textContent = t('dialog.cancel');
   $('prompt-ok').textContent = t('dialog.ok');
   $('confirm-cancel').textContent = t('dialog.cancel');
   $('confirm-ok').textContent = t('dialog.ok');
   updateEditorLockUi();
+  renderEditorReference();
   $('wait-title').textContent = t('wait.title');
   $('btn-wait-cancel').textContent = t('wait.cancel');
   $('btn-bridge-connect').textContent = t('bridge.setup.connect');
@@ -654,6 +660,30 @@ function templateSizeLabel(tmpl) {
   return `${tmpl.width}×${tmpl.height}`;
 }
 
+function templateSizeLabel2x(tmpl) {
+  if (!tmpl?.width || !tmpl?.height) return '…';
+  return `${tmpl.width * 2}×${tmpl.height * 2}`;
+}
+
+function appendTemplateSizeOptions(sizeSelect, tmpl) {
+  const templateOpt = document.createElement('option');
+  templateOpt.value = imageSettingsCatalog.sizeFromTemplate;
+  templateOpt.textContent = t('settings.sizeTemplate').replace('{size}', templateSizeLabel(tmpl));
+  sizeSelect.appendChild(templateOpt);
+  const template2xOpt = document.createElement('option');
+  template2xOpt.value = imageSettingsCatalog.sizeFromTemplate2x;
+  template2xOpt.textContent = t('settings.sizeTemplate2x').replace('{size}', templateSizeLabel2x(tmpl));
+  sizeSelect.appendChild(template2xOpt);
+}
+
+function templateSizeModeValues() {
+  return [
+    imageSettingsCatalog.sizeFromTemplate,
+    imageSettingsCatalog.sizeFromTemplate2x,
+    ...imageSettingsCatalog.sizes,
+  ];
+}
+
 function getEditorTemplate() {
   const id = editorTemplateId || session.templateId;
   return templates.find((item) => item.id === id) || null;
@@ -662,6 +692,10 @@ function getEditorTemplate() {
 function resolveEditorTargetSize(sizeValue, tmpl) {
   if (!sizeValue || sizeValue === 'template') {
     if (tmpl?.width && tmpl?.height) return `${tmpl.width}x${tmpl.height}`;
+    return '';
+  }
+  if (sizeValue === 'template2x') {
+    if (tmpl?.width && tmpl?.height) return `${tmpl.width * 2}x${tmpl.height * 2}`;
     return '';
   }
   return sizeValue;
@@ -739,17 +773,14 @@ async function refreshEditorUi() {
   const prevSize = sizeSelect?.value || editorOutputSize || imageSettingsCatalog.defaultSize;
   if (sizeSelect) {
     sizeSelect.innerHTML = '';
-    const templateOpt = document.createElement('option');
-    templateOpt.value = imageSettingsCatalog.sizeFromTemplate;
-    templateOpt.textContent = t('settings.sizeTemplate').replace('{size}', templateSizeLabel(displayTmpl));
-    sizeSelect.appendChild(templateOpt);
+    appendTemplateSizeOptions(sizeSelect, displayTmpl);
     for (const size of imageSettingsCatalog.sizes) {
       const opt = document.createElement('option');
       opt.value = size;
       opt.textContent = formatGatewaySizeLabel(size);
       sizeSelect.appendChild(opt);
     }
-    const validSizes = [imageSettingsCatalog.sizeFromTemplate, ...imageSettingsCatalog.sizes];
+    const validSizes = templateSizeModeValues();
     const nextSize = validSizes.includes(prevSize) ? prevSize : imageSettingsCatalog.defaultSize;
     sizeSelect.value = nextSize;
     editorOutputSize = nextSize;
@@ -784,6 +815,93 @@ function updateEditorLockUi() {
   $('change-request').disabled = editorGenerating;
   if ($('editor-size')) $('editor-size').disabled = locked || editorGenerating;
   if ($('editor-quality')) $('editor-quality').disabled = locked || editorGenerating;
+  if ($('btn-editor-ref-add')) $('btn-editor-ref-add').disabled = locked || editorGenerating;
+}
+
+function setEditorReferenceImage(ref) {
+  editorReferenceImage = ref?.path ? ref : null;
+  renderEditorReference();
+}
+
+function clearEditorReference() {
+  editorReferenceImage = null;
+  renderEditorReference();
+}
+
+function renderEditorReference() {
+  const preview = $('editor-ref-preview');
+  const empty = $('editor-ref-empty');
+  if (!preview || !empty) return;
+  preview.innerHTML = '';
+  if (!editorReferenceImage?.path) {
+    preview.classList.add('hidden');
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+  preview.classList.remove('hidden');
+  const div = document.createElement('div');
+  div.className = 'ref-thumb';
+  const img = document.createElement('img');
+  img.alt = editorReferenceImage.name || '';
+  api.filesReadDataUrl(editorReferenceImage.path).then((url) => { if (url) img.src = url; });
+  const btn = document.createElement('button');
+  btn.textContent = '×';
+  btn.addEventListener('click', () => {
+    if (editorLocked || editorGenerating) return;
+    clearEditorReference();
+  });
+  div.appendChild(img);
+  div.appendChild(btn);
+  preview.appendChild(div);
+}
+
+async function addEditorReferencePaths(filePaths) {
+  const paths = (filePaths || []).filter((p) => p && IMAGE_EXT.test(p));
+  if (!paths.length) {
+    showError(new Error(t('template.editorRefDropInvalid')));
+    return;
+  }
+  const added = await api.refsAddPaths([paths[0]]);
+  if (!added.length) {
+    showError(new Error(t('template.editorRefDropInvalid')));
+    return;
+  }
+  setEditorReferenceImage(added[0]);
+}
+
+function setupEditorReference() {
+  $('btn-editor-ref-add').addEventListener('click', async () => {
+    if (editorLocked || editorGenerating) return;
+    const picked = await api.refsAddDialog();
+    if (picked?.length) await addEditorReferencePaths([picked[0].path]);
+  });
+
+  const drop = $('editor-ref-drop');
+  const prevent = (e) => { e.preventDefault(); e.stopPropagation(); };
+  drop.addEventListener('dragenter', (e) => {
+    prevent(e);
+    if (!editorLocked && !editorGenerating) drop.classList.add('drag-over');
+  });
+  drop.addEventListener('dragover', (e) => {
+    prevent(e);
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+  });
+  drop.addEventListener('dragleave', (e) => {
+    prevent(e);
+    if (!drop.contains(e.relatedTarget)) drop.classList.remove('drag-over');
+  });
+  drop.addEventListener('drop', async (e) => {
+    prevent(e);
+    drop.classList.remove('drag-over');
+    if (editorLocked || editorGenerating) return;
+    if (isInternalSortDrag(e.dataTransfer)) return;
+    const paths = [...(e.dataTransfer?.files || [])]
+      .map((f) => f.path)
+      .filter((p) => p && IMAGE_EXT.test(p));
+    if (paths.length) await addEditorReferencePaths(paths);
+    else showError(new Error(t('template.editorRefDropInvalid')));
+  });
 }
 
 function clearEditorPreview() {
@@ -813,10 +931,7 @@ async function refreshImageSettingsUi() {
   if (prevQuality === 'standard') prevQuality = 'medium';
 
   sizeSelect.innerHTML = '';
-  const templateOpt = document.createElement('option');
-  templateOpt.value = imageSettingsCatalog.sizeFromTemplate;
-  templateOpt.textContent = t('settings.sizeTemplate').replace('{size}', templateSizeLabel(getSelectedTemplate()));
-  sizeSelect.appendChild(templateOpt);
+  appendTemplateSizeOptions(sizeSelect, getSelectedTemplate());
   for (const size of imageSettingsCatalog.sizes) {
     const opt = document.createElement('option');
     opt.value = size;
@@ -824,7 +939,7 @@ async function refreshImageSettingsUi() {
     sizeSelect.appendChild(opt);
   }
 
-  const validSizes = [imageSettingsCatalog.sizeFromTemplate, ...imageSettingsCatalog.sizes];
+  const validSizes = templateSizeModeValues();
   sizeSelect.value = validSizes.includes(prevSize) ? prevSize : imageSettingsCatalog.defaultSize;
 
   qualitySelect.innerHTML = '';
@@ -1374,6 +1489,12 @@ async function selectEditorTemplate(id, options = {}) {
     return;
   }
   editorTemplateId = id;
+  if (!options.preserveReference) {
+    clearEditorReference();
+  }
+  if (options.referenceImage) {
+    setEditorReferenceImage(options.referenceImage);
+  }
   if (options.syncSession !== false) {
     await updateSession({ templateId: id });
   }
@@ -1414,8 +1535,18 @@ async function init() {
     $('change-request').value = pendingEdit.changeRequest || '';
     $('optimized-prompt').value = pendingEdit.optimizedEditPrompt || '';
     $('change-summary').textContent = pendingEdit.changeSummary || '';
+    if (pendingEdit.referenceImagePath) {
+      setEditorReferenceImage({
+        path: pendingEdit.referenceImagePath,
+        name: pendingEdit.referenceImagePath.split(/[/\\]/).pop() || '',
+      });
+    }
     updateEditorLockUi();
-    await selectEditorTemplate(pendingEdit.templateId, { preservePreview: true, force: true });
+    await selectEditorTemplate(pendingEdit.templateId, {
+      preservePreview: true,
+      preserveReference: true,
+      force: true,
+    });
     if (pendingEdit.previewB64) {
       $('editor-preview').src = `data:image/png;base64,${pendingEdit.previewB64}`;
       $('editor-preview').classList.remove('hidden');
@@ -1432,6 +1563,7 @@ async function init() {
   setupDragDrop();
   setupPreviewLightbox();
   setupEditorCompareLightbox();
+  setupEditorReference();
   setupEditorImageContextMenus();
   setupPanelContextMenus();
   setupDebugPanel();
@@ -1610,6 +1742,7 @@ async function init() {
         changeRequest,
         quality: $('editor-quality').value,
         size,
+        referenceImagePath: editorReferenceImage?.path || '',
         pairingCode: getPairingCode(),
       });
       $('optimized-prompt').value = result.optimizedEditPrompt || '';

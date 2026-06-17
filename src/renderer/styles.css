@@ -433,6 +433,18 @@ body.lightbox-open { overflow: hidden; }
 }
 
 .editor-controls { display: flex; flex-direction: column; gap: 10px; }
+.editor-ref-block { display: flex; flex-direction: column; gap: 6px; }
+.editor-ref-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.editor-ref-drop {
+  min-height: 88px;
+  padding: 8px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.15);
+}
+.editor-ref-drop.drag-over { border-color: var(--accent); background: rgba(255, 215, 0, 0.06); }
+.editor-ref-preview .ref-thumb { display: inline-block; position: relative; }
+.editor-ref-preview .ref-thumb img { width: 72px; height: 72px; object-fit: cover; border-radius: 4px; }
 .editor-settings-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .editor-template-badge {
   display: inline-block;

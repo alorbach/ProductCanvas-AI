@@ -19,9 +19,9 @@ class TemplateEditorService {
     this.pendingEdit = null;
   }
 
-  async runEdit({ templateId, changeRequest, quality, size }, onProgress, signalKey) {
+  async runEdit({ templateId, changeRequest, quality, size, referenceImagePath }, onProgress, signalKey) {
     const result = await this.pipeline.runTemplateEdit(
-      { templateId, changeRequest, quality, size },
+      { templateId, changeRequest, quality, size, referenceImagePath },
       onProgress,
       signalKey,
     );
@@ -29,6 +29,7 @@ class TemplateEditorService {
       templateId: result.templateId,
       templatePath: result.templatePath,
       changeRequest: result.changeRequest,
+      referenceImagePath: result.referenceImagePath || '',
       optimizedEditPrompt: result.optimizedEditPrompt,
       changeSummary: result.changeSummary,
       previewPath: result.previewPath,
@@ -55,6 +56,7 @@ class TemplateEditorService {
     return {
       templateId: this.pendingEdit.templateId,
       changeRequest: this.pendingEdit.changeRequest,
+      referenceImagePath: this.pendingEdit.referenceImagePath || '',
       optimizedEditPrompt: this.pendingEdit.optimizedEditPrompt,
       changeSummary: this.pendingEdit.changeSummary,
       previewB64,

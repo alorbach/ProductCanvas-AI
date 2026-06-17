@@ -17,6 +17,7 @@ const GATEWAY_IMAGE_SIZES = [
 const IMAGE_QUALITIES = ['low', 'medium', 'high'];
 
 const SIZE_FROM_TEMPLATE = 'template';
+const SIZE_FROM_TEMPLATE_2X = 'template2x';
 
 const DEFAULT_FALLBACK_SIZE = '1536x1024';
 
@@ -30,6 +31,7 @@ function normalizeQuality(quality) {
 function normalizeSize(size) {
   const s = String(size || '').trim().toLowerCase();
   if (s === SIZE_FROM_TEMPLATE) return SIZE_FROM_TEMPLATE;
+  if (s === SIZE_FROM_TEMPLATE_2X) return SIZE_FROM_TEMPLATE_2X;
   if (s === 'auto') return 'auto';
   const m = s.match(/^(\d{2,5})x(\d{2,5})$/);
   if (!m) return '';
@@ -38,6 +40,7 @@ function normalizeSize(size) {
 
 function formatSizeLabel(size) {
   if (size === SIZE_FROM_TEMPLATE) return 'template';
+  if (size === SIZE_FROM_TEMPLATE_2X) return 'template2x';
   if (size === 'auto') return 'Auto';
   const m = String(size).match(/^(\d+)x(\d+)$/i);
   if (!m) return String(size);
@@ -46,7 +49,7 @@ function formatSizeLabel(size) {
 
 function aspectLabel(size) {
   const normalized = normalizeSize(size);
-  if (!normalized || normalized === SIZE_FROM_TEMPLATE || normalized === 'auto') return '';
+  if (!normalized || normalized === SIZE_FROM_TEMPLATE || normalized === SIZE_FROM_TEMPLATE_2X || normalized === 'auto') return '';
   const m = normalized.match(/^(\d+)x(\d+)$/);
   if (!m) return '';
   const width = parseInt(m[1], 10);
@@ -81,6 +84,32 @@ function resolveOutputSize(settings, templateDimensions) {
       fallback: true,
     };
   }
+  if (raw === SIZE_FROM_TEMPLATE_2X) {
+    const width = Number(templateDimensions?.width || 0);
+    const height = Number(templateDimensions?.height || 0);
+    if (width > 0 && height > 0) {
+      const w2 = width * 2;
+      const h2 = height * 2;
+      return {
+        size: `${w2}x${h2}`,
+        sizeMode: SIZE_FROM_TEMPLATE_2X,
+        width: w2,
+        height: h2,
+        fallback: false,
+      };
+    }
+    const fb = normalizeSize(DEFAULT_FALLBACK_SIZE);
+    const m = fb.match(/^(\d+)x(\d+)$/);
+    const w = m ? parseInt(m[1], 10) : 1536;
+    const h = m ? parseInt(m[2], 10) : 1024;
+    return {
+      size: `${w * 2}x${h * 2}`,
+      sizeMode: SIZE_FROM_TEMPLATE_2X,
+      width: w * 2,
+      height: h * 2,
+      fallback: true,
+    };
+  }
   if (raw === 'auto') {
     return { size: 'auto', sizeMode: 'preset', width: 0, height: 0, fallback: false };
   }
@@ -112,6 +141,7 @@ function getImageSettingsCatalog() {
     sizes: [...GATEWAY_IMAGE_SIZES],
     qualities: [...IMAGE_QUALITIES],
     sizeFromTemplate: SIZE_FROM_TEMPLATE,
+    sizeFromTemplate2x: SIZE_FROM_TEMPLATE_2X,
     defaultSize: SIZE_FROM_TEMPLATE,
     defaultQuality: 'high',
   };
@@ -122,6 +152,7 @@ module.exports = {
   GATEWAY_IMAGE_SIZES,
   IMAGE_QUALITIES,
   SIZE_FROM_TEMPLATE,
+  SIZE_FROM_TEMPLATE_2X,
   aspectLabel,
   formatSizeLabel,
   getImageSettingsCatalog,

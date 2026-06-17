@@ -81,7 +81,7 @@ function buildPreflightTaskPrompt({ settings, promptData, template }) {
     `Tagline: ${promptData?.tagline || settings?.tagline || '–'}`,
     `Category: ${promptData?.productCategory || settings?.productCategory || 'LAUTSPRECHER'}`,
     `Extra: ${settings?.extraPrompt || '–'}`,
-    `Target output size: ${size || '1536x1024'}${settings?.sizeMode === 'template' ? ' (from selected layout template)' : ''}`,
+    `Target output size: ${size || '1536x1024'}${settings?.sizeMode === 'template' ? ' (from selected layout template)' : ''}${settings?.sizeMode === 'template2x' ? ' (2× selected layout template)' : ''}`,
     `Preferred quality: ${quality || 'high'}`,
   ];
   if (template) lines.push(buildProductStageHint(template));
@@ -149,7 +149,9 @@ function computePreflightFingerprint(settings, templatePath, productPaths) {
     tagline: settings?.tagline || '',
     productCategory: settings?.productCategory || '',
     extraPrompt: settings?.extraPrompt || '',
-    size: settings?.sizeMode === 'template' ? 'template' : (settings?.size || ''),
+    size: settings?.sizeMode === 'template' || settings?.sizeMode === 'template2x'
+      ? settings.sizeMode
+      : (settings?.size || ''),
     sizeMode: settings?.sizeMode || '',
     quality: settings?.quality || '',
   };

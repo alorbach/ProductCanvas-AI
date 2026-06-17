@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const paths = require('../paths');
 const debugLog = require('../debug/logger');
+const { isImagePath } = require('./image-prep');
 const {
   buildReferenceImageEntry,
   buildPreflightMessages,
@@ -16,6 +17,8 @@ const {
   sanitizePreflightPrompt,
 } = require('./layout-fidelity');
 const { resolveImageGenerationSettings } = require('./image-settings');
+
+const STYLE_REFERENCE_HINT = 'Image 1 = TELE-KOHLGRAF layout template to edit; Image 2 = visual style reference for the user request.';
 
 function extractJson(text) {
   const match = String(text || '').match(/\{[\s\S]*\}/);
@@ -47,30 +50,42 @@ function formatResizeSummary(imageSettings) {
   return `Ausgabeformat auf ${size} skaliert (ohne Layout-Änderung).`;
 }
 
+async function buildTemplateEditReferences(templatePath, referenceImagePath) {
+  const layout = await buildReferenceImageEntry(templatePath, 'layout');
+  if (!layout) {
+    throw new Error('Vorlagenbild konnte nicht gelesen werden.');
+  }
+  const refs = [layout];
+  const stylePath = String(referenceImagePath || '').trim();
+  if (stylePath && fs.existsSync(stylePath) && isImagePath(stylePath)) {
+    const style = await buildReferenceImageEntry(stylePath, 'style');
+    if (style) refs.push(style);
+  }
+  return refs;
+}
+
 class TemplateEditPipeline {
   constructor(bridgeClient, templateRegistry) {
     this.client = bridgeClient;
     this.registry = templateRegistry;
   }
 
-  async optimizeEditPrompt(template, templatePath, changeRequest, imageSettings, signalKey, onProgress) {
+  async optimizeEditPrompt(template, templatePath, changeRequest, imageSettings, referenceImagePath, signalKey, onProgress) {
     onProgress?.({ status: 'running', messageKey: 'wait.status.templateEditPrompt' });
 
-    const referenceImage = await buildReferenceImageEntry(templatePath, 'layout');
-    if (!referenceImage) {
-      throw new Error('Vorlagenbild konnte nicht gelesen werden.');
-    }
+    const referenceImages = await buildTemplateEditReferences(templatePath, referenceImagePath);
+    const hasStyleReference = referenceImages.length > 1;
 
-    const taskPrompt = buildTemplateEditFrozenRules(changeRequest, imageSettings);
+    const taskPrompt = buildTemplateEditFrozenRules(changeRequest, imageSettings, { hasStyleReference });
     const model = 'codex-local:auto';
-    let messages = buildPreflightMessages(taskPrompt, [referenceImage], { model });
+    let messages = buildPreflightMessages(taskPrompt, referenceImages, { model });
 
     let result;
     try {
       result = await this.client.chat({ model, messages, max_tokens: 2048 }, signalKey);
     } catch (err) {
       if (!gatewayErrorNeedsResponsesContentParts(err)) throw err;
-      messages = buildPreflightMessages(taskPrompt, [referenceImage], {
+      messages = buildPreflightMessages(taskPrompt, referenceImages, {
         model,
         forceResponsesContentParts: true,
       });
@@ -86,12 +101,16 @@ class TemplateEditPipeline {
     }
 
     optimizedEditPrompt = appendLayoutLockBlock(optimizedEditPrompt, template, imageSettings);
+    if (hasStyleReference) {
+      optimizedEditPrompt = `${optimizedEditPrompt}\n\n${STYLE_REFERENCE_HINT}`;
+    }
 
     return {
       optimizedEditPrompt,
       changeSummary: String(parsed?.changeSummary || '').trim(),
       preservedElements: parsed?.preservedElements || [],
-      referenceImage,
+      referenceImages,
+      hasStyleReference,
     };
   }
 
@@ -101,16 +120,15 @@ class TemplateEditPipeline {
       optimizedEditPrompt,
       changeSummary: formatResizeSummary(imageSettings),
       preservedElements: ['Header', 'Footer', 'Layout', 'Farben', 'Neon-Rahmen'],
+      referenceImages: [],
+      hasStyleReference: false,
     };
   }
 
-  async generateTemplateImage(template, templatePath, optimizedEditPrompt, imageSettings, signalKey, onProgress) {
+  async generateTemplateImage(template, templatePath, optimizedEditPrompt, imageSettings, referenceImagePath, hasStyleReference, signalKey, onProgress) {
     onProgress?.({ status: 'running', messageKey: 'wait.status.templateEditImage' });
 
-    const referenceImage = await buildReferenceImageEntry(templatePath, 'layout');
-    if (!referenceImage) {
-      throw new Error('Vorlagenbild konnte nicht gelesen werden.');
-    }
+    const referenceImages = await buildTemplateEditReferences(templatePath, referenceImagePath);
 
     let bridgeCapabilities = null;
     try {
@@ -119,14 +137,18 @@ class TemplateEditPipeline {
       debugLog.warn('template-edit-pipeline', 'Bridge-Capabilities nicht abrufbar', { message: err.message });
     }
 
-    const prompt = appendLayoutLockBlock(optimizedEditPrompt, template, imageSettings);
+    let prompt = appendLayoutLockBlock(optimizedEditPrompt, template, imageSettings);
+    if (hasStyleReference) {
+      prompt = `${prompt}\n\n${STYLE_REFERENCE_HINT}`;
+    }
+
     const apiPayload = {
       model: 'codex-local:image',
       prompt,
       size: imageSettings.size,
       quality: imageSettings.quality,
       requireReferences: true,
-      reference_images: [referenceImage],
+      reference_images: referenceImages,
     };
 
     debugLog.info('template-edit-pipeline', 'Vorlagen-Edit Bildgenerierung', {
@@ -135,6 +157,8 @@ class TemplateEditPipeline {
       imageSize: imageSettings.size,
       imageSizeMode: imageSettings.sizeMode,
       imageQuality: imageSettings.quality,
+      referenceCount: referenceImages.length,
+      hasStyleReference,
       bridgeSupportsRefs: bridgeCapabilities?.features?.image_reference_attachments === true,
     });
 
@@ -159,7 +183,7 @@ class TemplateEditPipeline {
     };
   }
 
-  async runTemplateEdit({ templateId, changeRequest, quality, size }, onProgress, signalKey) {
+  async runTemplateEdit({ templateId, changeRequest, quality, size, referenceImagePath }, onProgress, signalKey) {
     const template = this.registry.getById(templateId);
     if (!template) throw new Error('Vorlage nicht gefunden.');
 
@@ -169,6 +193,9 @@ class TemplateEditPipeline {
       { size: size || 'template', quality },
       dims,
     );
+    const stylePath = isFormatOnlyEdit(changeRequest, imageSettings, dims)
+      ? ''
+      : String(referenceImagePath || '').trim();
 
     const formatOnly = isFormatOnlyEdit(changeRequest, imageSettings, dims);
     if (!String(changeRequest || '').trim() && !formatOnly) {
@@ -182,6 +209,7 @@ class TemplateEditPipeline {
         templatePath,
         changeRequest,
         imageSettings,
+        stylePath,
         signalKey,
         onProgress,
       );
@@ -191,6 +219,8 @@ class TemplateEditPipeline {
       templatePath,
       optimized.optimizedEditPrompt,
       imageSettings,
+      formatOnly ? '' : stylePath,
+      optimized.hasStyleReference,
       signalKey,
       onProgress,
     );
@@ -199,6 +229,7 @@ class TemplateEditPipeline {
       templateId,
       templatePath,
       changeRequest: changeRequest || '',
+      referenceImagePath: formatOnly ? '' : stylePath,
       changeSummary: optimized.changeSummary,
       preservedElements: optimized.preservedElements,
       optimizedEditPrompt: image.optimizedEditPrompt,
@@ -221,4 +252,5 @@ class TemplateEditPipeline {
 module.exports = {
   TemplateEditPipeline,
   isFormatOnlyEdit,
+  buildTemplateEditReferences,
 };

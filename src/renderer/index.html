@@ -70,8 +70,8 @@
         <textarea id="prompt-image" rows="6" readonly></textarea>
       </details>
       <div class="actions">
-        <button type="button" class="btn secondary" id="btn-build-prompt">Prompt erstellen</button>
-        <button type="button" class="btn primary" id="btn-generate">Werbung generieren</button>
+        <button type="button" class="btn secondary" id="btn-build-prompt">Prompt generieren</button>
+        <button type="button" class="btn primary" id="btn-generate">Bild generieren</button>
       </div>
     </section>
     <section class="panel preview-panel">
@@ -115,6 +115,17 @@
             <textarea id="change-request" rows="4" placeholder="z. B. Neon-Rahmen von blau auf rot…"></textarea>
           </label>
           <p id="editor-change-hint" class="muted compositing-hint"></p>
+          <div class="editor-ref-block">
+            <div class="editor-ref-header">
+              <span id="lbl-editor-ref">Referenzbild</span>
+              <button type="button" class="btn secondary btn-sm" id="btn-editor-ref-add">Referenzbild hinzufügen</button>
+            </div>
+            <p id="editor-ref-hint" class="muted compositing-hint"></p>
+            <div id="editor-ref-drop" class="editor-ref-drop">
+              <div id="editor-ref-preview" class="editor-ref-preview hidden"></div>
+              <p id="editor-ref-empty" class="muted">Noch kein Referenzbild.</p>
+            </div>
+          </div>
           <button type="button" class="btn primary" id="btn-generate-edit">KI-Änderung generieren</button>
           <label><span id="lbl-opt-prompt">Optimierter Prompt</span>
             <textarea id="optimized-prompt" rows="6" readonly></textarea>
