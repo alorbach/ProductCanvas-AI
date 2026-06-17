@@ -1,6 +1,6 @@
 import { loadI18n, t } from './i18n/i18n.js';
 
-const api = window.productCanvas;
+import { api } from './bridge-api.js';
 const $ = (id) => document.getElementById(id);
 
 async function applyLabels() {

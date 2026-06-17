@@ -7,7 +7,7 @@ $files = @(
   'src/main/paths.js',
   'src/main/docs/doc-loader.js',
   'src/main/bridge/bridge-client.js',
-  'src/main/dropped-files.js',
+  'src/preload/dropped-files.js',
   'src/main/migration/user-data-migrate.js',
   'scripts/build-win.js',
   'scripts/generate-icons.js',

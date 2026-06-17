@@ -1,7 +1,7 @@
 'use strict';
 
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
-const { collectDroppedImagePaths } = require('../main/dropped-files');
+const { collectDroppedImagePaths } = require('./dropped-files');
 
 contextBridge.exposeInMainWorld('productCanvas', {
   getBuildInfo: () => ipcRenderer.invoke('app:getBuildInfo'),

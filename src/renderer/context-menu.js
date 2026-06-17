@@ -2,7 +2,7 @@
 
 import { t } from './i18n/i18n.js';
 
-const api = window.productCanvas;
+import { api } from './bridge-api.js';
 
 export function menuItem(id, labelKey, options = {}) {
   if (options.separator) {

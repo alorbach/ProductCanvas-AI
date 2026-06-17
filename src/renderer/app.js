@@ -4,7 +4,7 @@ import { loadI18n, getLocale, t } from './i18n/i18n.js';
 import { renderHelp, openHelpDoc } from './help/help-viewer.js';
 import { showContextMenu, menuItem } from './context-menu.js';
 
-const api = window.productCanvas;
+import { api } from './bridge-api.js';
 let session = {};
 let templates = [];
 let imageSettingsCatalog = null;

@@ -1,5 +1,7 @@
 'use strict';
 
+import { api } from './bridge-api.js';
+
 import { getLocale } from '../i18n/i18n.js';
 
 function escapeHtml(s) {
@@ -23,7 +25,7 @@ function parseMarkdown(md) {
 
 export async function renderHelp(sidebarEl, contentEl) {
   const locale = getLocale();
-  const docs = await window.productCanvas.docsList(locale);
+  const docs = await api.docsList(locale);
   sidebarEl.innerHTML = '';
   for (const doc of docs) {
     const btn = document.createElement('button');
@@ -38,13 +40,13 @@ export async function renderHelp(sidebarEl, contentEl) {
 }
 
 export async function openHelpDoc(id, contentEl, sidebarEl, locale = getLocale()) {
-  const doc = await window.productCanvas.docsLoad(id, locale);
+  const doc = await api.docsLoad(id, locale);
   contentEl.innerHTML = parseMarkdown(doc.content || '');
   contentEl.querySelectorAll('a').forEach((a) => {
     a.addEventListener('click', (e) => {
       if (a.href.startsWith('http')) {
         e.preventDefault();
-        window.productCanvas.openExternal(a.href);
+        api.openExternal(a.href);
       }
     });
   });
