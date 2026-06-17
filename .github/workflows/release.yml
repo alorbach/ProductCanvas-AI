@@ -60,14 +60,18 @@ jobs:
         shell: pwsh
         env:
           TAG_NAME: ${{ github.ref_name }}
+          RELEASE_OUT_DIR: .release
         run: node scripts/collect-release-context.js
 
       - name: Generate GitHub changelog
         uses: actions/github-script@v7
+        env:
+          RELEASE_OUT_DIR: .release
         with:
           script: |
             const fs = require('fs');
             const path = require('path');
+            const outDir = process.env.RELEASE_OUT_DIR || '.release';
             const tagName = context.ref.replace('refs/tags/', '');
             const notes = await github.rest.repos.generateReleaseNotes({
               owner: context.repo.owner,
@@ -77,14 +81,18 @@ jobs:
             });
             const body = String(notes.data.body || '').trim()
               || 'No generated changelog entries were returned for this tag.';
-            fs.mkdirSync('dist', { recursive: true });
-            fs.writeFileSync(path.join('dist', 'github-notes.md'), body);
+            fs.mkdirSync(outDir, { recursive: true });
+            fs.writeFileSync(path.join(outDir, 'github-notes.md'), body);
 
       - name: Generate AI release notes
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_OUT_DIR: .release
         run: node scripts/generate-ai-release-notes.js
+
+      - name: Build Windows installer and portable ZIP
+        run: npm run dist:win
 
       - name: Assemble release description
         shell: pwsh
@@ -94,10 +102,8 @@ jobs:
           RELEASE_BUILD_NUMBER: ${{ steps.vars.outputs.build_number }}
           RELEASE_INSTALLER_NAME: ${{ steps.vars.outputs.installer_name }}
           RELEASE_ZIP_NAME: ${{ steps.vars.outputs.zip_name }}
+          RELEASE_OUT_DIR: .release
         run: node scripts/assemble-release-notes.js
-
-      - name: Build Windows installer and portable ZIP
-        run: npm run dist:win
 
       - name: Remove previous build assets for this tag
         shell: pwsh
@@ -124,7 +130,7 @@ jobs:
         with:
           name: ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
-          body_path: dist/release-notes.md
+          body_path: .release/release-notes.md
           fail_on_unmatched_files: true
           files: |
             ${{ steps.vars.outputs.installer_path }}

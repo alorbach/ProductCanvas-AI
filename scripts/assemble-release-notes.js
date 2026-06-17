@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const outDir = process.env.RELEASE_OUT_DIR || 'dist';
+const outDir = process.env.RELEASE_OUT_DIR || '.release';
 const tagName = String(process.env.TAG_NAME || process.env.GITHUB_REF_NAME || 'v0.0.0').trim();
 const version = process.env.RELEASE_VERSION || tagName.replace(/^v/, '');
 const buildNumber = process.env.RELEASE_BUILD_NUMBER || '1';

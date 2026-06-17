@@ -10,7 +10,7 @@ if (!tagName) {
   process.exit(1);
 }
 
-const outDir = process.env.RELEASE_OUT_DIR || 'dist';
+const outDir = process.env.RELEASE_OUT_DIR || '.release';
 fs.mkdirSync(outDir, { recursive: true });
 
 const logFormat = '%h %s (%an)';

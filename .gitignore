@@ -1,5 +1,6 @@
 node_modules/
 dist/
+.release/
 .build/build-number
 src/build-info.json
 *.log

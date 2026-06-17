@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const outDir = process.env.RELEASE_OUT_DIR || 'dist';
+const outDir = process.env.RELEASE_OUT_DIR || '.release';
 const endpoint = process.env.GITHUB_MODELS_ENDPOINT || 'https://models.github.ai/inference/chat/completions';
 const model = process.env.RELEASE_AI_MODEL || 'openai/gpt-4.1-mini';
 
@@ -85,7 +85,7 @@ async function main() {
 
   const parsed = JSON.parse(content);
   fs.writeFileSync(path.join(outDir, 'ai-release.json'), JSON.stringify(parsed, null, 2), 'utf8');
-  console.log('Wrote dist/ai-release.json');
+  console.log('Wrote .release/ai-release.json');
 }
 
 main().catch((err) => {
