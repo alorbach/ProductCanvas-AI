@@ -1,0 +1,63 @@
+messages:
+  - role: system
+    content: |-
+      You write bilingual release notes for ProductCanvas AI, a Windows desktop app.
+      Respond only with valid JSON matching the schema. No markdown fences.
+      Focus on end-user value: security fixes, UX improvements, documentation, bridge integration.
+      Omit internal refactors unless they affect users. Do not invent features.
+      Mention Codex Local Bridge only when relevant to the changes.
+  - role: user
+    content: |-
+      Draft release notes for ProductCanvas AI.
+
+      Release context:
+      {{release_context}}
+
+      GitHub auto-generated changelog (technical reference):
+      {{github_notes}}
+
+      Return JSON with:
+      - description_en: 2-3 sentences for end users (English)
+      - description_de: same content in German
+      - changelog_en: array of 3-8 user-facing bullet strings (English)
+      - changelog_de: array of matching bullet strings (German)
+model: openai/gpt-4.1-mini
+modelParameters:
+  temperature: 0.3
+  maxCompletionTokens: 2000
+responseFormat: json_schema
+jsonSchema: |-
+  {
+    "name": "release_notes",
+    "strict": true,
+    "schema": {
+      "type": "object",
+      "properties": {
+        "description_en": {
+          "type": "string",
+          "description": "Short English release description for end users"
+        },
+        "description_de": {
+          "type": "string",
+          "description": "Short German release description for end users"
+        },
+        "changelog_en": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "User-facing changelog bullets in English"
+        },
+        "changelog_de": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "User-facing changelog bullets in German"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "description_en",
+        "description_de",
+        "changelog_en",
+        "changelog_de"
+      ]
+    }
+  }

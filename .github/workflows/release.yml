@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  models: read
 
 jobs:
   release:
@@ -14,6 +15,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Compute version
         id: vars
@@ -33,7 +36,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
 
       - name: Install dependencies
@@ -53,58 +56,66 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Build Windows installer and portable ZIP
-        run: npm run dist:win
-
-      - name: Generate release description
-        uses: actions/github-script@v7
+      - name: Collect release context
+        shell: pwsh
         env:
-          RELEASE_VERSION: ${{ steps.vars.outputs.version }}
-          RELEASE_BUILD_NUMBER: ${{ steps.vars.outputs.build_number }}
-          RELEASE_INSTALLER_NAME: ${{ steps.vars.outputs.installer_name }}
-          RELEASE_ZIP_NAME: ${{ steps.vars.outputs.zip_name }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: node scripts/collect-release-context.js
+
+      - name: Generate GitHub changelog
+        uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
             const path = require('path');
             const tagName = context.ref.replace('refs/tags/', '');
-            const version = process.env.RELEASE_VERSION || tagName.replace(/^v/, '');
-            const buildNumber = process.env.RELEASE_BUILD_NUMBER || process.env.GITHUB_RUN_NUMBER || '1';
-            const installerName = process.env.RELEASE_INSTALLER_NAME || `ProductCanvas-AI-${version}-build.${buildNumber}-win-x64.exe`;
-            const zipName = process.env.RELEASE_ZIP_NAME || `ProductCanvas-AI-${version}-build.${buildNumber}-win-x64.zip`;
             const notes = await github.rest.repos.generateReleaseNotes({
               owner: context.repo.owner,
               repo: context.repo.repo,
               tag_name: tagName,
               target_commitish: context.sha,
             });
-            const changelog = String(notes.data.body || '').trim() || 'No generated changelog entries were returned for this tag.';
-            const body = [
-              `# ProductCanvas AI ${tagName}`,
-              '',
-              'Universal AI image studio for Windows — layout templates plus reference photos via Codex Local Bridge.',
-              '',
-              '## Downloads',
-              '',
-              `- Windows installer: \`${installerName}\``,
-              `- Portable ZIP: \`${zipName}\``,
-              '',
-              '## Validation',
-              '',
-              'This release was built by GitHub Actions after icon generation, JavaScript syntax checks, tests, and Windows packaging completed successfully.',
-              '',
-              '## Changelog',
-              '',
-              changelog,
-              '',
-              '---',
-              '',
-              'Copyright (c) Andre Lorbach — https://github.com/alorbach',
-              'License: GPL-2.0-or-later',
-              '',
-            ].join('\n');
+            const body = String(notes.data.body || '').trim()
+              || 'No generated changelog entries were returned for this tag.';
             fs.mkdirSync('dist', { recursive: true });
-            fs.writeFileSync(path.join('dist', 'release-notes.md'), body);
+            fs.writeFileSync(path.join('dist', 'github-notes.md'), body);
+
+      - name: Generate AI release notes
+        id: ai_notes
+        continue-on-error: true
+        uses: actions/ai-inference@v1
+        with:
+          prompt-file: ./.github/prompts/release-notes.prompt.yml
+          file_input: |
+            release_context: ./dist/release-context.txt
+            github_notes: ./dist/github-notes.md
+
+      - name: Save AI release notes
+        if: steps.ai_notes.outcome == 'success'
+        shell: pwsh
+        run: |
+          $src = "${{ steps.ai_notes.outputs.response-file }}"
+          if (-not $src -or -not (Test-Path $src)) {
+            $src = "${{ steps.ai_notes.outputs.response }}"
+            if ($src) {
+              Set-Content -Path dist/ai-release.json -Value $src -Encoding utf8NoBOM
+            }
+          } else {
+            Copy-Item -Path $src -Destination dist/ai-release.json -Force
+          }
+
+      - name: Assemble release description
+        shell: pwsh
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+          RELEASE_VERSION: ${{ steps.vars.outputs.version }}
+          RELEASE_BUILD_NUMBER: ${{ steps.vars.outputs.build_number }}
+          RELEASE_INSTALLER_NAME: ${{ steps.vars.outputs.installer_name }}
+          RELEASE_ZIP_NAME: ${{ steps.vars.outputs.zip_name }}
+        run: node scripts/assemble-release-notes.js
+
+      - name: Build Windows installer and portable ZIP
+        run: npm run dist:win
 
       - name: Remove previous build assets for this tag
         shell: pwsh
