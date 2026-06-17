@@ -103,17 +103,20 @@ jobs:
 
       - name: Save AI release notes
         if: steps.ai_notes.conclusion == 'success'
+        continue-on-error: true
         shell: pwsh
         run: |
           $src = "${{ steps.ai_notes.outputs.response-file }}"
           if ($src -and (Test-Path $src)) {
             Copy-Item -Path $src -Destination dist/ai-release.json -Force
-          } elseif ("${{ steps.ai_notes.outputs.response }}") {
-            Set-Content -Path dist/ai-release.json -Value "${{ steps.ai_notes.outputs.response }}" -Encoding utf8NoBOM
-          } else {
-            Write-Error "AI inference succeeded but returned no response payload."
-            exit 1
+            exit 0
           }
+          $response = "${{ steps.ai_notes.outputs.response }}"
+          if ($response) {
+            Set-Content -Path dist/ai-release.json -Value $response -Encoding utf8NoBOM
+            exit 0
+          }
+          Write-Host "AI inference returned no response payload; assemble step will use GitHub changelog fallback."
 
       - name: Assemble release description
         shell: pwsh

@@ -26,6 +26,10 @@ function listVersionTags() {
   return raw ? raw.split(/\r?\n/).filter(Boolean) : [];
 }
 
+function resolveTagCommit(tag) {
+  return run(`git rev-list -n 1 ${tag}`);
+}
+
 const tags = listVersionTags();
 const tagIndex = tags.indexOf(tagName);
 const previousTag = tagIndex >= 0 && tagIndex < tags.length - 1 ? tags[tagIndex + 1] : '';
@@ -34,11 +38,15 @@ const version = tagName.replace(/^v/, '');
 let commitLog = '';
 if (previousTag) {
   commitLog = run(`git log ${previousTag}..${tagName} --pretty=format:%h %s (%an)`);
-} else {
-  commitLog = run(`git log ${tagName} --pretty=format:%h %s (%an) -n 30`);
 }
 if (!commitLog) {
-  commitLog = run('git log --pretty=format:%h %s (%an) -n 30');
+  const tagCommit = resolveTagCommit(tagName);
+  if (tagCommit) {
+    commitLog = run(`git log ${tagCommit} --pretty=format:%h %s (%an) -n 30`);
+  }
+}
+if (!commitLog) {
+  commitLog = run('git log HEAD --pretty=format:%h %s (%an) -n 30');
 }
 
 const context = [

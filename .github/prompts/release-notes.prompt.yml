@@ -10,11 +10,11 @@ messages:
     content: |-
       Draft release notes for ProductCanvas AI.
 
-      Release context:
-      {{release_context}}
+      Release context (JSON string):
+      {{release_context_json}}
 
-      GitHub auto-generated changelog (technical reference):
-      {{github_notes}}
+      GitHub auto-generated changelog (JSON string):
+      {{github_notes_json}}
 
       Return JSON with:
       - description_en: 2-3 sentences for end users (English)
