@@ -1,6 +1,6 @@
 'use strict';
 
-const { execSync } = require('child_process');
+const { execSync, spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
@@ -13,6 +13,16 @@ if (!tagName) {
 const outDir = process.env.RELEASE_OUT_DIR || 'dist';
 fs.mkdirSync(outDir, { recursive: true });
 
+const logFormat = '%h %s (%an)';
+
+function runGit(args) {
+  const result = spawnSync('git', args, { encoding: 'utf8' });
+  if (result.status !== 0) {
+    return '';
+  }
+  return (result.stdout || '').trim();
+}
+
 function run(cmd) {
   try {
     return execSync(cmd, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
@@ -21,13 +31,13 @@ function run(cmd) {
   }
 }
 
-function listVersionTags() {
-  const raw = run('git tag --list "v*" --sort=-v:refname');
-  return raw ? raw.split(/\r?\n/).filter(Boolean) : [];
+function resolveTagCommit(tag) {
+  return runGit(['rev-list', '-n', '1', tag]);
 }
 
-function resolveTagCommit(tag) {
-  return run(`git rev-list -n 1 ${tag}`);
+function listVersionTags() {
+  const raw = runGit(['tag', '--list', 'v*', '--sort=-v:refname']);
+  return raw ? raw.split(/\r?\n/).filter(Boolean) : [];
 }
 
 const tags = listVersionTags();
@@ -37,16 +47,16 @@ const version = tagName.replace(/^v/, '');
 
 let commitLog = '';
 if (previousTag) {
-  commitLog = run(`git log ${previousTag}..${tagName} --pretty=format:%h %s (%an)`);
+  commitLog = runGit(['log', `${previousTag}..${tagName}`, `--pretty=format:${logFormat}`]);
 }
 if (!commitLog) {
   const tagCommit = resolveTagCommit(tagName);
   if (tagCommit) {
-    commitLog = run(`git log ${tagCommit} --pretty=format:%h %s (%an) -n 30`);
+    commitLog = runGit(['log', tagCommit, '--max-count=30', `--pretty=format:${logFormat}`]);
   }
 }
 if (!commitLog) {
-  commitLog = run('git log HEAD --pretty=format:%h %s (%an) -n 30');
+  commitLog = runGit(['log', 'HEAD', '--max-count=30', `--pretty=format:${logFormat}`]);
 }
 
 const context = [

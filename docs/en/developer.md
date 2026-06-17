@@ -113,11 +113,11 @@ Triggered on push of tags matching **`v*`** (e.g. `v1.0.1`):
 5. `npm run icons`
 6. **`npm test`**
 7. Collect commit context and GitHub auto-changelog
-8. **AI release notes** via [GitHub Models](https://github.com/marketplace/models) (`actions/ai-inference`, `models: read`) — bilingual EN/DE description and user-facing bullets; falls back to GitHub notes if inference fails
+8. **AI release notes** via [GitHub Models](https://github.com/marketplace/models) REST API (`scripts/generate-ai-release-notes.js`, `models: read`) — bilingual EN/DE description and user-facing bullets; falls back to GitHub notes if inference fails
 9. **`npm run dist:win`** – produces NSIS installer + portable ZIP in `dist/`
 10. Create GitHub Release with assembled notes and attach artifacts
 
-Prompt template: `.github/prompts/release-notes.prompt.yml`. Assembly script: `scripts/assemble-release-notes.js`.
+Prompt reference: `.github/prompts/release-notes.prompt.yml`. Generator: `scripts/generate-ai-release-notes.js`. Assembly: `scripts/assemble-release-notes.js`.
 
 Artifact names follow electron-builder config, e.g. `ProductCanvas-AI-<version>-win-x64.exe`.
 

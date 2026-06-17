@@ -110,11 +110,11 @@ Auslöser: Push von Tags **`v*`** (z. B. `v1.0.1`):
 5. `npm run icons`
 6. **`npm test`**
 7. Commit-Kontext und GitHub-Auto-Changelog sammeln
-8. **KI-Release-Notes** über [GitHub Models](https://github.com/marketplace/models) (`actions/ai-inference`, `models: read`) — zweisprachige EN/DE-Beschreibung und Nutzer-Bullets; Fallback auf GitHub-Notes bei Inference-Fehler
+8. **KI-Release-Notes** über [GitHub Models](https://github.com/marketplace/models) REST-API (`scripts/generate-ai-release-notes.js`, `models: read`) — zweisprachige EN/DE-Beschreibung und Nutzer-Bullets; Fallback auf GitHub-Notes bei Inference-Fehler
 9. **`npm run dist:win`** – NSIS-Installer + portable ZIP in `dist/`
 10. GitHub Release mit zusammengesetzten Notes und Artefakten
 
-Prompt-Vorlage: `.github/prompts/release-notes.prompt.yml`. Zusammenbau: `scripts/assemble-release-notes.js`.
+Prompt-Referenz: `.github/prompts/release-notes.prompt.yml`. Generator: `scripts/generate-ai-release-notes.js`. Zusammenbau: `scripts/assemble-release-notes.js`.
 
 Artefaktnamen z. B. `ProductCanvas-AI-<version>-win-x64.exe`.
 

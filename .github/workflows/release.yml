@@ -80,43 +80,11 @@ jobs:
             fs.mkdirSync('dist', { recursive: true });
             fs.writeFileSync(path.join('dist', 'github-notes.md'), body);
 
-      - name: Prepare AI inference input
-        id: prep_ai
-        shell: pwsh
-        run: |
-          node scripts/prepare-ai-inference-input.js
-          $input = Get-Content -Raw dist/ai-inference-input.yaml
-          $delimiter = "EOF_AI_INPUT_$([guid]::NewGuid().ToString('N'))"
-          @"
-          input<<$delimiter
-          $input
-          $delimiter
-          "@ | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-
       - name: Generate AI release notes
-        id: ai_notes
         continue-on-error: true
-        uses: actions/ai-inference@v1
-        with:
-          prompt-file: ./.github/prompts/release-notes.prompt.yml
-          input: ${{ steps.prep_ai.outputs.input }}
-
-      - name: Save AI release notes
-        if: steps.ai_notes.conclusion == 'success'
-        continue-on-error: true
-        shell: pwsh
-        run: |
-          $src = "${{ steps.ai_notes.outputs.response-file }}"
-          if ($src -and (Test-Path $src)) {
-            Copy-Item -Path $src -Destination dist/ai-release.json -Force
-            exit 0
-          }
-          $response = "${{ steps.ai_notes.outputs.response }}"
-          if ($response) {
-            Set-Content -Path dist/ai-release.json -Value $response -Encoding utf8NoBOM
-            exit 0
-          }
-          Write-Host "AI inference returned no response payload; assemble step will use GitHub changelog fallback."
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/generate-ai-release-notes.js
 
       - name: Assemble release description
         shell: pwsh
