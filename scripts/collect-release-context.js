@@ -38,7 +38,7 @@ if (previousTag) {
   commitLog = run(`git log ${tagName} --pretty=format:%h %s (%an) -n 30`);
 }
 if (!commitLog) {
-  commitLog = run('git log -20 --pretty=format:%h %s (%an)');
+  commitLog = run('git log --pretty=format:%h %s (%an) -n 30');
 }
 
 const context = [
