@@ -105,25 +105,11 @@ jobs:
           RELEASE_OUT_DIR: .release
         run: node scripts/assemble-release-notes.js
 
-      - name: Remove previous build assets for this tag
-        shell: pwsh
+      - name: Delete existing GitHub release
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          $tag = "${{ github.ref_name }}"
-          $repo = "${{ github.repository }}"
-          $releaseJson = gh release view $tag --repo $repo --json assets 2>$null
-          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($releaseJson)) {
-            Write-Host "No existing release assets to remove for $tag."
-            exit 0
-          }
-          $release = $releaseJson | ConvertFrom-Json
-          foreach ($asset in $release.assets) {
-            if ($asset.name -match '^ProductCanvas-AI-.+-win-x64\.(exe|zip)$') {
-              Write-Host "Removing old release asset $($asset.name)"
-              gh release delete-asset $tag $asset.name --repo $repo --yes
-            }
-          }
+        run: gh release delete "${{ github.ref_name }}" --yes
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

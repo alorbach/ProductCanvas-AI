@@ -89,4 +89,4 @@ const body = [
 fs.mkdirSync(outDir, { recursive: true });
 const outPath = path.join(outDir, 'release-notes.md');
 fs.writeFileSync(outPath, body, 'utf8');
-console.log(`Wrote ${outPath}`);
+console.log(`Wrote ${outPath}${usedAi ? ' (AI notes)' : ' (fallback)'}`);
