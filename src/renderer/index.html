@@ -7,92 +7,92 @@
   <title>ProductCanvas AI</title>
   <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body class="i18n-pending">
   <header class="app-header">
     <div class="brand">
       <h1 id="app-title">ProductCanvas AI</h1>
       <p id="app-subtitle">AI image studio from templates</p>
     </div>
     <nav class="main-nav">
-      <button type="button" class="nav-btn active" data-mode="werbung" id="nav-werbung">Werbung erstellen</button>
-      <button type="button" class="nav-btn" data-mode="templates" id="nav-templates">Vorlagen bearbeiten</button>
-      <button type="button" class="nav-btn" data-mode="help" id="nav-help">Hilfe</button>
+      <button type="button" class="nav-btn active" data-mode="werbung" id="nav-werbung">Create image</button>
+      <button type="button" class="nav-btn" data-mode="templates" id="nav-templates">Edit templates</button>
+      <button type="button" class="nav-btn" data-mode="help" id="nav-help">Help</button>
     </nav>
-    <div class="bridge-status" id="bridge-status" title="Bridge-Status">●</div>
+    <div class="bridge-status" id="bridge-status" title="Bridge status">●</div>
   </header>
 
   <div id="setup-banner" class="setup-banner hidden">
-    <span id="setup-message">Codex Local Bridge wird eingerichtet…</span>
-    <input type="text" id="pairing-code" placeholder="Pairing-Code (6 Ziffern)" maxlength="6" pattern="[0-9]*">
-    <button type="button" id="btn-bridge-connect">Verbinden</button>
-    <button type="button" id="btn-codex-login">Codex anmelden</button>
+    <span id="setup-message">Setting up Codex Local Bridge…</span>
+    <input type="text" id="pairing-code" placeholder="Pairing code (6 digits from tray app)" maxlength="6" pattern="[0-9]*">
+    <button type="button" id="btn-bridge-connect">Connect</button>
+    <button type="button" id="btn-codex-login">Sign in to Codex</button>
   </div>
 
   <main id="view-werbung" class="view active">
     <section class="panel templates-panel" id="templates-panel">
-      <h2 id="lbl-template">Vorlage</h2>
+      <h2 id="lbl-template">Template</h2>
       <p id="templates-import-hint" class="muted templates-import-hint"></p>
       <div id="template-list" class="template-list templates-drop-zone"></div>
-      <button type="button" class="btn secondary btn-sm" id="btn-import-template">Vorlage importieren</button>
+      <button type="button" class="btn secondary btn-sm" id="btn-import-template">Import template</button>
     </section>
     <section class="panel refs-panel" id="refs-panel">
-      <h2 id="lbl-refs">Referenz-Produktbilder</h2>
-      <p id="refs-drop-hint" class="refs-drop-hint muted">Bilder hierher ziehen oder Button nutzen</p>
+      <h2 id="lbl-refs">Reference product images</h2>
+      <p id="refs-drop-hint" class="refs-drop-hint muted">Drag images here or use the button</p>
       <p id="refs-usage-hint" class="refs-usage-hint muted"></p>
       <div id="refs-list" class="refs-list refs-drop-zone"></div>
-      <button type="button" class="btn secondary" id="btn-add-refs">Bilder hinzufügen</button>
+      <button type="button" class="btn secondary" id="btn-add-refs">Add images</button>
     </section>
     <section class="panel settings-panel">
-      <h2 id="lbl-settings">Einstellungen</h2>
+      <h2 id="lbl-settings">Project</h2>
       <div class="settings-form">
         <div class="settings-row-2col">
-          <label><span id="lbl-size">Bildauflösung</span>
+          <label><span id="lbl-size">Image resolution</span>
             <select id="setting-size"></select>
           </label>
-          <label><span id="lbl-quality">Qualität</span>
+          <label><span id="lbl-quality">Quality</span>
             <select id="setting-quality"></select>
           </label>
         </div>
         <p id="image-settings-hint" class="muted compositing-hint image-settings-hint"></p>
-        <label><span id="lbl-category">Produktkategorie</span>
+        <label><span id="lbl-category">Product category</span>
           <select id="setting-category"></select>
         </label>
         <div class="settings-row-2col">
-          <label><span id="lbl-brand">Markenname</span><input type="text" id="setting-brand"></label>
-          <label><span id="lbl-series">Serie</span><input type="text" id="setting-series"></label>
+          <label><span id="lbl-brand">Brand name</span><input type="text" id="setting-brand"></label>
+          <label><span id="lbl-series">Series</span><input type="text" id="setting-series"></label>
         </div>
-        <label><span id="lbl-tagline">Werbetext (Tagline)</span>
+        <label><span id="lbl-tagline">Tagline</span>
           <div class="input-with-action">
             <input type="text" id="setting-tagline">
-            <button type="button" class="btn-icon" id="btn-suggest-tagline" title="KI-Vorschlag">
+            <button type="button" class="btn-icon" id="btn-suggest-tagline" title="AI tagline suggestion">
               <svg class="ai-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2l1.2 4.2L17.5 7.5 13.2 8.7 12 13l-1.2-4.3L6.5 7.5l4.3-1.3L12 2zm7 9l.8 2.8L22.5 15l-2.7.8L19 18.5l-.8-2.7L15.5 15l2.7-.8L19 11zm-14 1l.6 2.1L7.5 15l-2.1.6L5 17.7l-.6-2.1L2.3 15l2.1-.6L5 12.3z"/></svg>
             </button>
           </div>
         </label>
-        <label><span id="lbl-extra">Zusatz-Prompt</span><textarea id="setting-extra" rows="2"></textarea></label>
+        <label><span id="lbl-extra">Extra prompt</span><textarea id="setting-extra" rows="2"></textarea></label>
         <details class="prompt-details">
-          <summary id="lbl-prompt-image">Bild-Prompt</summary>
+          <summary id="lbl-prompt-image">Image prompt</summary>
           <textarea id="prompt-image" rows="4" readonly></textarea>
         </details>
         <div class="actions settings-actions">
-          <button type="button" class="btn secondary" id="btn-build-prompt">Prompt generieren</button>
-          <button type="button" class="btn primary" id="btn-generate">Bild generieren</button>
+          <button type="button" class="btn secondary" id="btn-build-prompt">Build prompt</button>
+          <button type="button" class="btn primary" id="btn-generate">Generate image</button>
         </div>
-        <label class="internal-comment-label"><span id="lbl-internal-comment">Interner Kommentar</span>
+        <label class="internal-comment-label"><span id="lbl-internal-comment">Internal comment</span>
           <textarea id="setting-internal-comment" rows="4"></textarea>
         </label>
       </div>
     </section>
     <section class="panel preview-panel">
-      <h2 id="lbl-preview">Vorschau</h2>
+      <h2 id="lbl-preview">Preview</h2>
       <div class="preview-wrap">
         <div class="preview-frame">
-          <img id="preview-image" alt="Vorschau" class="hidden preview-clickable" title="" />
+          <img id="preview-image" alt="Preview" class="hidden preview-clickable" title="" />
           <div id="preview-image-meta" class="preview-meta-overlay hidden" aria-hidden="true"></div>
         </div>
-        <p id="preview-empty" class="muted">Noch keine Vorschau.</p>
+        <p id="preview-empty" class="muted">Generate an image to see the preview.</p>
       </div>
-      <button type="button" class="btn secondary hidden" id="btn-export">Als PNG speichern</button>
+      <button type="button" class="btn secondary hidden" id="btn-export">Save as PNG</button>
     </section>
   </main>
 
@@ -103,7 +103,7 @@
         <img id="editor-current-thumb" class="editor-current-thumb" alt="" />
         <div class="editor-current-meta">
           <label class="editor-current-select-row">
-            <span id="lbl-editor-template">Aktuelle Vorlage</span>
+            <span id="lbl-editor-template">Current template</span>
             <select id="editor-template-select"></select>
           </label>
         </div>
@@ -112,9 +112,9 @@
       <div id="editor-review-bar" class="editor-review-bar hidden">
         <p id="change-summary" class="muted editor-review-summary"></p>
         <div class="accept-row" id="accept-row">
-          <button type="button" class="btn secondary" id="btn-editor-compare">Vergleich Vollbild</button>
-          <button type="button" class="btn primary" id="btn-accept">Änderung akzeptieren</button>
-          <button type="button" class="btn danger" id="btn-reject">Änderung verwerfen</button>
+          <button type="button" class="btn secondary" id="btn-editor-compare">Compare fullscreen</button>
+          <button type="button" class="btn primary" id="btn-accept">Accept change</button>
+          <button type="button" class="btn danger" id="btn-reject">Reject change</button>
         </div>
       </div>
       <div class="editor-workspace">
@@ -124,50 +124,50 @@
         </div>
         <div class="editor-controls">
           <div class="editor-settings-row">
-            <label class="editor-size-preset-label"><span id="lbl-editor-size">Ausgabeformat</span>
+            <label class="editor-size-preset-label"><span id="lbl-editor-size">Output format</span>
               <select id="editor-size-preset"></select>
             </label>
             <div class="editor-size-custom">
-              <label><span id="lbl-editor-width">Breite</span>
+              <label><span id="lbl-editor-width">Width (px)</span>
                 <input type="number" id="editor-size-width" min="64" max="8192" step="1" inputmode="numeric" />
               </label>
               <span class="editor-size-times" aria-hidden="true">×</span>
-              <label><span id="lbl-editor-height">Höhe</span>
+              <label><span id="lbl-editor-height">Height (px)</span>
                 <input type="number" id="editor-size-height" min="64" max="8192" step="1" inputmode="numeric" />
               </label>
             </div>
-            <label><span id="lbl-editor-quality">Qualität</span>
+            <label><span id="lbl-editor-quality">Quality</span>
               <select id="editor-quality"></select>
             </label>
           </div>
-          <label><span id="lbl-change">Änderungswunsch</span>
-            <textarea id="change-request" rows="4" placeholder="z. B. Neon-Rahmen von blau auf rot…"></textarea>
+          <label><span id="lbl-change">Change request</span>
+            <textarea id="change-request" rows="4" placeholder="e.g. change neon frame from blue to red, enlarge logo…"></textarea>
           </label>
           <p id="editor-change-hint" class="muted compositing-hint"></p>
           <div class="editor-ref-block">
             <div class="editor-ref-header">
-              <span id="lbl-editor-ref">Referenzbild</span>
-              <button type="button" class="btn secondary btn-sm" id="btn-editor-ref-add">Referenzbild hinzufügen</button>
+              <span id="lbl-editor-ref">Reference image (optional)</span>
+              <button type="button" class="btn secondary btn-sm" id="btn-editor-ref-add">Add reference image</button>
             </div>
             <p id="editor-ref-hint" class="muted compositing-hint"></p>
             <div id="editor-ref-drop" class="editor-ref-drop">
               <div id="editor-ref-preview" class="editor-ref-preview hidden"></div>
-              <p id="editor-ref-empty" class="muted">Noch kein Referenzbild.</p>
+              <p id="editor-ref-empty" class="muted">No reference image yet. Drag here or use the button.</p>
             </div>
           </div>
-          <button type="button" class="btn primary" id="btn-generate-edit">KI-Änderung generieren</button>
+          <button type="button" class="btn primary" id="btn-generate-edit">Generate AI preview</button>
           <details class="prompt-details editor-prompt-details" id="editor-prompt-details">
-            <summary id="lbl-opt-prompt">Optimierter Prompt</summary>
+            <summary id="lbl-opt-prompt">Optimized prompt</summary>
             <textarea id="optimized-prompt" rows="6" readonly></textarea>
           </details>
         </div>
         <div class="editor-col">
-          <h3 id="lbl-ki-preview">KI-Vorschau</h3>
+          <h3 id="lbl-ki-preview">AI preview</h3>
           <div class="preview-frame editor-preview-frame">
-            <img id="editor-preview" alt="KI-Vorschau" class="hidden" />
+            <img id="editor-preview" alt="AI preview" class="hidden" />
             <div id="editor-preview-meta" class="preview-meta-overlay hidden" aria-hidden="true"></div>
           </div>
-          <p id="editor-preview-empty" class="muted">Noch keine KI-Vorschau.</p>
+          <p id="editor-preview-empty" class="muted">Generate an AI preview to compare.</p>
         </div>
       </div>
     </section>
@@ -179,24 +179,24 @@
   </main>
 
   <div id="preview-lightbox" class="preview-lightbox hidden" role="dialog" aria-modal="true" aria-labelledby="preview-lightbox-hint">
-    <button type="button" class="preview-lightbox-close" id="preview-lightbox-close" aria-label="Schließen">×</button>
-    <img id="preview-lightbox-image" alt="Vorschau Vollbild" />
-    <p id="preview-lightbox-hint" class="preview-lightbox-hint">Klicken oder Esc zum Schließen</p>
+    <button type="button" class="preview-lightbox-close" id="preview-lightbox-close" aria-label="Close">×</button>
+    <img id="preview-lightbox-image" alt="Preview fullscreen" />
+    <p id="preview-lightbox-hint" class="preview-lightbox-hint">Click or press Esc to close</p>
   </div>
 
   <div id="editor-compare-lightbox" class="preview-lightbox editor-compare-lightbox hidden" role="dialog" aria-modal="true" aria-labelledby="editor-compare-hint">
-    <button type="button" class="preview-lightbox-close" id="editor-compare-close" aria-label="Schließen">×</button>
+    <button type="button" class="preview-lightbox-close" id="editor-compare-close" aria-label="Close">×</button>
     <div class="editor-compare-grid">
       <figure class="editor-compare-pane">
         <figcaption id="editor-compare-lbl-original">Original</figcaption>
         <img id="editor-compare-original" alt="Original" />
       </figure>
       <figure class="editor-compare-pane">
-        <figcaption id="editor-compare-lbl-preview">KI-Vorschau</figcaption>
-        <img id="editor-compare-preview" alt="KI-Vorschau" />
+        <figcaption id="editor-compare-lbl-preview">AI preview</figcaption>
+        <img id="editor-compare-preview" alt="AI preview" />
       </figure>
     </div>
-    <p id="editor-compare-hint" class="preview-lightbox-hint">Klicken oder Esc zum Schließen</p>
+    <p id="editor-compare-hint" class="preview-lightbox-hint">Click or press Esc to close</p>
   </div>
 
   <dialog id="prompt-dialog">
@@ -204,7 +204,7 @@
       <h2 id="prompt-title"></h2>
       <input id="prompt-input" type="text" class="prompt-input" autocomplete="off" />
       <div class="prompt-actions">
-        <button type="button" class="btn secondary" id="prompt-cancel">Abbrechen</button>
+        <button type="button" class="btn secondary" id="prompt-cancel">Cancel</button>
         <button type="submit" class="btn primary" id="prompt-ok">OK</button>
       </div>
     </form>
@@ -215,7 +215,7 @@
       <h2 id="confirm-title"></h2>
       <p id="confirm-message"></p>
       <div class="prompt-actions">
-        <button type="button" class="btn secondary" id="confirm-cancel" value="cancel">Abbrechen</button>
+        <button type="button" class="btn secondary" id="confirm-cancel" value="cancel">Cancel</button>
         <button type="submit" class="btn danger" id="confirm-ok" value="ok">OK</button>
       </div>
     </form>
@@ -241,21 +241,21 @@
   </dialog>
 
   <dialog id="wait-dialog">
-    <h2 id="wait-title">Bitte warten</h2>
-    <p id="wait-status">Generierung läuft…</p>
+    <h2 id="wait-title">Please wait</h2>
+    <p id="wait-status">Generating…</p>
     <p id="wait-elapsed" class="muted"></p>
     <div id="wait-context" class="wait-context hidden"></div>
     <pre id="wait-output" class="wait-output"></pre>
-    <button type="button" class="btn secondary" id="btn-wait-cancel">Abbrechen</button>
+    <button type="button" class="btn secondary" id="btn-wait-cancel">Cancel</button>
   </dialog>
 
   <footer id="app-footer" class="app-footer">
     <aside id="debug-panel" class="debug-panel collapsed">
       <header class="debug-header">
-        <button type="button" id="debug-toggle" class="debug-toggle">▸ Debug-Log</button>
+        <button type="button" id="debug-toggle" class="debug-toggle">▸ Debug log</button>
         <div class="debug-actions">
-          <button type="button" class="btn secondary btn-sm" id="btn-debug-copy">Kopieren</button>
-          <button type="button" class="btn secondary btn-sm" id="btn-debug-clear">Leeren</button>
+          <button type="button" class="btn secondary btn-sm" id="btn-debug-copy">Copy</button>
+          <button type="button" class="btn secondary btn-sm" id="btn-debug-clear">Clear</button>
         </div>
       </header>
       <pre id="debug-log-output" class="debug-log-output"></pre>

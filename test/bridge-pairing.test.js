@@ -69,11 +69,27 @@ function testImagesPairingNotMasked() {
   );
 }
 
+function testSubscribeJobEventsUsesToken() {
+  const source = require('fs').readFileSync(
+    path.join(__dirname, '..', 'src', 'main', 'bridge', 'bridge-client.js'),
+    'utf8',
+  );
+  assert(
+    source.includes("headers['X-Alorbach-Bridge-Token'] = this.token"),
+    'SSE subscription must send bridge token when available',
+  );
+  assert(
+    source.includes('if (!response.ok)'),
+    'SSE subscription must check response.ok before reading body',
+  );
+}
+
 (async () => {
   await testIsPairedWithoutToken();
   await testIsPairedInvalidToken();
   await testIsPairedSyncsFromBridgeServer();
   testImagesPairingNotMasked();
+  testSubscribeJobEventsUsesToken();
   console.log('All bridge-pairing tests passed.');
 })().catch((err) => {
   console.error(err);

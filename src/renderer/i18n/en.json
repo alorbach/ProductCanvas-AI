@@ -197,5 +197,12 @@
   "context.exportPng": "Save as PNG…",
   "context.showInExplorer": "Show in Explorer",
   "context.acceptEdit": "Accept change",
-  "context.rejectEdit": "Reject change"
+  "context.rejectEdit": "Reject change",
+  "category.tv": "TV",
+  "category.beamer": "Projector",
+  "category.screens": "Projection screens",
+  "category.speakers": "Speakers",
+  "category.avReceiver": "AV receiver",
+  "category.subwoofer": "Subwoofer",
+  "category.homeCinemaSeats": "Home cinema seating"
 }

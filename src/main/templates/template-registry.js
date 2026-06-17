@@ -226,7 +226,9 @@ class TemplateRegistry {
     const reg = this.getUserRegistry();
     const entry = reg.templates.find((t) => t.id === id);
     if (!entry) throw new Error('Vorlage nicht gefunden.');
-    entry.name = name;
+    const trimmed = String(name || '').trim();
+    if (!trimmed) throw new Error('Vorlagenname darf nicht leer sein.');
+    entry.name = trimmed;
     this.saveUserRegistry(reg);
     return entry;
   }

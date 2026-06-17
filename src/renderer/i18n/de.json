@@ -197,5 +197,12 @@
   "context.exportPng": "Als PNG speichern…",
   "context.showInExplorer": "Im Explorer anzeigen",
   "context.acceptEdit": "Änderung akzeptieren",
-  "context.rejectEdit": "Änderung verwerfen"
+  "context.rejectEdit": "Änderung verwerfen",
+  "category.tv": "TV",
+  "category.beamer": "BEAMER",
+  "category.screens": "LEINWÄNDE",
+  "category.speakers": "LAUTSPRECHER",
+  "category.avReceiver": "AV-RECEIVER",
+  "category.subwoofer": "SUBWOOFER",
+  "category.homeCinemaSeats": "KINOSESSEL"
 }

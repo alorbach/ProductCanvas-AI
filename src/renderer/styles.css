@@ -13,6 +13,7 @@
 }
 
 * { box-sizing: border-box; }
+body.i18n-pending { visibility: hidden; }
 
 html {
   height: 100%;

@@ -26,6 +26,8 @@ assert.strictEqual(de['app.title'], 'ProductCanvas AI', 'German app title');
 assert.strictEqual(en['app.title'], 'ProductCanvas AI', 'English app title');
 assert(de['settings.projectTitle'], 'project panel title');
 assert(en['settings.language'], 'settings language label');
+assert(en['category.speakers'], 'category speakers label');
+assert.strictEqual(de['category.speakers'], 'LAUTSPRECHER');
 
 const docChapters = [
   'en/user-guide.md', 'en/getting-started.md', 'en/create-image.md',

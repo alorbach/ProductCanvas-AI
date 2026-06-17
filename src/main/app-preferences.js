@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const paths = require('./paths');
+const { normalizeBridgeUrl } = require('./safe-paths');
 
 const SUPPORTED_LOCALES = ['en', 'de'];
 const DEFAULT_UI_LOCALE = 'auto';
@@ -37,7 +38,7 @@ function getPreferences(systemLocale) {
     uiLocale,
     resolvedLocale: resolveLocale(uiLocale, systemLocale),
     systemLocale: systemLocale || 'en',
-    bridgeUrl: defaults.bridgeUrl || 'http://127.0.0.1:8765',
+    bridgeUrl: normalizeBridgeUrl(defaults.bridgeUrl),
   };
 }
 
@@ -48,7 +49,7 @@ function setPreferences(patch, systemLocale) {
     allowed.uiLocale = value === 'auto' || SUPPORTED_LOCALES.includes(value) ? value : DEFAULT_UI_LOCALE;
   }
   if (patch.bridgeUrl !== undefined) {
-    allowed.bridgeUrl = String(patch.bridgeUrl || '').trim() || 'http://127.0.0.1:8765';
+    allowed.bridgeUrl = normalizeBridgeUrl(patch.bridgeUrl);
   }
   writeDefaults(allowed);
   return getPreferences(systemLocale);
@@ -60,4 +61,5 @@ module.exports = {
   resolveLocale,
   getPreferences,
   setPreferences,
+  normalizeBridgeUrl,
 };

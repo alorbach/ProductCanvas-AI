@@ -37,6 +37,18 @@ async function run() {
     const importedLarge = await registry.importFromFile(largeSrc, 'large');
     assert.equal(importedLarge.width, 2730, 'large import keeps native width');
     assert.equal(importedLarge.height, 2048, 'large import keeps native height');
+
+    let renameFailed = false;
+    try {
+      registry.renameUserTemplate(imported.id, '   ');
+    } catch (err) {
+      renameFailed = true;
+      assert.match(err.message, /leer/i);
+    }
+    assert(renameFailed, 'empty rename must throw');
+
+    const renamed = registry.renameUserTemplate(imported.id, '  Neuer Name  ');
+    assert.strictEqual(renamed.name, 'Neuer Name');
   } finally {
     paths.userDataRoot = origUserData;
     fs.rmSync(tmpDir, { recursive: true, force: true });

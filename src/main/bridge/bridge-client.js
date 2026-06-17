@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const { Agent } = require('undici');
 const paths = require('../paths');
+const { normalizeBridgeUrl } = require('../safe-paths');
 const debugLog = require('../debug/logger');
 const { readBridgeServerToken, readLegacyAppToken } = require('./bridge-pairing-store');
 
@@ -124,6 +125,15 @@ class BridgeClient {
     saveBridgeState(state);
   }
 
+  setBridgeUrl(bridgeUrl) {
+    this.bridgeUrl = normalizeBridgeUrl(bridgeUrl);
+    const state = loadBridgeState();
+    state.bridgeUrl = this.bridgeUrl;
+    state.origin = this.origin;
+    state.token = this.token;
+    saveBridgeState(state);
+  }
+
   static isPairingError(err) {
     const msg = String(err?.message || '').toLowerCase();
     const status = err?.status;
@@ -210,10 +220,11 @@ class BridgeClient {
   }
 
   abort(signalKey) {
+    if (!signalKey) return false;
     const c = this.abortControllers.get(signalKey);
-    if (c) {
-      c.abort();
-    }
+    if (!c) return false;
+    c.abort();
+    return true;
   }
 
   async getStatus() {
@@ -385,14 +396,26 @@ class BridgeClient {
     const controller = new AbortController();
     const timeout = DEFAULT_TIMEOUT_MS;
     let closed = false;
+    const headers = { Accept: 'text/event-stream', Origin: this.origin };
+    if (this.token) {
+      headers['X-Alorbach-Bridge-Token'] = this.token;
+    }
 
     (async () => {
       try {
         const response = await fetch(url, {
-          headers: { Accept: 'text/event-stream', Origin: this.origin },
+          headers,
           signal: controller.signal,
           dispatcher: getDispatcher(timeout),
         });
+        if (!response.ok) {
+          onJobs({ error: `${response.status} ${response.statusText}` });
+          return;
+        }
+        if (!response.body) {
+          onJobs({ error: 'SSE response has no body' });
+          return;
+        }
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';

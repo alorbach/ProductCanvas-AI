@@ -18,6 +18,11 @@ const paths = require('./paths');
 const debugLog = require('./debug/logger');
 const { isImagePath } = require('./generate/image-prep');
 const { getPreferences, setPreferences } = require('./app-preferences');
+const {
+  MAX_DATA_URL_BYTES,
+  isAllowedReadPath,
+  isAllowedExportSource,
+} = require('./safe-paths');
 const { migrateIfNeeded } = require('./migration/user-data-migrate');
 const mainI18n = require('./i18n/main-i18n');
 
@@ -311,9 +316,12 @@ function registerIpc() {
   ipcMain.handle('app:getPreferences', () => getPreferences(systemLocale()));
   ipcMain.handle('app:setPreferences', (_, patch) => {
     const prefs = setPreferences(patch, systemLocale());
-    if (patch.bridgeUrl !== undefined && session) {
-      session.bridgeUrl = prefs.bridgeUrl;
-      scheduleAutosave();
+    if (patch.bridgeUrl !== undefined) {
+      bridgeManager.getClient().setBridgeUrl(prefs.bridgeUrl);
+      if (session) {
+        session.bridgeUrl = prefs.bridgeUrl;
+        scheduleAutosave();
+      }
     }
     broadcastPreferences();
     return prefs;
@@ -349,6 +357,9 @@ function registerIpc() {
 
   ipcMain.handle('session:get', () => session || profileStore.loadSession());
   ipcMain.handle('session:update', (_, patch) => {
+    if (!session) {
+      session = profileStore.loadSession();
+    }
     session = { ...session, ...patch };
     scheduleAutosave();
     return session;
@@ -434,7 +445,8 @@ function registerIpc() {
   ipcMain.handle('templates:runEdit', async (_, { templateId, changeRequest, quality, size, referenceImagePath, pairingCode }) => {
     await bridgeManager.requirePaired(pairingCode);
     const signalKey = `edit-${Date.now()}`;
-    const onProgress = (p) => send('job:progress', p);
+    send('job:progress', { status: 'running', signalKey, messageKey: 'wait.status.templateEditPrompt' });
+    const onProgress = (p) => send('job:progress', { ...p, signalKey });
     const unsubscribe = subscribeBridgeJobProgress(bridgeManager.getClient(), onProgress);
     try {
       return await templateEditor.runEdit(
@@ -454,7 +466,8 @@ function registerIpc() {
   ipcMain.handle('generate:buildPrompt', async (_, options = {}) => {
     const { pairingCode, ...promptOpts } = options;
     const signalKey = `prompt-${Date.now()}`;
-    const onProgress = (p) => send('job:progress', p);
+    send('job:progress', { status: 'running', signalKey, messageKey: 'wait.status.buildingPrompt' });
+    const onProgress = (p) => send('job:progress', { ...p, signalKey });
     const unsubscribe = subscribeBridgeJobProgress(bridgeManager.getClient(), onProgress);
     try {
       await bridgeManager.requirePaired(pairingCode);
@@ -472,6 +485,7 @@ function registerIpc() {
   ipcMain.handle('generate:suggestTagline', async (_, options = {}) => {
     const { pairingCode, ...taglineOpts } = options;
     const signalKey = `tagline-${Date.now()}`;
+    send('job:progress', { status: 'running', signalKey, messageKey: 'wait.context.task.tagline' });
     try {
       await bridgeManager.requirePaired(pairingCode);
       return await promptBuilder.suggestTagline(taglineOpts, signalKey);
@@ -484,15 +498,20 @@ function registerIpc() {
   ipcMain.handle('generate:image', async (_, { promptData, settings, pairingCode }) => {
     await bridgeManager.requirePaired(pairingCode);
     const signalKey = `image-${Date.now()}`;
-    const onProgress = (p) => send('job:progress', p);
+    send('job:progress', { status: 'running', signalKey, messageKey: 'wait.status.running' });
+    const onProgress = (p) => send('job:progress', { ...p, signalKey });
     return imagePipeline.generateImage(promptData, settings, onProgress, signalKey);
   });
 
   ipcMain.handle('generate:abort', (_, signalKey) => {
-    bridgeManager.getClient().abort(signalKey);
+    const success = bridgeManager.getClient().abort(signalKey);
+    return { success };
   });
 
   ipcMain.handle('export:savePng', async (_, sourcePath) => {
+    if (!isAllowedExportSource(sourcePath)) {
+      throw new Error('EXPORT_SOURCE_NOT_ALLOWED');
+    }
     const r = await dialog.showSaveDialog(mainWindow, {
       defaultPath: mt('export.defaultName', { timestamp: Date.now() }),
       filters: [{ name: mt('export.png'), extensions: ['png'] }],
@@ -503,17 +522,26 @@ function registerIpc() {
   });
 
   ipcMain.handle('export:savePngFromB64', async (_, b64) => {
+    const buffer = Buffer.from(b64 || '', 'base64');
+    if (buffer.byteLength > MAX_DATA_URL_BYTES) {
+      throw new Error('EXPORT_PAYLOAD_TOO_LARGE');
+    }
     const r = await dialog.showSaveDialog(mainWindow, {
       defaultPath: mt('export.defaultName', { timestamp: Date.now() }),
       filters: [{ name: mt('export.png'), extensions: ['png'] }],
     });
     if (r.canceled) return null;
-    fs.writeFileSync(r.filePath, Buffer.from(b64, 'base64'));
+    fs.writeFileSync(r.filePath, buffer);
     return r.filePath;
   });
 
   ipcMain.handle('files:readDataUrl', (_, filePath) => {
     if (!filePath || !fs.existsSync(filePath)) return null;
+    if (!isAllowedReadPath(filePath, { session, templateRegistry, templateEditor }) || !isImagePath(filePath)) {
+      return null;
+    }
+    const stat = fs.statSync(filePath);
+    if (stat.size > MAX_DATA_URL_BYTES) return null;
     const ext = path.extname(filePath).toLowerCase();
     const mime = ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : ext === '.webp' ? 'image/webp' : 'image/png';
     const b64 = fs.readFileSync(filePath).toString('base64');

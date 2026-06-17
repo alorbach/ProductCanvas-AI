@@ -85,10 +85,23 @@ class ProfileStore {
     const profileDir = path.join(path.dirname(filePath), profileBaseName(filePath));
     fs.mkdirSync(profileDir, { recursive: true });
     const refs = [];
+    const usedDestPaths = new Set();
     for (const ref of session.referenceImages || []) {
       if (ref.path && fs.existsSync(ref.path)) {
-        const destName = path.basename(ref.path);
-        const dest = path.join(profileDir, destName);
+        const ext = path.extname(ref.path);
+        const stem = path.basename(ref.path, ext);
+        let destName = path.basename(ref.path);
+        let dest = path.join(profileDir, destName);
+        let suffix = 1;
+        while (
+          usedDestPaths.has(path.resolve(dest))
+          || (fs.existsSync(dest) && path.resolve(ref.path) !== path.resolve(dest))
+        ) {
+          destName = `${stem}-${suffix}${ext}`;
+          dest = path.join(profileDir, destName);
+          suffix += 1;
+        }
+        usedDestPaths.add(path.resolve(dest));
         if (path.resolve(ref.path) !== path.resolve(dest)) {
           fs.copyFileSync(ref.path, dest);
         }

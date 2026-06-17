@@ -28,6 +28,7 @@ let mainPreviewMetaContext = {};
 let editorPreviewMetaContext = {};
 let waitStart = 0;
 let waitTimer = null;
+let activeAbortKey = '';
 let currentWaitContext = null;
 let openLightbox = () => {};
 let openEditorCompare = () => {};
@@ -47,7 +48,15 @@ function isInternalSortDrag(dataTransfer) {
   return Boolean(dataTransfer?.types && [...dataTransfer.types].includes(WM_SORT_MIME));
 }
 
-const CATEGORIES = ['TV', 'BEAMER', 'LEINWÄNDE', 'LAUTSPRECHER', 'AV-RECEIVER', 'SUBWOOFER', 'KINOSESSEL'];
+const CATEGORIES = [
+  { value: 'TV', labelKey: 'category.tv' },
+  { value: 'BEAMER', labelKey: 'category.beamer' },
+  { value: 'LEINWÄNDE', labelKey: 'category.screens' },
+  { value: 'LAUTSPRECHER', labelKey: 'category.speakers' },
+  { value: 'AV-RECEIVER', labelKey: 'category.avReceiver' },
+  { value: 'SUBWOOFER', labelKey: 'category.subwoofer' },
+  { value: 'KINOSESSEL', labelKey: 'category.homeCinemaSeats' },
+];
 const IMAGE_EXT = /\.(png|jpe?g|webp)$/i;
 
 function imagePathsFromDataTransfer(dataTransfer) {
@@ -73,6 +82,13 @@ function bindClick(id, handler, context = '') {
   el.addEventListener('click', () => {
     Promise.resolve(handler()).catch((err) => showError(err, context));
   });
+}
+
+function isAbortError(err) {
+  if (!err) return false;
+  if (err.name === 'AbortError') return true;
+  const raw = String(err.message || err).toLowerCase();
+  return raw.includes('abort') || raw.includes('aborted');
 }
 
 function formatError(err) {
@@ -224,6 +240,7 @@ function showStatus(message, { level = 'info', ms = 5000 } = {}) {
 }
 
 function showError(err, context = '') {
+  if (isAbortError(err)) return;
   const message = formatError(err);
   const full = context ? `${context}: ${message}` : message;
   console.error(full, err);
@@ -693,6 +710,20 @@ function showView(name) {
   }
 }
 
+function populateCategories() {
+  const catSelect = $('setting-category');
+  if (!catSelect) return;
+  const selected = catSelect.value || session.productCategory || 'LAUTSPRECHER';
+  catSelect.replaceChildren();
+  CATEGORIES.forEach((category) => {
+    const opt = document.createElement('option');
+    opt.value = category.value;
+    opt.textContent = t(category.labelKey);
+    catSelect.appendChild(opt);
+  });
+  catSelect.value = selected;
+}
+
 function applyLabels() {
   $('app-title').textContent = t('app.title');
   $('app-subtitle').textContent = t('app.subtitle');
@@ -778,6 +809,7 @@ function applyLabels() {
   if ($('bridge-dialog-close')) $('bridge-dialog-close').textContent = t('bridge.dialog.close');
   if ($('bridge-dialog-connect')) $('bridge-dialog-connect').textContent = t('bridge.setup.connect');
   if ($('bridge-status')) $('bridge-status').title = t('bridge.status.title');
+  populateCategories();
 }
 
 async function connectBridgeFromUi() {
@@ -1941,6 +1973,9 @@ function showWait(message, context) {
 }
 
 function updateWait(progress) {
+  if (progress?.signalKey) {
+    activeAbortKey = progress.signalKey;
+  }
   const message = resolveWaitMessage(progress);
   if (message) {
     $('wait-status').textContent = message;
@@ -1957,6 +1992,7 @@ function updateWait(progress) {
 
 function hideWait() {
   currentWaitContext = null;
+  activeAbortKey = '';
   if (waitTimer) {
     clearInterval(waitTimer);
     waitTimer = null;
@@ -2348,7 +2384,12 @@ function setupInteractionHandlers() {
     await refreshEditorUi();
   });
 
-  $('btn-wait-cancel').addEventListener('click', () => hideWait());
+  $('btn-wait-cancel').addEventListener('click', async () => {
+    if (activeAbortKey) {
+      await api.generateAbort(activeAbortKey);
+    }
+    hideWait();
+  });
 
   api.on('job:progress', (p) => updateWait(p));
   api.on('bridge:progress', (p) => updateWait(p));
@@ -2404,18 +2445,12 @@ function setupInteractionHandlers() {
 }
 
 async function init() {
+  document.body.classList.add('i18n-pending');
   const prefs = await api.getPreferences();
   await loadI18n(prefs.resolvedLocale || 'en');
   document.documentElement.lang = prefs.resolvedLocale || 'en';
   applyLabels();
-
-  const catSelect = $('setting-category');
-  CATEGORIES.forEach((c) => {
-    const opt = document.createElement('option');
-    opt.value = c;
-    opt.textContent = c;
-    catSelect.appendChild(opt);
-  });
+  document.body.classList.remove('i18n-pending');
 
   setupInteractionHandlers();
 
