@@ -16,6 +16,7 @@ const DEFAULTS = {
   seriesName: '',
   tagline: '',
   extraPrompt: '',
+  internalComment: '',
   referenceImages: [],
   lastPreviewPath: '',
   imagePrompt: '',

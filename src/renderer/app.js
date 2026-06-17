@@ -6,6 +6,11 @@ import { showContextMenu, menuItem } from './context-menu.js';
 
 import { api } from './bridge-api.js';
 import { pathsFromDataTransfer, isFileDrag } from './image-paths.js';
+import {
+  estimateBytesFromB64,
+  estimateBytesFromDataUrl,
+  formatFileSize,
+} from './preview-meta.js';
 let session = {};
 let templates = [];
 let imageSettingsCatalog = null;
@@ -19,6 +24,8 @@ let editorOutputSize = 'template';
 let editorAspectRatio = 1;
 let editorSizeFieldSync = false;
 let editorReferenceImage = null;
+let mainPreviewMetaContext = {};
+let editorPreviewMetaContext = {};
 let waitStart = 0;
 let waitTimer = null;
 let currentWaitContext = null;
@@ -710,6 +717,10 @@ function applyLabels() {
   $('lbl-series').textContent = t('settings.seriesName');
   $('lbl-tagline').textContent = t('settings.tagline');
   $('lbl-extra').textContent = t('settings.extraPrompt');
+  $('lbl-internal-comment').textContent = t('settings.internalComment');
+  if ($('setting-internal-comment')) {
+    $('setting-internal-comment').placeholder = t('settings.internalCommentHint');
+  }
   $('lbl-prompt-image').textContent = t('prompt.image');
   $('btn-build-prompt').textContent = t('generate.buildPrompt');
   $('btn-generate').textContent = t('generate.button');
@@ -1274,10 +1285,53 @@ function setEditorReviewBarVisible(visible) {
   if (bar) bar.classList.toggle('hidden', !visible);
 }
 
+function refreshPreviewMetaOverlay(imgId, overlayId, context = {}) {
+  const img = $(imgId);
+  const overlay = $(overlayId);
+  if (!img || !overlay) return;
+  if (img.classList.contains('hidden') || !img.src) {
+    overlay.classList.add('hidden');
+    overlay.setAttribute('aria-hidden', 'true');
+    overlay.textContent = '';
+    return;
+  }
+  const w = img.naturalWidth || 0;
+  const h = img.naturalHeight || 0;
+  if (!w || !h) return;
+
+  const lines = [];
+  lines.push(t('preview.meta.dimensions').replace('{size}', `${w}×${h}`));
+  lines.push(t('preview.meta.format').replace('{format}', context.format || 'PNG'));
+  const bytes = context.fileSizeBytes || estimateBytesFromDataUrl(img.src);
+  const sizeLabel = formatFileSize(bytes);
+  if (sizeLabel) {
+    lines.push(t('preview.meta.fileSize').replace('{size}', sizeLabel));
+  }
+  if (context.requestedLabel) {
+    lines.push(t('preview.meta.requested').replace('{size}', context.requestedLabel));
+  }
+  if (context.quality) {
+    lines.push(t('preview.meta.quality').replace('{quality}', qualityLabel(context.quality)));
+  }
+  overlay.textContent = lines.join('\n');
+  overlay.classList.remove('hidden');
+  overlay.setAttribute('aria-hidden', 'false');
+}
+
+function attachPreviewMetaListeners(imgId, overlayId, getContext) {
+  const img = $(imgId);
+  if (!img) return;
+  img.addEventListener('load', () => {
+    refreshPreviewMetaOverlay(imgId, overlayId, getContext());
+  });
+}
+
 function clearEditorPreview() {
   $('editor-preview').classList.add('hidden');
   $('editor-preview-empty').classList.remove('hidden');
   setEditorReviewBarVisible(false);
+  editorPreviewMetaContext = {};
+  refreshPreviewMetaOverlay('editor-preview', 'editor-preview-meta', {});
   $('optimized-prompt').value = '';
   $('change-summary').textContent = '';
   const promptDetails = $('editor-prompt-details');
@@ -1343,6 +1397,7 @@ function readSettingsFromUi() {
     seriesName: $('setting-series').value,
     tagline: $('setting-tagline').value,
     extraPrompt: $('setting-extra').value,
+    internalComment: $('setting-internal-comment')?.value || '',
     referenceImages: session.referenceImages || [],
     preflightPrompt: session.preflightPrompt || '',
     preflightFingerprint: session.preflightFingerprint || '',
@@ -1486,6 +1541,9 @@ function writeSettingsToUi() {
   $('setting-series').value = session.seriesName || '';
   $('setting-tagline').value = session.tagline || '';
   $('setting-extra').value = session.extraPrompt || '';
+  if ($('setting-internal-comment')) {
+    $('setting-internal-comment').value = session.internalComment || '';
+  }
 }
 
 async function openPathInExplorer(filePath) {
@@ -1907,18 +1965,33 @@ function hideWait() {
   renderWaitContext(null);
 }
 
-function showPreview(path, b64) {
+function showPreview(path, b64, meta = {}) {
   const img = $('preview-image');
+  mainPreviewMetaContext = {
+    format: meta.format || 'PNG',
+    fileSizeBytes: meta.fileSizeBytes ?? estimateBytesFromB64(b64),
+    requestedLabel: meta.requestedLabel || '',
+    quality: meta.quality || '',
+  };
   if (b64) {
     img.src = `data:image/png;base64,${b64}`;
   } else if (path) {
-    api.filesReadDataUrl(path).then((url) => { if (url) img.src = url; });
+    api.filesReadDataUrl(path).then((url) => {
+      if (!url) return;
+      img.src = url;
+      if (!mainPreviewMetaContext.fileSizeBytes) {
+        mainPreviewMetaContext.fileSizeBytes = estimateBytesFromDataUrl(url);
+      }
+    });
   }
   img.classList.remove('hidden');
   $('preview-empty').classList.add('hidden');
   $('btn-export').classList.remove('hidden');
   lastPreviewPath = path;
   lastPreviewB64 = b64 || '';
+  if (b64) {
+    refreshPreviewMetaOverlay('preview-image', 'preview-image-meta', mainPreviewMetaContext);
+  }
 }
 
 async function refreshBridgeStatus(options = {}) {
@@ -2048,6 +2121,8 @@ function setupInteractionHandlers() {
   setupPreviewLightbox();
   setupEditorCompareLightbox();
   setupEditorSizeControls();
+  attachPreviewMetaListeners('preview-image', 'preview-image-meta', () => mainPreviewMetaContext);
+  attachPreviewMetaListeners('editor-preview', 'editor-preview-meta', () => editorPreviewMetaContext);
   setupEditorReference();
   setupEditorImageContextMenus();
   setupPanelContextMenus();
@@ -2057,7 +2132,7 @@ function setupInteractionHandlers() {
     btn.addEventListener('click', () => showView(btn.dataset.mode));
   });
 
-  ['setting-size', 'setting-quality', 'setting-category', 'setting-brand', 'setting-series', 'setting-tagline', 'setting-extra'].forEach((id) => {
+  ['setting-size', 'setting-quality', 'setting-category', 'setting-brand', 'setting-series', 'setting-tagline', 'setting-extra', 'setting-internal-comment'].forEach((id) => {
     const el = $(id);
     if (!el) {
       console.error(`Missing control #${id}`);
@@ -2162,7 +2237,12 @@ function setupInteractionHandlers() {
         const details = document.querySelector('.prompt-details');
         if (details) details.open = true;
       }
-      showPreview(result.path, result.b64);
+      showPreview(result.path, result.b64, {
+        format: 'PNG',
+        fileSizeBytes: estimateBytesFromB64(result.b64),
+        requestedLabel: formatGatewaySizeLabel(settings.size, getSelectedTemplate()),
+        quality: settings.quality,
+      });
       await updateSession({ lastPreviewPath: result.path });
       hideWait();
     } catch (err) {
@@ -2220,9 +2300,16 @@ function setupInteractionHandlers() {
       $('optimized-prompt').value = result.optimizedEditPrompt || '';
       $('change-summary').textContent = result.changeSummary || '';
       if (result.previewB64) {
+        editorPreviewMetaContext = {
+          format: 'PNG',
+          fileSizeBytes: estimateBytesFromB64(result.previewB64),
+          requestedLabel: formatGatewaySizeLabel(size, tmpl),
+          quality: $('editor-quality').value,
+        };
         $('editor-preview').src = `data:image/png;base64,${result.previewB64}`;
         $('editor-preview').classList.remove('hidden');
         $('editor-preview-empty').classList.add('hidden');
+        refreshPreviewMetaOverlay('editor-preview', 'editor-preview-meta', editorPreviewMetaContext);
         setEditorReviewBarVisible(true);
       }
       editorLocked = true;
@@ -2361,9 +2448,16 @@ async function init() {
       force: true,
     });
     if (pendingEdit.previewB64) {
+      editorPreviewMetaContext = {
+        format: 'PNG',
+        fileSizeBytes: estimateBytesFromB64(pendingEdit.previewB64),
+        requestedLabel: formatGatewaySizeLabel(pendingEdit.imageSize, getEditorTemplate()),
+        quality: session.quality || 'high',
+      };
       $('editor-preview').src = `data:image/png;base64,${pendingEdit.previewB64}`;
       $('editor-preview').classList.remove('hidden');
       $('editor-preview-empty').classList.add('hidden');
+      refreshPreviewMetaOverlay('editor-preview', 'editor-preview-meta', editorPreviewMetaContext);
       setEditorReviewBarVisible(true);
     }
   } else {

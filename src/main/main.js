@@ -24,7 +24,7 @@ const mainI18n = require('./i18n/main-i18n');
 const MAIN_WINDOW_WIDTH = 1440;
 const MAIN_WINDOW_HEIGHT = 900;
 const MAIN_WINDOW_MIN_WIDTH = 1440;
-const MAIN_WINDOW_MIN_HEIGHT = 800;
+const MAIN_WINDOW_MIN_HEIGHT = 900;
 
 let mainWindow = null;
 let settingsWindow = null;

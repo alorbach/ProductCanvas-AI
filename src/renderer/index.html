@@ -44,40 +44,52 @@
     </section>
     <section class="panel settings-panel">
       <h2 id="lbl-settings">Einstellungen</h2>
-      <label><span id="lbl-size">Bildauflösung</span>
-        <select id="setting-size"></select>
-      </label>
-      <label><span id="lbl-quality">Qualität</span>
-        <select id="setting-quality"></select>
-      </label>
-      <p id="image-settings-hint" class="muted compositing-hint"></p>
-      <label><span id="lbl-category">Produktkategorie</span>
-        <select id="setting-category"></select>
-      </label>
-      <label><span id="lbl-brand">Markenname</span><input type="text" id="setting-brand"></label>
-      <label><span id="lbl-series">Serie</span><input type="text" id="setting-series"></label>
-      <label><span id="lbl-tagline">Werbetext (Tagline)</span>
-        <div class="input-with-action">
-          <input type="text" id="setting-tagline">
-          <button type="button" class="btn-icon" id="btn-suggest-tagline" title="KI-Vorschlag">
-            <svg class="ai-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2l1.2 4.2L17.5 7.5 13.2 8.7 12 13l-1.2-4.3L6.5 7.5l4.3-1.3L12 2zm7 9l.8 2.8L22.5 15l-2.7.8L19 18.5l-.8-2.7L15.5 15l2.7-.8L19 11zm-14 1l.6 2.1L7.5 15l-2.1.6L5 17.7l-.6-2.1L2.3 15l2.1-.6L5 12.3z"/></svg>
-          </button>
+      <div class="settings-form">
+        <div class="settings-row-2col">
+          <label><span id="lbl-size">Bildauflösung</span>
+            <select id="setting-size"></select>
+          </label>
+          <label><span id="lbl-quality">Qualität</span>
+            <select id="setting-quality"></select>
+          </label>
         </div>
-      </label>
-      <label><span id="lbl-extra">Zusatz-Prompt</span><textarea id="setting-extra" rows="3"></textarea></label>
-      <details class="prompt-details">
-        <summary id="lbl-prompt-image">Bild-Prompt</summary>
-        <textarea id="prompt-image" rows="6" readonly></textarea>
-      </details>
-      <div class="actions">
-        <button type="button" class="btn secondary" id="btn-build-prompt">Prompt generieren</button>
-        <button type="button" class="btn primary" id="btn-generate">Bild generieren</button>
+        <p id="image-settings-hint" class="muted compositing-hint image-settings-hint"></p>
+        <label><span id="lbl-category">Produktkategorie</span>
+          <select id="setting-category"></select>
+        </label>
+        <div class="settings-row-2col">
+          <label><span id="lbl-brand">Markenname</span><input type="text" id="setting-brand"></label>
+          <label><span id="lbl-series">Serie</span><input type="text" id="setting-series"></label>
+        </div>
+        <label><span id="lbl-tagline">Werbetext (Tagline)</span>
+          <div class="input-with-action">
+            <input type="text" id="setting-tagline">
+            <button type="button" class="btn-icon" id="btn-suggest-tagline" title="KI-Vorschlag">
+              <svg class="ai-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2l1.2 4.2L17.5 7.5 13.2 8.7 12 13l-1.2-4.3L6.5 7.5l4.3-1.3L12 2zm7 9l.8 2.8L22.5 15l-2.7.8L19 18.5l-.8-2.7L15.5 15l2.7-.8L19 11zm-14 1l.6 2.1L7.5 15l-2.1.6L5 17.7l-.6-2.1L2.3 15l2.1-.6L5 12.3z"/></svg>
+            </button>
+          </div>
+        </label>
+        <label><span id="lbl-extra">Zusatz-Prompt</span><textarea id="setting-extra" rows="2"></textarea></label>
+        <details class="prompt-details">
+          <summary id="lbl-prompt-image">Bild-Prompt</summary>
+          <textarea id="prompt-image" rows="4" readonly></textarea>
+        </details>
+        <div class="actions settings-actions">
+          <button type="button" class="btn secondary" id="btn-build-prompt">Prompt generieren</button>
+          <button type="button" class="btn primary" id="btn-generate">Bild generieren</button>
+        </div>
+        <label class="internal-comment-label"><span id="lbl-internal-comment">Interner Kommentar</span>
+          <textarea id="setting-internal-comment" rows="4"></textarea>
+        </label>
       </div>
     </section>
     <section class="panel preview-panel">
       <h2 id="lbl-preview">Vorschau</h2>
       <div class="preview-wrap">
-        <img id="preview-image" alt="Vorschau" class="hidden preview-clickable" title="" />
+        <div class="preview-frame">
+          <img id="preview-image" alt="Vorschau" class="hidden preview-clickable" title="" />
+          <div id="preview-image-meta" class="preview-meta-overlay hidden" aria-hidden="true"></div>
+        </div>
         <p id="preview-empty" class="muted">Noch keine Vorschau.</p>
       </div>
       <button type="button" class="btn secondary hidden" id="btn-export">Als PNG speichern</button>
@@ -151,7 +163,10 @@
         </div>
         <div class="editor-col">
           <h3 id="lbl-ki-preview">KI-Vorschau</h3>
-          <img id="editor-preview" alt="KI-Vorschau" class="hidden" />
+          <div class="preview-frame editor-preview-frame">
+            <img id="editor-preview" alt="KI-Vorschau" class="hidden" />
+            <div id="editor-preview-meta" class="preview-meta-overlay hidden" aria-hidden="true"></div>
+          </div>
           <p id="editor-preview-empty" class="muted">Noch keine KI-Vorschau.</p>
         </div>
       </div>
