@@ -22,10 +22,9 @@ assert(de['refs.dropHint'], 'drag drop hint');
 assert(de['template.import'], 'template import label');
 assert(de['template.empty'], 'template empty hint');
 assert(de['tagline.suggest'], 'tagline suggest label');
-assert(de['settings.mediaAnalysis'], 'media analysis setting label');
 
 const { DEFAULTS } = require(path.join(root, 'src', 'main', 'profiles', 'profile-store'));
-assert.strictEqual(DEFAULTS.mediaAnalysisEnabled, false, 'media analysis disabled by default');
+assert.strictEqual(DEFAULTS.size, 'template', 'default size mode');
 
 const { inferAccentKey, inferAccentMeta } = require(path.join(root, 'src', 'main', 'templates', 'template-accent'));
 assert.equal(inferAccentKey('Vorlage-blau'), 'blue', 'infer blue from German name');

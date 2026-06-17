@@ -224,6 +224,26 @@ class TemplateRegistry {
     return entry;
   }
 
+  reorderTemplates(orderedIds) {
+    const ids = (orderedIds || []).map((id) => String(id || '').trim()).filter(Boolean);
+    if (!ids.length) return this.listAll();
+    const reg = this.getUserRegistry();
+    const byId = new Map(reg.templates.map((entry) => [entry.id, entry]));
+    const reordered = [];
+    for (const id of ids) {
+      if (byId.has(id)) {
+        reordered.push(byId.get(id));
+        byId.delete(id);
+      }
+    }
+    for (const entry of reg.templates) {
+      if (byId.has(entry.id)) reordered.push(entry);
+    }
+    reg.templates = reordered;
+    this.saveUserRegistry(reg);
+    return this.listAll();
+  }
+
   imageToDataUrl(filePath) {
     const ext = path.extname(filePath).toLowerCase();
     const mime = ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 'image/png';

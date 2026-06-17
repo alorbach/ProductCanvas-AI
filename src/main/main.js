@@ -17,7 +17,6 @@ const { DocLoader } = require('./docs/doc-loader');
 const paths = require('./paths');
 const debugLog = require('./debug/logger');
 const { isImagePath } = require('./generate/image-prep');
-const { collectReferencePaths } = require('./generate/image-request');
 
 let mainWindow = null;
 let bridgeManager;
@@ -298,6 +297,12 @@ function registerIpc() {
 
   ipcMain.handle('templates:rename', (_, { id, name }) => templateRegistry.renameUserTemplate(id, name));
 
+  ipcMain.handle('templates:reorder', (_, orderedIds) => {
+    const list = templateRegistry.reorderTemplates(orderedIds);
+    send('templates:updated', list);
+    return list;
+  });
+
   ipcMain.handle('templates:getImage', (_, id) => {
     const t = templateRegistry.getById(id);
     if (!t) return null;
@@ -305,14 +310,14 @@ function registerIpc() {
     return templateRegistry.imageToDataUrl(p);
   });
 
-  ipcMain.handle('templates:runEdit', async (_, { templateId, changeRequest, quality, pairingCode }) => {
+  ipcMain.handle('templates:runEdit', async (_, { templateId, changeRequest, quality, size, pairingCode }) => {
     await bridgeManager.requirePaired(pairingCode);
     const signalKey = `edit-${Date.now()}`;
     const onProgress = (p) => send('job:progress', p);
     const unsubscribe = subscribeBridgeJobProgress(bridgeManager.getClient(), onProgress);
     try {
       return await templateEditor.runEdit(
-        { templateId, changeRequest, quality },
+        { templateId, changeRequest, quality, size },
         onProgress,
         signalKey,
       );
@@ -357,11 +362,7 @@ function registerIpc() {
   });
 
   ipcMain.handle('generate:image', async (_, { promptData, settings, pairingCode }) => {
-    const useCompositing = settings?.compositingMode === true
-      && collectReferencePaths(settings?.referenceImages).length > 0;
-    if (!useCompositing) {
-      await bridgeManager.requirePaired(pairingCode);
-    }
+    await bridgeManager.requirePaired(pairingCode);
     const signalKey = `image-${Date.now()}`;
     const onProgress = (p) => send('job:progress', p);
     return imagePipeline.generateImage(promptData, settings, onProgress, signalKey);

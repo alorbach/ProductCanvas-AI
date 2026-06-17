@@ -95,11 +95,28 @@ function buildTemplateEditFrozenRules(changeRequest, imageSettings = {}) {
   ].join('\n\n');
 }
 
+function buildResizeOnlyPrompt(template, imageSettings, sourceDims = {}) {
+  const fromSize = sourceDims.width && sourceDims.height
+    ? `${sourceDims.width}x${sourceDims.height}`
+    : 'source template';
+  const toSize = imageSettings.size === 'auto'
+    ? 'auto (best fit for layout)'
+    : imageSettings.size;
+  const base = [
+    `Resize the attached TELE-KOHLGRAF layout template from ${fromSize} to output size ${toSize}.`,
+    'Preserve header, footer, contact bar, neon accents, icons, typography colors, and product stage layout.',
+    'Scale the full design proportionally — do not redesign, recolor, or omit layout elements.',
+    'No content changes — format / canvas size only.',
+  ].join(' ');
+  return appendLayoutLockBlock(base, template, imageSettings);
+}
+
 module.exports = {
   LAYOUT_EDITABLE_RULES,
   LAYOUT_FROZEN_RULES,
   appendLayoutLockBlock,
   buildProductStageHint,
+  buildResizeOnlyPrompt,
   buildTemplateEditFrozenRules,
   buildTemplateLayoutHint,
   sanitizePreflightPrompt,

@@ -85,11 +85,4 @@ assert.notEqual(
   'fingerprint changes with settings',
 );
 
-const { fitInStage, parseSize } = require(path.join(root, 'src', 'main', 'generate', 'product-compositor'));
-const stage = { x: 48, y: 200, width: 1440, height: 580 };
-const fit = fitInStage(2000, 1000, stage);
-assert(fit.width === 1160, 'fit scales down width');
-assert(fit.height === 580, 'fit scales down height');
-assert.equal(parseSize('1536x1024').width, 1536);
-
 console.log('All prompt-fidelity tests passed.');

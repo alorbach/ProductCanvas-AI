@@ -11,6 +11,7 @@ const {
 } = require('./image-preflight');
 const {
   appendLayoutLockBlock,
+  buildResizeOnlyPrompt,
   buildTemplateEditFrozenRules,
   sanitizePreflightPrompt,
 } = require('./layout-fidelity');
@@ -28,6 +29,22 @@ function extractJson(text) {
 
 function getChoiceContent(result) {
   return result?.response?.choices?.[0]?.message?.content || '';
+}
+
+function isFormatOnlyEdit(changeRequest, imageSettings, templateDims) {
+  if (String(changeRequest || '').trim()) return false;
+  const native = templateDims?.width && templateDims?.height
+    ? `${templateDims.width}x${templateDims.height}`
+    : '';
+  const target = String(imageSettings?.size || '');
+  if (!target) return false;
+  if (target === 'auto') return true;
+  return target !== native;
+}
+
+function formatResizeSummary(imageSettings) {
+  const size = imageSettings.size === 'auto' ? 'Auto' : imageSettings.size.replace(/x/i, '×');
+  return `Ausgabeformat auf ${size} skaliert (ohne Layout-Änderung).`;
 }
 
 class TemplateEditPipeline {
@@ -78,6 +95,15 @@ class TemplateEditPipeline {
     };
   }
 
+  buildFormatOnlyEdit(template, imageSettings, templateDims) {
+    const optimizedEditPrompt = buildResizeOnlyPrompt(template, imageSettings, templateDims);
+    return {
+      optimizedEditPrompt,
+      changeSummary: formatResizeSummary(imageSettings),
+      preservedElements: ['Header', 'Footer', 'Layout', 'Farben', 'Neon-Rahmen'],
+    };
+  }
+
   async generateTemplateImage(template, templatePath, optimizedEditPrompt, imageSettings, signalKey, onProgress) {
     onProgress?.({ status: 'running', messageKey: 'wait.status.templateEditImage' });
 
@@ -107,6 +133,7 @@ class TemplateEditPipeline {
       templateId: template.id,
       templateName: template.name,
       imageSize: imageSettings.size,
+      imageSizeMode: imageSettings.sizeMode,
       imageQuality: imageSettings.quality,
       bridgeSupportsRefs: bridgeCapabilities?.features?.image_reference_attachments === true,
     });
@@ -132,25 +159,32 @@ class TemplateEditPipeline {
     };
   }
 
-  async runTemplateEdit({ templateId, changeRequest, quality }, onProgress, signalKey) {
+  async runTemplateEdit({ templateId, changeRequest, quality, size }, onProgress, signalKey) {
     const template = this.registry.getById(templateId);
     if (!template) throw new Error('Vorlage nicht gefunden.');
 
     const templatePath = this.registry.resolveTemplatePath(template);
     const dims = await this.registry.getDimensions(template);
     const imageSettings = resolveImageGenerationSettings(
-      { size: 'template', quality },
+      { size: size || 'template', quality },
       dims,
     );
 
-    const optimized = await this.optimizeEditPrompt(
-      template,
-      templatePath,
-      changeRequest,
-      imageSettings,
-      signalKey,
-      onProgress,
-    );
+    const formatOnly = isFormatOnlyEdit(changeRequest, imageSettings, dims);
+    if (!String(changeRequest || '').trim() && !formatOnly) {
+      throw new Error('Bitte Änderungswunsch eingeben oder ein anderes Ausgabeformat wählen.');
+    }
+
+    const optimized = formatOnly
+      ? this.buildFormatOnlyEdit(template, imageSettings, dims)
+      : await this.optimizeEditPrompt(
+        template,
+        templatePath,
+        changeRequest,
+        imageSettings,
+        signalKey,
+        onProgress,
+      );
 
     const image = await this.generateTemplateImage(
       template,
@@ -164,20 +198,27 @@ class TemplateEditPipeline {
     return {
       templateId,
       templatePath,
-      changeRequest,
+      changeRequest: changeRequest || '',
       changeSummary: optimized.changeSummary,
       preservedElements: optimized.preservedElements,
       optimizedEditPrompt: image.optimizedEditPrompt,
       previewPath: image.path,
       previewB64: image.b64,
       imageSize: imageSettings.size,
+      imageSizeMode: imageSettings.sizeMode,
       imageQuality: imageSettings.quality,
+      formatOnly,
       templateWidth: dims?.width || 0,
       templateHeight: dims?.height || 0,
+      outputWidth: imageSettings.outputWidth || 0,
+      outputHeight: imageSettings.outputHeight || 0,
       refsForwardedToCodex: image.refsForwardedToCodex,
       referenceAttachmentCount: image.referenceAttachmentCount,
     };
   }
 }
 
-module.exports = { TemplateEditPipeline };
+module.exports = {
+  TemplateEditPipeline,
+  isFormatOnlyEdit,
+};

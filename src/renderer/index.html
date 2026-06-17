@@ -34,10 +34,6 @@
       <p id="templates-import-hint" class="muted templates-import-hint"></p>
       <div id="template-list" class="template-list templates-drop-zone"></div>
       <button type="button" class="btn secondary btn-sm" id="btn-import-template">Vorlage importieren</button>
-      <div class="example-thumb">
-        <p id="lbl-example">So soll es aussehen (Beispiel)</p>
-        <img id="example-image" alt="Beispiel" />
-      </div>
     </section>
     <section class="panel refs-panel" id="refs-panel">
       <h2 id="lbl-refs">Referenz-Produktbilder</h2>
@@ -58,16 +54,6 @@
       <label><span id="lbl-category">Produktkategorie</span>
         <select id="setting-category"></select>
       </label>
-      <label class="checkbox-row">
-        <input type="checkbox" id="setting-compositing">
-        <span id="lbl-compositing">Produkt originalgetreu (Compositing)</span>
-      </label>
-      <p id="compositing-hint" class="muted compositing-hint"></p>
-      <label class="checkbox-row">
-        <input type="checkbox" id="setting-media-analysis">
-        <span id="lbl-media-analysis">Produktbild-Analyse (media_analysis)</span>
-      </label>
-      <p id="media-analysis-hint" class="muted compositing-hint"></p>
       <label><span id="lbl-brand">Markenname</span><input type="text" id="setting-brand"></label>
       <label><span id="lbl-series">Serie</span><input type="text" id="setting-series"></label>
       <label><span id="lbl-tagline">Werbetext (Tagline)</span>
@@ -108,7 +94,6 @@
             <span id="lbl-editor-template">Aktuelle Vorlage</span>
             <select id="editor-template-select"></select>
           </label>
-          <span id="editor-size-badge" class="editor-template-badge"></span>
         </div>
       </div>
       <p id="editor-locked-hint" class="editor-locked-hint hidden muted"></p>
@@ -119,6 +104,9 @@
         </div>
         <div class="editor-controls">
           <div class="editor-settings-row">
+            <label><span id="lbl-editor-size">Ausgabeformat</span>
+              <select id="editor-size"></select>
+            </label>
             <label><span id="lbl-editor-quality">Qualität</span>
               <select id="editor-quality"></select>
             </label>
@@ -126,12 +114,14 @@
           <label><span id="lbl-change">Änderungswunsch</span>
             <textarea id="change-request" rows="4" placeholder="z. B. Neon-Rahmen von blau auf rot…"></textarea>
           </label>
+          <p id="editor-change-hint" class="muted compositing-hint"></p>
           <button type="button" class="btn primary" id="btn-generate-edit">KI-Änderung generieren</button>
           <label><span id="lbl-opt-prompt">Optimierter Prompt</span>
             <textarea id="optimized-prompt" rows="6" readonly></textarea>
           </label>
           <p id="change-summary" class="muted"></p>
           <div class="accept-row hidden" id="accept-row">
+            <button type="button" class="btn secondary" id="btn-editor-compare">Vergleich Vollbild</button>
             <button type="button" class="btn primary" id="btn-accept">Änderung akzeptieren</button>
             <button type="button" class="btn danger" id="btn-reject">Änderung verwerfen</button>
           </div>
@@ -154,6 +144,21 @@
     <button type="button" class="preview-lightbox-close" id="preview-lightbox-close" aria-label="Schließen">×</button>
     <img id="preview-lightbox-image" alt="Vorschau Vollbild" />
     <p id="preview-lightbox-hint" class="preview-lightbox-hint">Klicken oder Esc zum Schließen</p>
+  </div>
+
+  <div id="editor-compare-lightbox" class="preview-lightbox editor-compare-lightbox hidden" role="dialog" aria-modal="true" aria-labelledby="editor-compare-hint">
+    <button type="button" class="preview-lightbox-close" id="editor-compare-close" aria-label="Schließen">×</button>
+    <div class="editor-compare-grid">
+      <figure class="editor-compare-pane">
+        <figcaption id="editor-compare-lbl-original">Original</figcaption>
+        <img id="editor-compare-original" alt="Original" />
+      </figure>
+      <figure class="editor-compare-pane">
+        <figcaption id="editor-compare-lbl-preview">KI-Vorschau</figcaption>
+        <img id="editor-compare-preview" alt="KI-Vorschau" />
+      </figure>
+    </div>
+    <p id="editor-compare-hint" class="preview-lightbox-hint">Klicken oder Esc zum Schließen</p>
   </div>
 
   <dialog id="prompt-dialog">

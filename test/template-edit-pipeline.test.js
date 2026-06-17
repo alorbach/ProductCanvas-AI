@@ -6,8 +6,12 @@ const fs = require('fs');
 const os = require('os');
 
 const root = path.join(__dirname, '..');
-const { TemplateEditPipeline } = require(path.join(root, 'src', 'main', 'generate', 'template-edit-pipeline'));
+const { TemplateEditPipeline, isFormatOnlyEdit } = require(path.join(root, 'src', 'main', 'generate', 'template-edit-pipeline'));
 const { buildTemplateEditFrozenRules } = require(path.join(root, 'src', 'main', 'generate', 'layout-fidelity'));
+
+assert(isFormatOnlyEdit('', { size: '1792x1024' }, { width: 1536, height: 1024 }), 'empty change + new size = format only');
+assert(!isFormatOnlyEdit('', { size: '1536x1024' }, { width: 1536, height: 1024 }), 'same size needs change request');
+assert(!isFormatOnlyEdit('Neon rot', { size: '1792x1024' }, { width: 1536, height: 1024 }), 'change request is not format only');
 
 const changeRequest = 'Neon-Rahmen von blau auf rot ändern';
 const editRules = buildTemplateEditFrozenRules(changeRequest, { size: '1536x1024' });
@@ -98,9 +102,40 @@ class MockRegistry {
   assert.equal(result.templateWidth, 1536, 'result reports template width');
   assert.equal(result.templateHeight, 1024, 'result reports template height');
 
-  fs.rmSync(tmpDir, { recursive: true, force: true });
   if (result.previewPath && fs.existsSync(result.previewPath)) {
     try { fs.unlinkSync(result.previewPath); } catch { /* ignore */ }
+  }
+
+  let formatChatCalled = false;
+  const formatClient = {
+    async getCapabilities() {
+      return { features: { image_reference_attachments: true } };
+    },
+    async chat() {
+      formatChatCalled = true;
+      return { response: { choices: [{ message: { content: '{}' } }] } };
+    },
+    async images(payload) {
+      assert.equal(payload.size, '1792x1024', 'format-only uses selected size');
+      assert(/Resize the attached/i.test(payload.prompt), 'format-only resize prompt');
+      return {
+        response: { data: [{ b64_json: png.toString('base64') }] },
+        _attachmentMode: 'reference_images',
+      };
+    },
+  };
+
+  const formatResult = await new TemplateEditPipeline(formatClient, new MockRegistry(templatePath)).runTemplateEdit(
+    { templateId: 'tpl-1', changeRequest: '', quality: 'high', size: '1792x1024' },
+    () => {},
+    'sig-format',
+  );
+  assert(!formatChatCalled, 'format-only skips chat optimization');
+  assert(formatResult.formatOnly, 'formatOnly flag set');
+
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+  if (formatResult.previewPath && fs.existsSync(formatResult.previewPath)) {
+    try { fs.unlinkSync(formatResult.previewPath); } catch { /* ignore */ }
   }
 
   console.log('All template-edit-pipeline tests passed.');

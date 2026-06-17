@@ -15,8 +15,6 @@ const DEFAULTS = {
   seriesName: '',
   tagline: '',
   extraPrompt: '',
-  compositingMode: false,
-  mediaAnalysisEnabled: false,
   referenceImages: [],
   lastPreviewPath: '',
   imagePrompt: '',

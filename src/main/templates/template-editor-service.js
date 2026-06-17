@@ -6,6 +6,12 @@ const sharp = require('sharp');
 const paths = require('../paths');
 const debugLog = require('../debug/logger');
 
+function parsePixelSize(sizeStr) {
+  const m = String(sizeStr || '').match(/^(\d+)x(\d+)$/i);
+  if (!m) return null;
+  return { width: parseInt(m[1], 10), height: parseInt(m[2], 10) };
+}
+
 class TemplateEditorService {
   constructor(templateEditPipeline, templateRegistry) {
     this.pipeline = templateEditPipeline;
@@ -13,9 +19,9 @@ class TemplateEditorService {
     this.pendingEdit = null;
   }
 
-  async runEdit({ templateId, changeRequest, quality }, onProgress, signalKey) {
+  async runEdit({ templateId, changeRequest, quality, size }, onProgress, signalKey) {
     const result = await this.pipeline.runTemplateEdit(
-      { templateId, changeRequest, quality },
+      { templateId, changeRequest, quality, size },
       onProgress,
       signalKey,
     );
@@ -28,8 +34,12 @@ class TemplateEditorService {
       previewPath: result.previewPath,
       previewB64: result.previewB64,
       imageSize: result.imageSize,
+      imageSizeMode: result.imageSizeMode,
+      formatOnly: result.formatOnly,
       templateWidth: result.templateWidth,
       templateHeight: result.templateHeight,
+      outputWidth: result.outputWidth,
+      outputHeight: result.outputHeight,
     };
     return result;
   }
@@ -66,23 +76,32 @@ class TemplateEditorService {
     fs.copyFileSync(targetPath, histFile);
 
     let previewPath = this.pendingEdit.previewPath;
-    if (dims?.width && dims?.height) {
+    const targetDims = parsePixelSize(this.pendingEdit.imageSize)
+      || (this.pendingEdit.outputWidth && this.pendingEdit.outputHeight
+        ? { width: this.pendingEdit.outputWidth, height: this.pendingEdit.outputHeight }
+        : null)
+      || (dims?.width && dims?.height ? { width: dims.width, height: dims.height } : null);
+
+    if (targetDims?.width && targetDims?.height) {
       const meta = await sharp(previewPath).metadata();
-      if (meta.width !== dims.width || meta.height !== dims.height) {
+      if (meta.width !== targetDims.width || meta.height !== targetDims.height) {
         const resizedPath = path.join(paths.tempPreviewDir(), `template-accept-${Date.now()}.png`);
         await sharp(previewPath)
-          .resize(dims.width, dims.height, { fit: 'fill' })
+          .resize(targetDims.width, targetDims.height, { fit: 'fill' })
           .png()
           .toFile(resizedPath);
         previewPath = resizedPath;
-        debugLog.info('template-editor', 'Vorschau auf Vorlagenmaß skaliert', {
+        debugLog.info('template-editor', 'Vorschau auf Zielmaß skaliert', {
           from: `${meta.width}x${meta.height}`,
-          to: `${dims.width}x${dims.height}`,
+          to: `${targetDims.width}x${targetDims.height}`,
         });
       }
     }
 
     fs.copyFileSync(previewPath, targetPath);
+    if (targetDims?.width && targetDims?.height) {
+      this.registry.persistTemplateDimensions(template.id, targetDims);
+    }
     const accepted = { templateId: template.id, path: targetPath };
     this.pendingEdit = null;
     return accepted;

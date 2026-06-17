@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('werbungMaker', {
   templatesClone: (opts) => ipcRenderer.invoke('templates:clone', opts),
   templatesDelete: (id) => ipcRenderer.invoke('templates:delete', id),
   templatesRename: (opts) => ipcRenderer.invoke('templates:rename', opts),
+  templatesReorder: (orderedIds) => ipcRenderer.invoke('templates:reorder', orderedIds),
   templatesGetImage: (id) => ipcRenderer.invoke('templates:getImage', id),
   templatesGetDimensions: (id) => ipcRenderer.invoke('templates:getDimensions', id),
   templatesRunEdit: (opts) => ipcRenderer.invoke('templates:runEdit', opts),

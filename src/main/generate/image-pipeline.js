@@ -13,50 +13,12 @@ const {
   runImagePreflight,
   computePreflightFingerprint,
 } = require('./image-preflight');
-const { compositeProductAd } = require('./product-compositor');
 const { resolveImageGenerationSettings } = require('./image-settings');
 
 class ImagePipeline {
   constructor(bridgeClient, templateRegistry) {
     this.client = bridgeClient;
     this.registry = templateRegistry;
-  }
-
-  shouldUseCompositing(settings) {
-    const productPaths = collectReferencePaths(settings.referenceImages);
-    return settings.compositingMode === true && productPaths.length > 0;
-  }
-
-  async generateViaCompositing(promptData, settings, onProgress) {
-    onProgress?.({ status: 'running', message: 'Produkt wird originalgetreu auf Vorlage gelegt…' });
-
-    const template = this.registry.getById(settings.templateId);
-    if (!template) throw new Error('Vorlage nicht gefunden.');
-
-    const templatePath = this.registry.resolveTemplatePath(template);
-    const productPath = collectReferencePaths(settings.referenceImages)[0];
-    const templateDims = await this.registry.getDimensions(template);
-    const imageSettings = resolveImageGenerationSettings(settings, templateDims);
-
-    const pngBuffer = await compositeProductAd({
-      templatePath,
-      productPath,
-      template,
-      promptData,
-      settings: imageSettings,
-    });
-
-    const outPath = path.join(paths.tempPreviewDir(), `preview-${Date.now()}.png`);
-    fs.writeFileSync(outPath, pngBuffer);
-
-    onProgress?.({ status: 'completed', message: 'Fertig.' });
-
-    return {
-      success: true,
-      path: outPath,
-      b64: pngBuffer.toString('base64'),
-      composited: true,
-    };
   }
 
   async resolveFinalPrompt({
@@ -248,13 +210,8 @@ class ImagePipeline {
       || settings?.preflightPrompt,
     );
     const canRunPreflight = productPaths.length > 0 && settings.templateId;
-    if (!hasPrompt && !this.shouldUseCompositing(settings) && !canRunPreflight) {
+    if (!hasPrompt && !canRunPreflight) {
       throw new Error('Kein Bild-Prompt vorhanden.');
-    }
-
-    if (this.shouldUseCompositing(settings)) {
-      debugLog.info('image-pipeline', 'Modus: Compositing (Produkt originalgetreu)');
-      return this.generateViaCompositing(promptData, settings, onProgress);
     }
 
     return this.generateViaBridge(promptData, settings, onProgress, signalKey);
