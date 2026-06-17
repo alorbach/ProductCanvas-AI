@@ -8,7 +8,7 @@
     "postinstall": "node scripts/generate-placeholders.js",
     "icons": "node scripts/generate-icons.js",
     "start": "electron .",
-    "test": "node test/basic.test.js && node test/locale.test.js && node test/brand-free.test.js && node test/dropped-files.test.js && node test/renderer-imports.test.js && node test/preload-smoke.test.js && node test/image-settings.test.js && node test/prompt-fidelity.test.js && node test/image-preflight.test.js && node test/layout-fidelity.test.js && node test/template-edit-pipeline.test.js",
+    "test": "node test/basic.test.js && node test/locale.test.js && node test/brand-free.test.js && node test/dropped-files.test.js && node test/renderer-imports.test.js && node test/preload-smoke.test.js && node test/bridge-pairing.test.js && node test/image-settings.test.js && node test/prompt-fidelity.test.js && node test/image-preflight.test.js && node test/layout-fidelity.test.js && node test/template-edit-pipeline.test.js",
     "dist:win": "npm run icons && node scripts/build-win.js"
   },
   "author": "Andre Lorbach",

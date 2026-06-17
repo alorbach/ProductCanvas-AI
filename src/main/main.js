@@ -194,6 +194,29 @@ function buildMenu() {
       ],
     },
     {
+      label: mt('menu.bridge'),
+      submenu: [
+        { label: mt('menu.bridge.status'), click: () => send('action:bridge-status', {}) },
+        { label: mt('menu.bridge.connect'), click: () => send('action:bridge-setup', {}) },
+        { type: 'separator' },
+        { label: mt('menu.bridge.codexLogin'), click: () => codexManager.startLogin() },
+        {
+          label: mt('menu.bridge.openStatus'),
+          click: () => {
+            const url = `${bridgeManager.getClient().bridgeUrl.replace(/\/$/, '')}/status`;
+            shell.openExternal(url);
+          },
+        },
+        {
+          label: mt('menu.bridge.resetPairing'),
+          click: async () => {
+            bridgeManager.getClient().clearToken();
+            send('action:bridge-setup', {});
+          },
+        },
+      ],
+    },
+    {
       label: mt('menu.help'),
       submenu: [
         { label: mt('menu.help.gettingStarted'), click: () => send('help:open', 'getting-started') },
@@ -310,6 +333,11 @@ function registerIpc() {
       debugLog.warn('main', 'Bridge pairing required', { message: err.message, origin: err.origin });
       throw err;
     }
+  });
+
+  ipcMain.handle('bridge:resetPairing', async () => {
+    bridgeManager.getClient().clearToken();
+    return bridgeManager.getFullStatus();
   });
 
   ipcMain.handle('codex:login', async () => codexManager.startLogin());

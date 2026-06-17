@@ -194,6 +194,25 @@
     </form>
   </dialog>
 
+  <dialog id="bridge-setup-dialog">
+    <form method="dialog" id="bridge-setup-form" class="prompt-form bridge-setup-form">
+      <h2 id="bridge-dialog-title">Codex Local Bridge</h2>
+      <p id="bridge-dialog-hint" class="muted"></p>
+      <dl class="bridge-status-grid" id="bridge-dialog-status"></dl>
+      <label class="bridge-pairing-row">
+        <span id="bridge-dialog-lbl-code">Pairing code</span>
+        <input type="text" id="bridge-dialog-pairing-code" maxlength="6" pattern="[0-9]*" autocomplete="off">
+      </label>
+      <div class="prompt-actions bridge-dialog-actions">
+        <button type="button" class="btn secondary" id="bridge-dialog-open-status">Status in browser</button>
+        <button type="button" class="btn secondary" id="bridge-dialog-codex-login">Codex sign in</button>
+        <button type="button" class="btn secondary" id="bridge-dialog-reset">Reset pairing</button>
+        <button type="button" class="btn secondary" id="bridge-dialog-close">Close</button>
+        <button type="button" class="btn primary" id="bridge-dialog-connect">Connect</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="wait-dialog">
     <h2 id="wait-title">Bitte warten</h2>
     <p id="wait-status">Generierung läuft…</p>

@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld('productCanvas', {
   bridgeGetStatus: () => ipcRenderer.invoke('bridge:getStatus'),
   bridgeEnsureReady: (code) => ipcRenderer.invoke('bridge:ensureReady', code),
   bridgeRequirePaired: (code) => ipcRenderer.invoke('bridge:requirePaired', code),
+  bridgeResetPairing: () => ipcRenderer.invoke('bridge:resetPairing'),
   codexLogin: () => ipcRenderer.invoke('codex:login'),
   sessionGet: () => ipcRenderer.invoke('session:get'),
   sessionUpdate: (patch) => ipcRenderer.invoke('session:update', patch),
@@ -78,6 +79,7 @@ contextBridge.exposeInMainWorld('productCanvas', {
       'session:loaded', 'session:saved', 'bridge:progress', 'job:progress',
       'help:open', 'nav:template-editor', 'action:template-clone', 'action:template-delete',
       'action:save-as', 'templates:updated', 'template:selected', 'action:template-import',
+      'action:bridge-setup', 'action:bridge-status',
       'debug:entry', 'debug:show', 'preferences:changed',
     ];
     if (allowed.includes(channel)) {

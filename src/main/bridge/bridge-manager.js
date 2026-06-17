@@ -72,9 +72,6 @@ class BridgeManager {
   }
 
   async isPaired(statusResponse) {
-    if (this.originListedAsPaired(statusResponse)) {
-      return true;
-    }
     if (!this.client.token) {
       return false;
     }
@@ -97,6 +94,7 @@ class BridgeManager {
       paired,
       hasToken: !!this.client.token,
       origin: this.client.origin,
+      bridgeUrl: this.client.bridgeUrl,
     };
   }
 

@@ -78,6 +78,11 @@ function formatError(err) {
     return t('error.bridgeTimeout');
   }
   if (err?.code === 'REFERENCE_ATTACH_FAILED') {
+    const cause = err?.cause;
+    const causeMsg = String(cause?.message || '').toLowerCase();
+    if (cause?.needsPairing || causeMsg.includes('not paired') || causeMsg.includes('pairing')) {
+      return t('error.needsPairing');
+    }
     return t('error.referenceAttachFailed');
   }
   if (raw.toLowerCase().includes('fetch failed')) {
@@ -95,14 +100,65 @@ function formatError(err) {
   return raw || t('error.generic');
 }
 
+let bridgeDialogAutoShown = false;
+
 function showPairingBanner(message) {
   $('setup-banner').classList.remove('hidden');
   $('setup-message').textContent = message || t('bridge.status.needsPairing');
-  $('pairing-code').focus();
 }
 
 function getPairingCode() {
-  return $('pairing-code').value.trim();
+  const dialogCode = $('bridge-dialog-pairing-code')?.value?.trim();
+  if (dialogCode) return dialogCode;
+  return $('pairing-code')?.value?.trim() || '';
+}
+
+function syncPairingCodeInputs(code) {
+  if ($('pairing-code')) $('pairing-code').value = code;
+  if ($('bridge-dialog-pairing-code')) $('bridge-dialog-pairing-code').value = code;
+}
+
+function bridgeDialogHint(status) {
+  if (!status?.running) return t('bridge.dialog.hintNotRunning');
+  if (!status?.ready) return t('bridge.dialog.hintLogin');
+  if (!status?.paired) return t('bridge.dialog.hint');
+  return t('bridge.status.paired');
+}
+
+function renderBridgeDialogStatus(status) {
+  const grid = $('bridge-dialog-status');
+  if (!grid) return;
+  const rows = [
+    [t('bridge.dialog.lblRunning'), status?.running ? t('bridge.dialog.valYes') : t('bridge.dialog.valNo')],
+    [t('bridge.dialog.lblReady'), status?.ready ? t('bridge.dialog.valReady') : t('bridge.dialog.valNotReady')],
+    [t('bridge.dialog.lblPaired'), status?.paired ? t('bridge.dialog.valPaired') : t('bridge.dialog.valNotPaired')],
+    [t('bridge.dialog.lblOrigin'), status?.origin || '—'],
+    [t('bridge.dialog.lblUrl'), status?.bridgeUrl || '—'],
+  ];
+  grid.innerHTML = rows.map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`).join('');
+}
+
+function closeBridgeSetupDialog() {
+  const dialog = $('bridge-setup-dialog');
+  if (dialog?.open) dialog.close();
+}
+
+async function openBridgeSetupDialog(options = {}) {
+  const status = await api.bridgeGetStatus();
+  $('bridge-dialog-title').textContent = t('bridge.dialog.title');
+  $('bridge-dialog-hint').textContent = options.message || bridgeDialogHint(status);
+  renderBridgeDialogStatus(status);
+  syncPairingCodeInputs(getPairingCode());
+  const dialog = $('bridge-setup-dialog');
+  if (!dialog.open) dialog.showModal();
+  if (options.focusPairing !== false && (!status.paired || options.focusPairing)) {
+    $('bridge-dialog-pairing-code')?.focus();
+  }
+}
+
+function showBridgeSetup(message, options = {}) {
+  if (message) showPairingBanner(message);
+  openBridgeSetupDialog({ message, focusPairing: options.focusPairing });
 }
 
 function withPairing(opts = {}) {
@@ -120,7 +176,7 @@ async function ensureBridgeReady() {
     : !status.ready
       ? (status.status?.message || t('bridge.status.needsLogin'))
       : t('bridge.status.needsPairing');
-  showPairingBanner(message);
+  showBridgeSetup(message);
 
   const code = getPairingCode();
   if (!code && status.running && status.ready) {
@@ -131,10 +187,11 @@ async function ensureBridgeReady() {
   const result = await api.bridgeEnsureReady(code);
   hideWait();
   if (!result.success) {
-    showPairingBanner(result.message);
+    showBridgeSetup(result.message);
     return false;
   }
   await refreshBridgeStatus();
+  closeBridgeSetupDialog();
   return true;
 }
 
@@ -144,7 +201,7 @@ function showError(err, context = '') {
   console.error(full, err);
   appendDebugLine({ time: new Date().toISOString(), level: 'error', source: 'ui', message: full, details: err?.details || null });
   if (err?.needsPairing || message === t('error.needsPairing')) {
-    showPairingBanner(message);
+    showBridgeSetup(message);
   }
   alert(full);
 }
@@ -669,6 +726,85 @@ function applyLabels() {
   $('debug-toggle').textContent = t('debug.title');
   $('btn-debug-copy').textContent = t('debug.copy');
   $('btn-debug-clear').textContent = t('debug.clear');
+  if ($('bridge-dialog-title')) $('bridge-dialog-title').textContent = t('bridge.dialog.title');
+  if ($('bridge-dialog-lbl-code')) $('bridge-dialog-lbl-code').textContent = t('bridge.setup.pairingCode');
+  if ($('bridge-dialog-pairing-code')) $('bridge-dialog-pairing-code').placeholder = t('bridge.setup.pairingCode');
+  if ($('bridge-dialog-open-status')) $('bridge-dialog-open-status').textContent = t('bridge.dialog.openStatus');
+  if ($('bridge-dialog-codex-login')) $('bridge-dialog-codex-login').textContent = t('bridge.setup.codexLogin');
+  if ($('bridge-dialog-reset')) $('bridge-dialog-reset').textContent = t('bridge.dialog.resetPairing');
+  if ($('bridge-dialog-close')) $('bridge-dialog-close').textContent = t('bridge.dialog.close');
+  if ($('bridge-dialog-connect')) $('bridge-dialog-connect').textContent = t('bridge.setup.connect');
+  if ($('bridge-status')) $('bridge-status').title = t('bridge.status.title');
+}
+
+async function connectBridgeFromUi() {
+  const status = await api.bridgeGetStatus();
+  const code = getPairingCode();
+  if (status.running && status.ready && !/^\d{6}$/.test(code)) {
+    showBridgeSetup(t('bridge.status.needsPairing'), { focusPairing: true });
+    return false;
+  }
+  try {
+    showWait(t('bridge.setup.title'));
+    const result = await api.bridgeEnsureReady(code);
+    hideWait();
+    if (!result.success) {
+      showBridgeSetup(result.message);
+      return false;
+    }
+    await refreshBridgeStatus();
+    closeBridgeSetupDialog();
+    return true;
+  } catch (err) {
+    hideWait();
+    showError(err);
+    return false;
+  }
+}
+
+async function openBridgeStatusPage() {
+  const status = await api.bridgeGetStatus();
+  const base = (status?.bridgeUrl || 'http://127.0.0.1:8765').replace(/\/$/, '');
+  await api.openExternal(`${base}/status`);
+}
+
+function setupBridgeDialog() {
+  $('bridge-status').addEventListener('click', () => {
+    openBridgeSetupDialog({ focusPairing: false });
+  });
+
+  $('bridge-dialog-close').addEventListener('click', () => closeBridgeSetupDialog());
+  $('bridge-setup-dialog').addEventListener('cancel', () => closeBridgeSetupDialog());
+
+  $('bridge-dialog-connect').addEventListener('click', () => {
+    connectBridgeFromUi().catch((err) => showError(err));
+  });
+
+  $('bridge-dialog-codex-login').addEventListener('click', async () => {
+    await api.codexLogin();
+    alert(t('bridge.dialog.hintLogin'));
+  });
+
+  $('bridge-dialog-open-status').addEventListener('click', () => {
+    openBridgeStatusPage().catch((err) => showError(err));
+  });
+
+  $('bridge-dialog-reset').addEventListener('click', async () => {
+    await api.bridgeResetPairing();
+    syncPairingCodeInputs('');
+    await refreshBridgeStatus();
+    alert(t('bridge.dialog.resetDone'));
+    showBridgeSetup(t('bridge.status.needsPairing'), { focusPairing: true });
+  });
+
+  $('btn-bridge-connect').addEventListener('click', () => {
+    connectBridgeFromUi().catch((err) => showError(err));
+  });
+
+  $('btn-codex-login').addEventListener('click', async () => {
+    await api.codexLogin();
+    alert(t('bridge.dialog.hintLogin'));
+  });
 }
 
 async function updateSession(patch) {
@@ -1462,7 +1598,7 @@ function showPreview(path, b64) {
   lastPreviewB64 = b64 || '';
 }
 
-async function refreshBridgeStatus() {
+async function refreshBridgeStatus(options = {}) {
   const status = await api.bridgeGetStatus();
   const el = $('bridge-status');
   const banner = $('setup-banner');
@@ -1470,22 +1606,40 @@ async function refreshBridgeStatus() {
     el.className = 'bridge-status ready';
     el.title = t('bridge.status.paired');
     banner.classList.add('hidden');
+    closeBridgeSetupDialog();
   } else if (status.running && status.ready) {
     el.className = 'bridge-status error';
     el.title = t('bridge.status.needsPairing');
     banner.classList.remove('hidden');
     $('setup-message').textContent = t('bridge.status.needsPairing');
+    if (options.autoOpen && !bridgeDialogAutoShown) {
+      bridgeDialogAutoShown = true;
+      showBridgeSetup(t('bridge.status.needsPairing'), { focusPairing: true });
+    }
   } else if (status.running) {
     el.className = 'bridge-status error';
     el.title = t('bridge.status.needsLogin');
     banner.classList.remove('hidden');
     $('setup-message').textContent = status.status?.message || t('bridge.status.needsLogin');
+    if (options.autoOpen && !bridgeDialogAutoShown) {
+      bridgeDialogAutoShown = true;
+      showBridgeSetup(status.status?.message || t('bridge.status.needsLogin'), { focusPairing: false });
+    }
   } else {
     el.className = 'bridge-status error';
     el.title = t('bridge.status.notRunning');
     banner.classList.remove('hidden');
     $('setup-message').textContent = t('bridge.status.notRunning');
+    if (options.autoOpen && !bridgeDialogAutoShown) {
+      bridgeDialogAutoShown = true;
+      showBridgeSetup(t('bridge.status.notRunning'), { focusPairing: false });
+    }
   }
+  if ($('bridge-setup-dialog')?.open) {
+    renderBridgeDialogStatus(status);
+    $('bridge-dialog-hint').textContent = bridgeDialogHint(status);
+  }
+  return status;
 }
 
 async function loadTemplates() {
@@ -1548,6 +1702,7 @@ async function reloadLocale(prefs) {
 
 function setupInteractionHandlers() {
   setupGlobalFileDragAccept();
+  setupBridgeDialog();
   setupTemplateImport();
   setupSortableDnD();
   setupDragDrop();
@@ -1680,32 +1835,6 @@ function setupInteractionHandlers() {
     else if (lastPreviewB64) await api.exportSavePngFromB64(lastPreviewB64);
   });
 
-  $('btn-bridge-connect').addEventListener('click', async () => {
-    const code = getPairingCode();
-    if (!/^\d{6}$/.test(code)) {
-      showPairingBanner(t('bridge.status.needsPairing'));
-      return;
-    }
-    try {
-      showWait(t('bridge.setup.title'));
-      const result = await api.bridgeEnsureReady(code);
-      hideWait();
-      if (!result.success) {
-        showPairingBanner(result.message);
-        return;
-      }
-      await refreshBridgeStatus();
-    } catch (err) {
-      hideWait();
-      showError(err);
-    }
-  });
-
-  $('btn-codex-login').addEventListener('click', async () => {
-    await api.codexLogin();
-    alert('Bitte melden Sie sich im geöffneten Terminal mit codex login an.');
-  });
-
   $('editor-template-select').addEventListener('change', async () => {
     const id = $('editor-template-select').value;
     if (!id || id === editorTemplateId) return;
@@ -1816,6 +1945,8 @@ function setupInteractionHandlers() {
     await loadTemplates();
   });
   api.on('action:template-import', () => importTemplatesDialog());
+  api.on('action:bridge-setup', () => showBridgeSetup(t('bridge.status.needsPairing'), { focusPairing: true }));
+  api.on('action:bridge-status', () => openBridgeSetupDialog({ focusPairing: false }));
   api.on('template:selected', async (id) => {
     editorTemplateId = id;
     await selectEditorTemplate(id);
@@ -1858,7 +1989,7 @@ async function init() {
   restorePromptFromSession();
   await loadTemplates();
   renderRefs();
-  await refreshBridgeStatus();
+  await refreshBridgeStatus({ autoOpen: true });
   await renderHelp($('help-sidebar'), $('help-content'));
 
   const pendingEdit = await api.templatesGetPendingEdit();

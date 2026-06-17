@@ -147,8 +147,10 @@ class BridgeClient {
         err.status = response.status;
         err.route = route;
         err.requestId = requestId;
-        if (BridgeClient.isPairingError(err) && this.token) {
-          this.clearToken();
+        if (BridgeClient.isPairingError(err)) {
+          if (this.token) {
+            this.clearToken();
+          }
           err.needsPairing = true;
         }
         debugLog.error('bridge-client', `Bridge-Fehler ${route}`, {
@@ -309,6 +311,9 @@ class BridgeClient {
           continue;
         }
         if (requireReferences) {
+          if (BridgeClient.isPairingError(err) || err.needsPairing) {
+            throw err;
+          }
           const e = new Error(
             'Referenzbilder konnten nicht an die Bridge übergeben werden. Bitte Debug-Log prüfen und erneut versuchen.',
           );
