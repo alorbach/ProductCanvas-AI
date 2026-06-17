@@ -46,6 +46,10 @@ try {
     isAllowedReadPath(sessionRef, { session: { referenceImages: [{ path: sessionRef }] } }),
     'session reference path allowed',
   );
+  assert(
+    isAllowedReadPath(sessionRef, { session: { editorReferenceImagePath: sessionRef } }),
+    'editor reference path allowed via session field',
+  );
 
   const previewDir = paths.tempPreviewDir();
   fs.mkdirSync(previewDir, { recursive: true });

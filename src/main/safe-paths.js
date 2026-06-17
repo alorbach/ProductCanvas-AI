@@ -37,6 +37,10 @@ function collectKnownPaths(context = {}) {
     if (ref?.path) known.add(path.resolve(ref.path));
   }
 
+  if (session?.editorReferenceImagePath) {
+    known.add(path.resolve(session.editorReferenceImagePath));
+  }
+
   if (templateRegistry?.listAll) {
     for (const template of templateRegistry.listAll()) {
       if (template?.path) known.add(path.resolve(template.path));

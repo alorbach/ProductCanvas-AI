@@ -443,10 +443,10 @@ function registerIpc() {
   });
 
   ipcMain.handle('templates:runEdit', async (_, { templateId, changeRequest, quality, size, referenceImagePath, pairingCode }) => {
-    await bridgeManager.requirePaired(pairingCode);
     const signalKey = `edit-${Date.now()}`;
     send('job:progress', { status: 'running', signalKey, messageKey: 'wait.status.templateEditPrompt' });
     const onProgress = (p) => send('job:progress', { ...p, signalKey });
+    await bridgeManager.requirePaired(pairingCode);
     const unsubscribe = subscribeBridgeJobProgress(bridgeManager.getClient(), onProgress);
     try {
       return await templateEditor.runEdit(
@@ -496,10 +496,10 @@ function registerIpc() {
   });
 
   ipcMain.handle('generate:image', async (_, { promptData, settings, pairingCode }) => {
-    await bridgeManager.requirePaired(pairingCode);
     const signalKey = `image-${Date.now()}`;
     send('job:progress', { status: 'running', signalKey, messageKey: 'wait.status.running' });
     const onProgress = (p) => send('job:progress', { ...p, signalKey });
+    await bridgeManager.requirePaired(pairingCode);
     return imagePipeline.generateImage(promptData, settings, onProgress, signalKey);
   });
 

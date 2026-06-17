@@ -18,6 +18,7 @@ const DEFAULTS = {
   extraPrompt: '',
   internalComment: '',
   referenceImages: [],
+  editorReferenceImagePath: '',
   lastPreviewPath: '',
   imagePrompt: '',
   productDescription: '',

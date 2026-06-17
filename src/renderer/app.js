@@ -1228,14 +1228,16 @@ function updateEditorLockUi() {
   if ($('btn-editor-ref-add')) $('btn-editor-ref-add').disabled = locked || editorGenerating;
 }
 
-function setEditorReferenceImage(ref) {
+function setEditorReferenceImage(ref, { persist = true } = {}) {
   editorReferenceImage = ref?.path ? ref : null;
+  if (persist) {
+    void updateSession({ editorReferenceImagePath: editorReferenceImage?.path || '' });
+  }
   renderEditorReference();
 }
 
 function clearEditorReference() {
-  editorReferenceImage = null;
-  renderEditorReference();
+  setEditorReferenceImage(null);
 }
 
 function renderEditorReference() {
@@ -2399,6 +2401,14 @@ function setupInteractionHandlers() {
     writeSettingsToUi();
     restorePromptFromSession();
     renderRefs();
+    if (s.editorReferenceImagePath) {
+      setEditorReferenceImage({
+        path: s.editorReferenceImagePath,
+        name: s.editorReferenceImagePath.split(/[/\\]/).pop() || '',
+      }, { persist: false });
+    } else if (!editorLocked) {
+      clearEditorReference();
+    }
     await loadTemplates();
   });
   api.on('help:open', (id) => {
@@ -2455,6 +2465,12 @@ async function init() {
   setupInteractionHandlers();
 
   session = await api.sessionGet();
+  if (session.editorReferenceImagePath) {
+    setEditorReferenceImage({
+      path: session.editorReferenceImagePath,
+      name: session.editorReferenceImagePath.split(/[/\\]/).pop() || '',
+    }, { persist: false });
+  }
   await refreshImageSettingsUi();
   writeSettingsToUi();
   restorePromptFromSession();
