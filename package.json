@@ -1,18 +1,26 @@
 {
-  "name": "werbungmaker",
+  "name": "productcanvas-ai",
   "version": "1.0.0",
-  "description": "TELE-KOHLGRAF Werbebild-Generator mit KI über Codex Local Bridge",
+  "description": "Universal AI image studio from layout templates and reference photos via Codex Local Bridge",
   "private": true,
   "main": "src/main/main.js",
   "scripts": {
     "postinstall": "node scripts/generate-placeholders.js",
     "icons": "node scripts/generate-icons.js",
     "start": "electron .",
-    "test": "node test/basic.test.js && node test/image-settings.test.js && node test/prompt-fidelity.test.js && node test/image-preflight.test.js && node test/layout-fidelity.test.js && node test/template-edit-pipeline.test.js",
+    "test": "node test/basic.test.js && node test/locale.test.js && node test/brand-free.test.js && node test/dropped-files.test.js && node test/image-settings.test.js && node test/prompt-fidelity.test.js && node test/image-preflight.test.js && node test/layout-fidelity.test.js && node test/template-edit-pipeline.test.js",
     "dist:win": "npm run icons && node scripts/build-win.js"
   },
-  "author": "TELE-KOHLGRAF",
+  "author": "Andre Lorbach",
   "license": "GPL-2.0-or-later",
+  "homepage": "https://github.com/alorbach/productcanvas-ai#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alorbach/productcanvas-ai.git"
+  },
+  "bugs": {
+    "url": "https://github.com/alorbach/productcanvas-ai/issues"
+  },
   "dependencies": {
     "sharp": "^0.33.5"
   },
@@ -21,9 +29,9 @@
     "electron-builder": "^26.0.12"
   },
   "build": {
-    "appId": "de.tele-kohlgraf.werbungmaker",
-    "productName": "WerbungMaker",
-    "artifactName": "WerbungMaker-${version}-${os}-${arch}.${ext}",
+    "appId": "ai.productcanvas",
+    "productName": "ProductCanvas AI",
+    "artifactName": "ProductCanvas-AI-${version}-${os}-${arch}.${ext}",
     "directories": {
       "output": "dist"
     },
@@ -31,6 +39,7 @@
       "src/**/*",
       "assets/**/*",
       "docs/**/*",
+      "LICENSE",
       "package.json"
     ],
     "win": {

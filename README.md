@@ -1,22 +1,23 @@
-# WerbungMaker
+# ProductCanvas AI
 
-Desktop-Anwendung für **TELE-KOHLGRAF** zur Erstellung von Produktwerbebildern aus Vorlagen und Referenz-Produktfotos mit KI-Bildgenerierung über [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge).
+Universal desktop app for creating AI-generated product images from **layout templates** and **reference photos** via [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge).
 
-## Funktionen
+## Features
 
-- Werbebilder aus Vorlagen + Referenz-Produktbildern generieren
-- Vorlagen klonen und per KI bearbeiten (Accept/Reject)
-- Profile speichern/laden mit Autosave und Zuletzt-geöffnet-Liste
-- Automatische Bridge- und Codex-CLI-Einrichtung (Windows)
-- Deutsche Benutzeroberfläche mit integriertem Hilfe-Viewer
+- Generate images from templates + reference product photos
+- Clone and AI-edit templates (accept/reject workflow)
+- Save/load profiles with autosave and recent files
+- Automatic Bridge and Codex CLI setup (Windows)
+- English UI by default, German supported — system locale or user override in Settings
+- Integrated help viewer with bilingual documentation
 
-## Voraussetzungen (Entwicklung)
+## Requirements (development)
 
 - Windows 10+
 - Node.js 20+
-- Optional für KI: Codex CLI + Codex Local Bridge **≥ 1.0.4** (Referenzbilder bei `/v1/images`)
+- Optional for AI: Codex CLI + Codex Local Bridge **≥ 1.0.4** (reference images on `/v1/images`)
 
-## Installation & Start
+## Install & run
 
 ```powershell
 npm ci
@@ -29,16 +30,18 @@ npm start
 npm test
 ```
 
-## Windows-Build (EXE + ZIP)
+CI runs on every push to `main` and on pull requests (`.github/workflows/test.yml`).
+
+## Windows build (EXE + ZIP)
 
 ```powershell
 npm run dist:win
 ```
 
-Ausgabe in `dist/`:
+Output in `dist/`:
 
-- `WerbungMaker-1.0.0-build.N-win-x64.exe` (Installer)
-- `WerbungMaker-1.0.0-build.N-win-x64.zip` (portable)
+- `ProductCanvas-AI-1.0.0-build.N-win-x64.exe` (installer)
+- `ProductCanvas-AI-1.0.0-build.N-win-x64.zip` (portable)
 
 ## Release
 
@@ -47,18 +50,33 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-GitHub Actions erstellt automatisch Release-Artefakte.
+GitHub Actions creates release artifacts automatically (`.github/workflows/release.yml`).
 
-## Dokumentation
+## Documentation
 
-| Datei | Inhalt |
-|-------|--------|
-| [docs/benutzerhandbuch.md](docs/benutzerhandbuch.md) | Benutzerhandbuch |
-| [docs/einrichtung.md](docs/einrichtung.md) | Erste Schritte |
-| [docs/produkt.md](docs/produkt.md) | Produktdokumentation |
-| [docs/entwickler.md](docs/entwickler.md) | Entwickler-Doku |
-| [AGENTS.md](AGENTS.md) | Hinweise für KI-Agenten |
+| English | Deutsch |
+|---------|---------|
+| [docs/en/user-guide.md](docs/en/user-guide.md) | [docs/de/benutzerhandbuch.md](docs/de/benutzerhandbuch.md) |
+| [docs/en/getting-started.md](docs/en/getting-started.md) | [docs/de/einrichtung.md](docs/de/einrichtung.md) |
+| [docs/en/create-image.md](docs/en/create-image.md) | [docs/de/bild-erstellen.md](docs/de/bild-erstellen.md) |
+| [docs/en/edit-templates.md](docs/en/edit-templates.md) | [docs/de/vorlagen-bearbeiten.md](docs/de/vorlagen-bearbeiten.md) |
+| [docs/en/settings.md](docs/en/settings.md) | [docs/de/einstellungen.md](docs/de/einstellungen.md) |
+| [docs/en/troubleshooting.md](docs/en/troubleshooting.md) | [docs/de/fehlerbehebung.md](docs/de/fehlerbehebung.md) |
+| [docs/en/product.md](docs/en/product.md) | [docs/de/produkt.md](docs/de/produkt.md) |
+| [docs/en/developer.md](docs/en/developer.md) | [docs/de/entwickler.md](docs/de/entwickler.md) |
 
-## Lizenz
+Agent notes: [AGENTS.md](AGENTS.md)
 
-GPL-2.0-or-later
+---
+
+## Deutsch
+
+**ProductCanvas AI** ist ein markenneutrales KI-Bildstudio: Layout-Vorlagen + Referenzfotos → fertiges Bild über Codex Local Bridge. Marke, Serie und Tagline legen Sie pro Projekt fest.
+
+Installation, Tests und Release wie oben. Hilfe in der App oder unter `docs/de/`.
+
+## License & copyright
+
+GPL-2.0-or-later — see [LICENSE](LICENSE).
+
+Copyright © [Andre Lorbach](https://github.com/alorbach)

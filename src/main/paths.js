@@ -23,7 +23,7 @@ function userDataRoot() {
   try {
     return require('electron').app.getPath('userData');
   } catch {
-    return path.join(os.homedir(), 'AppData', 'Roaming', 'WerbungMaker');
+    return path.join(os.homedir(), 'AppData', 'Roaming', 'productcanvas-ai');
   }
 }
 
@@ -42,7 +42,7 @@ const paths = {
   userTemplatesDir: () => ensureDir(path.join(userDataRoot(), 'templates')),
   userTemplatesHistoryDir: (id) => ensureDir(path.join(userDataRoot(), 'templates', 'history', id)),
   profilesDir: () => ensureDir(path.join(userDataRoot(), 'profiles')),
-  bridgeDir: () => ensureDir(path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'WerbungMaker', 'bridge')),
+  bridgeDir: () => ensureDir(path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'productcanvas-ai', 'bridge')),
   sessionPath: () => path.join(userDataRoot(), 'session.json'),
   recentPath: () => path.join(userDataRoot(), 'recent.json'),
   defaultsPath: () => path.join(userDataRoot(), 'defaults.json'),

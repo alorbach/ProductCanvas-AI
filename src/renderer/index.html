@@ -1,17 +1,17 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:;">
-  <title>WerbungMaker</title>
+  <title>ProductCanvas AI</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <header class="app-header">
     <div class="brand">
-      <h1 id="app-title">WerbungMaker</h1>
-      <p id="app-subtitle">TELE-KOHLGRAF – Werbebild-Generator</p>
+      <h1 id="app-title">ProductCanvas AI</h1>
+      <p id="app-subtitle">AI image studio from templates</p>
     </div>
     <nav class="main-nav">
       <button type="button" class="nav-btn active" data-mode="werbung" id="nav-werbung">Werbung erstellen</button>
@@ -86,7 +86,7 @@
 
   <main id="view-templates" class="view">
     <section class="panel full">
-      <h2>Vorlagen-Editor</h2>
+      <h2 id="lbl-editor-title">Template editor</h2>
       <div id="editor-current-bar" class="editor-current-bar">
         <img id="editor-current-thumb" class="editor-current-thumb" alt="" />
         <div class="editor-current-meta">

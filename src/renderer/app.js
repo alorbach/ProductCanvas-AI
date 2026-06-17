@@ -1,10 +1,10 @@
 'use strict';
 
-import { loadI18n, t } from './i18n/i18n.js';
+import { loadI18n, getLocale, t } from './i18n/i18n.js';
 import { renderHelp, openHelpDoc } from './help/help-viewer.js';
 import { showContextMenu, menuItem } from './context-menu.js';
 
-const api = window.werbungMaker;
+const api = window.productCanvas;
 let session = {};
 let templates = [];
 let imageSettingsCatalog = null;
@@ -38,6 +38,10 @@ function isInternalSortDrag(dataTransfer) {
 
 const CATEGORIES = ['TV', 'BEAMER', 'LEINWÄNDE', 'LAUTSPRECHER', 'AV-RECEIVER', 'SUBWOOFER', 'KINOSESSEL'];
 const IMAGE_EXT = /\.(png|jpe?g|webp)$/i;
+
+function imagePathsFromDataTransfer(dataTransfer) {
+  return api.collectDroppedImagePaths(dataTransfer?.files);
+}
 
 function $(id) { return document.getElementById(id); }
 
@@ -281,9 +285,7 @@ function setupTemplateImport() {
       panel.classList.remove('drag-over');
       zone.classList.remove('drag-over');
       if (isInternalSortDrag(e.dataTransfer)) return;
-      const paths = [...(e.dataTransfer?.files || [])]
-        .map((f) => f.path)
-        .filter((p) => p && IMAGE_EXT.test(p));
+      const paths = imagePathsFromDataTransfer(e.dataTransfer);
       if (paths.length) await importPaths(paths);
       else showError(new Error(t('template.importInvalid')));
     });
@@ -420,9 +422,7 @@ function setupDragDrop() {
       panel.classList.remove('drag-over');
       zone.classList.remove('drag-over');
       if (isInternalSortDrag(e.dataTransfer)) return;
-      const paths = [...(e.dataTransfer?.files || [])]
-        .map((f) => f.path)
-        .filter((p) => p && IMAGE_EXT.test(p));
+      const paths = imagePathsFromDataTransfer(e.dataTransfer);
       if (paths.length) await addReferencePaths(paths);
       else showError(new Error(t('refs.dropInvalid')));
     });
@@ -580,7 +580,11 @@ function applyLabels() {
   $('btn-import-template').textContent = t('template.import');
   $('lbl-refs').textContent = t('refs.title');
   $('btn-add-refs').textContent = t('refs.add');
-  $('lbl-settings').textContent = t('settings.title');
+  $('lbl-settings').textContent = t('settings.projectTitle');
+  if ($('lbl-editor-title')) $('lbl-editor-title').textContent = t('template.editorTitle');
+  if ($('preview-empty')) $('preview-empty').textContent = t('preview.empty');
+  if ($('editor-preview-empty')) $('editor-preview-empty').textContent = t('template.previewEmpty');
+  if ($('pairing-code')) $('pairing-code').placeholder = t('bridge.setup.pairingCode');
   $('lbl-size').textContent = t('settings.size');
   $('lbl-quality').textContent = t('settings.quality');
   $('image-settings-hint').textContent = t('settings.imageOptionsHint');
@@ -628,6 +632,7 @@ function applyLabels() {
   $('btn-wait-cancel').textContent = t('wait.cancel');
   $('btn-bridge-connect').textContent = t('bridge.setup.connect');
   $('btn-codex-login').textContent = t('bridge.setup.codexLogin');
+  if ($('setup-message')) $('setup-message').textContent = t('bridge.setup.message');
   $('refs-drop-hint').textContent = t('refs.dropHint');
   $('refs-usage-hint').textContent = `${t('refs.usageHint')} ${t('refs.reorderHint')}`;
   $('btn-suggest-tagline').title = t('tagline.suggest');
@@ -896,9 +901,7 @@ function setupEditorReference() {
     drop.classList.remove('drag-over');
     if (editorLocked || editorGenerating) return;
     if (isInternalSortDrag(e.dataTransfer)) return;
-    const paths = [...(e.dataTransfer?.files || [])]
-      .map((f) => f.path)
-      .filter((p) => p && IMAGE_EXT.test(p));
+    const paths = imagePathsFromDataTransfer(e.dataTransfer);
     if (paths.length) await addEditorReferencePaths(paths);
     else showError(new Error(t('template.editorRefDropInvalid')));
   });
@@ -1507,8 +1510,18 @@ async function selectEditorTemplate(id, options = {}) {
   await refreshImageSettingsUi();
 }
 
+async function reloadLocale(prefs) {
+  const locale = prefs?.resolvedLocale || getLocale() || 'en';
+  await loadI18n(locale);
+  document.documentElement.lang = locale;
+  applyLabels();
+  await renderHelp($('help-sidebar'), $('help-content'));
+}
+
 async function init() {
-  await loadI18n();
+  const prefs = await api.getPreferences();
+  await loadI18n(prefs.resolvedLocale || 'en');
+  document.documentElement.lang = prefs.resolvedLocale || 'en';
   applyLabels();
 
   const catSelect = $('setting-category');
@@ -1803,7 +1816,11 @@ async function init() {
   });
   api.on('help:open', (id) => {
     showView('help');
-    openHelpDoc(id, $('help-content'), $('help-sidebar'));
+    openHelpDoc(id, $('help-content'), $('help-sidebar'), getLocale());
+  });
+  api.on('preferences:changed', async (prefs) => {
+    await reloadLocale(prefs);
+    await refreshBridgeStatus();
   });
   api.on('nav:template-editor', () => showView('templates'));
   api.on('action:save-as', async () => {

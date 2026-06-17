@@ -226,7 +226,7 @@ class BridgeClient {
       requestId,
     }));
     return {
-      job_token: `werbungmaker-${requestId}`,
+      job_token: `productcanvas-${requestId}`,
       request_hash: requestHash,
       request_id: requestId,
       payload,

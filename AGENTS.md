@@ -1,40 +1,44 @@
-# AGENTS.md – WerbungMaker
+# AGENTS.md – ProductCanvas AI
 
-Leitfaden für KI-Agenten (Cursor, Codex) bei der Arbeit an diesem Repository.
+Guide for AI agents (Cursor, Codex) working on this repository.
 
-## Projektzweck
+## Project purpose
 
-**WerbungMaker** ist eine Electron-Desktop-App für TELE-KOHLGRAF. Sie erzeugt markenkonforme Werbebilder aus Layout-Vorlagen und Referenz-Produktfotos via Codex Local Bridge (`http://127.0.0.1:8765`).
+**ProductCanvas AI** is a universal, brand-neutral Electron desktop app. It creates AI-generated product images from layout templates and reference photos via Codex Local Bridge (`http://127.0.0.1:8765`). Users define brand, series, and tagline per project — no fixed corporate identity in the product.
 
-## Pflichtregeln
+## Mandatory rules
 
-1. **UI immer auf Deutsch** – neue sichtbare Texte nur in `src/renderer/i18n/de.json` als Keys hinzufügen, nie hardcoded Englisch in der Renderer-UI.
-2. **Bridge-Calls nur im Main Process** – Renderer nutzt `preload.js` / IPC.
-3. **Job-Envelope** für Bridge-Ausführung: `job_token`, `request_hash`, `request_id` + `payload` (siehe `src/main/bridge/bridge-client.js`).
-4. **System-Vorlagen nicht überschreiben** – KI-Änderungen nur in Benutzer-Vorlagen unter `%APPDATA%\WerbungMaker\templates\`.
-5. **Keine Secrets committen**.
+1. **UI strings in both locales** — add keys to `src/renderer/i18n/en.json` and `de.json`; use `t('key')` in the renderer. English is the default fallback locale.
+2. **Bridge calls only in main process** — renderer uses `preload.js` / IPC (`window.productCanvas`).
+3. **Job envelope** for bridge execution: `job_token`, `request_hash`, `request_id` + `payload` (see `src/main/bridge/bridge-client.js`).
+4. **Do not overwrite system templates** — user template changes only under `%APPDATA%\productcanvas-ai\templates\`.
+5. **No secrets in commits**.
+6. **No vendor-specific branding** — do not hardcode retailer or brand names in code, prompts, or docs. Use user project fields (`brandName`, etc.).
+7. **PRs must pass** `.github/workflows/test.yml`. **Releases** only via `v*` tags → `release.yml`.
 
-## Ordnerstruktur
+## Folder structure
 
 ```
-src/main/          Electron Main Process (Bridge, Profile, Generierung)
-src/preload/       contextBridge API
-src/renderer/      UI (HTML/CSS/ES-Module)
-assets/templates/  System-Vorlagen + templates.json
-assets/examples/   Beispiel-Martin-Logan.png
-docs/              Deutsche Doku (auch in App-Hilfe)
+src/main/     Electron main (bridge, profiles, generation)
+src/preload/  contextBridge API (productCanvas)
+src/renderer/ UI (HTML/CSS/ES modules)
+assets/templates/  System templates + templates.json
+assets/examples/   Example reference image
+docs/en/ docs/de/   User documentation (bilingual)
 ```
 
-## IPC-Kanäle (Auswahl)
+## IPC channels (selection)
 
-| Kanal | Zweck |
-|-------|-------|
-| `bridge:ensureReady` | Bridge starten/pairing |
-| `generate:buildPrompt` | Prompt aus Referenzbildern |
-| `generate:image` | Bildgenerierung |
-| `templates:*` | Vorlagen-Editor |
-| `docs:list` / `docs:load` | Hilfe-Viewer |
-| `profile:*` / `session:*` | Persistenz |
+| Channel | Purpose |
+|---------|---------|
+| `app:getPreferences` / `app:setPreferences` | Locale, bridge URL |
+| `app:openSettings` | Settings window |
+| `bridge:ensureReady` | Bridge start/pairing |
+| `generate:buildPrompt` | Prompt from reference images |
+| `generate:image` | Image generation |
+| `templates:*` | Template editor |
+| `docs:list` / `docs:load` | Help viewer (locale-aware) |
+| `profile:*` / `session:*` | Persistence |
 
 ## Build
 
@@ -44,9 +48,10 @@ npm test
 npm run dist:win
 ```
 
-Release per Git-Tag `v*` → `.github/workflows/release.yml`.
+Release per Git tag `v*` → `.github/workflows/release.yml`.
 
-## Weitere Doku
+## Further docs
 
-- [docs/entwickler.md](docs/entwickler.md) – Architektur & Entwicklung
-- [docs/produkt.md](docs/produkt.md) – Produktkontext
+- [docs/en/developer.md](docs/en/developer.md) — architecture & development
+- [docs/en/product.md](docs/en/product.md) — product context
+- [docs/AGENTS.md](docs/AGENTS.md) — help chapter maintenance

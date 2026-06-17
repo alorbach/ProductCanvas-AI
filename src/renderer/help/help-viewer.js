@@ -1,5 +1,7 @@
 'use strict';
 
+import { getLocale } from '../i18n/i18n.js';
+
 function escapeHtml(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
@@ -20,28 +22,29 @@ function parseMarkdown(md) {
 }
 
 export async function renderHelp(sidebarEl, contentEl) {
-  const docs = await window.werbungMaker.docsList();
+  const locale = getLocale();
+  const docs = await window.productCanvas.docsList(locale);
   sidebarEl.innerHTML = '';
   for (const doc of docs) {
     const btn = document.createElement('button');
     btn.textContent = doc.title;
     btn.dataset.id = doc.id;
-    btn.addEventListener('click', () => openHelpDoc(doc.id, contentEl, sidebarEl));
+    btn.addEventListener('click', () => openHelpDoc(doc.id, contentEl, sidebarEl, locale));
     sidebarEl.appendChild(btn);
   }
   if (docs.length) {
-    await openHelpDoc(docs[0].id, contentEl, sidebarEl);
+    await openHelpDoc(docs[0].id, contentEl, sidebarEl, locale);
   }
 }
 
-export async function openHelpDoc(id, contentEl, sidebarEl) {
-  const doc = await window.werbungMaker.docsLoad(id);
+export async function openHelpDoc(id, contentEl, sidebarEl, locale = getLocale()) {
+  const doc = await window.productCanvas.docsLoad(id, locale);
   contentEl.innerHTML = parseMarkdown(doc.content || '');
   contentEl.querySelectorAll('a').forEach((a) => {
     a.addEventListener('click', (e) => {
       if (a.href.startsWith('http')) {
         e.preventDefault();
-        window.werbungMaker.openExternal(a.href);
+        window.productCanvas.openExternal(a.href);
       }
     });
   });

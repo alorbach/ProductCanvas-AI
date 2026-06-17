@@ -15,7 +15,7 @@ function sleep(ms) {
 
 function fetchJson(url) {
   return new Promise((resolve, reject) => {
-    const req = https.get(url, { headers: { 'User-Agent': 'WerbungMaker' } }, (res) => {
+    const req = https.get(url, { headers: { 'User-Agent': 'ProductCanvas AI' } }, (res) => {
       let body = '';
       res.on('data', (c) => { body += c; });
       res.on('end', () => {
@@ -33,7 +33,7 @@ function fetchJson(url) {
 function downloadFile(url, dest) {
   return new Promise((resolve, reject) => {
     const file = fs.createWriteStream(dest);
-    https.get(url, { headers: { 'User-Agent': 'WerbungMaker' } }, (res) => {
+    https.get(url, { headers: { 'User-Agent': 'ProductCanvas AI' } }, (res) => {
       if (res.statusCode === 302 || res.statusCode === 301) {
         file.close();
         fs.unlinkSync(dest);

@@ -10,6 +10,7 @@ const DEFAULTS = {
   size: 'template',
   quality: 'high',
   bridgeUrl: 'http://127.0.0.1:8765',
+  uiLocale: 'auto',
   productCategory: 'LAUTSPRECHER',
   brandName: '',
   seriesName: '',
@@ -37,6 +38,13 @@ function readJson(filePath, fallback) {
 function writeJson(filePath, data) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+}
+
+function profileBaseName(filePath) {
+  const base = path.basename(filePath);
+  if (base.endsWith('.pcprofile.json')) return base.slice(0, -'.pcprofile.json'.length);
+  if (base.endsWith('.wmprofile.json')) return base.slice(0, -'.wmprofile.json'.length);
+  return path.basename(filePath, path.extname(filePath));
 }
 
 class ProfileStore {
@@ -73,7 +81,7 @@ class ProfileStore {
   }
 
   saveProfile(filePath, session, name) {
-    const profileDir = path.join(path.dirname(filePath), path.basename(filePath, '.wmprofile.json'));
+    const profileDir = path.join(path.dirname(filePath), profileBaseName(filePath));
     fs.mkdirSync(profileDir, { recursive: true });
     const refs = [];
     for (const ref of session.referenceImages || []) {

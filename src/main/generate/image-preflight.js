@@ -61,8 +61,9 @@ function buildPreflightTaskPrompt({ settings, promptData, template }) {
   const templateHint = buildTemplateLayoutHint(template, { layoutImageAttached: true });
   const size = String(settings?.size || '').trim();
   const quality = String(settings?.quality || '').trim();
+  const brand = String(promptData?.brandName || settings?.brandName || 'the brand').trim() || 'the brand';
   const lines = [
-    'Create a TELE-KOHLGRAF retail advertisement image using the attached reference image(s).',
+    `Create a photorealistic retail advertisement image for ${brand} using the attached reference image(s).`,
     'Return ONLY the final English image-edit prompt — no explanation, no markdown, no JSON.',
     '',
     'Rules:',
@@ -133,7 +134,7 @@ function buildPreflightMessages(taskPrompt, referenceImages, options = {}) {
   return [
     {
       role: 'system',
-      content: 'You are WerbungMaker image prompt preflight. Analyze attached images and return only the final concise English image-edit prompt. Preserve exact-match requirements. No markdown fences.',
+      content: 'You are ProductCanvas AI image prompt preflight. Analyze attached images and return only the final concise English image-edit prompt. Preserve exact-match requirements. No markdown fences.',
     },
     { role: 'user', content },
   ];

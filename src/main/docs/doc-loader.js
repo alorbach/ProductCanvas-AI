@@ -5,37 +5,86 @@ const path = require('path');
 const paths = require('../paths');
 
 const DOC_ENTRIES = [
-  { id: 'benutzerhandbuch', title: 'Benutzerhandbuch', file: 'benutzerhandbuch.md' },
-  { id: 'einrichtung', title: 'Erste Schritte', file: 'einrichtung.md' },
-  { id: 'werbung-erstellen', title: 'Werbung erstellen', file: 'werbung-erstellen.md' },
-  { id: 'vorlagen-bearbeiten', title: 'Vorlagen bearbeiten', file: 'vorlagen-bearbeiten.md' },
-  { id: 'produkt', title: 'Produktdokumentation', file: 'produkt.md' },
-  { id: 'entwickler', title: 'Entwickler', file: 'entwickler.md' },
+  {
+    id: 'user-guide',
+    file: { en: 'en/user-guide.md', de: 'de/benutzerhandbuch.md' },
+    title: { en: 'User Guide', de: 'Benutzerhandbuch' },
+  },
+  {
+    id: 'getting-started',
+    file: { en: 'en/getting-started.md', de: 'de/einrichtung.md' },
+    title: { en: 'Getting Started', de: 'Erste Schritte' },
+  },
+  {
+    id: 'create-image',
+    file: { en: 'en/create-image.md', de: 'de/bild-erstellen.md' },
+    title: { en: 'Create Image', de: 'Bild erstellen' },
+  },
+  {
+    id: 'edit-templates',
+    file: { en: 'en/edit-templates.md', de: 'de/vorlagen-bearbeiten.md' },
+    title: { en: 'Edit Templates', de: 'Vorlagen bearbeiten' },
+  },
+  {
+    id: 'settings',
+    file: { en: 'en/settings.md', de: 'de/einstellungen.md' },
+    title: { en: 'Settings', de: 'Einstellungen' },
+  },
+  {
+    id: 'troubleshooting',
+    file: { en: 'en/troubleshooting.md', de: 'de/fehlerbehebung.md' },
+    title: { en: 'Troubleshooting', de: 'Fehlerbehebung' },
+  },
+  {
+    id: 'product',
+    file: { en: 'en/product.md', de: 'de/produkt.md' },
+    title: { en: 'Product', de: 'Produkt' },
+  },
+  {
+    id: 'developer',
+    file: { en: 'en/developer.md', de: 'de/entwickler.md' },
+    title: { en: 'Developer', de: 'Entwickler' },
+  },
 ];
 
+function normalizeLocale(locale) {
+  const lang = String(locale || 'en').split('-')[0].toLowerCase();
+  return lang === 'de' ? 'de' : 'en';
+}
+
 class DocLoader {
-  list() {
+  list(locale = 'en') {
+    const loc = normalizeLocale(locale);
     return DOC_ENTRIES.map((e) => ({
       id: e.id,
-      title: e.title,
-      file: e.file,
-      exists: fs.existsSync(path.join(paths.docsDir(), e.file)),
+      title: e.title[loc] || e.title.en,
+      file: e.file[loc] || e.file.en,
+      exists: fs.existsSync(path.join(paths.docsDir(), e.file[loc] || e.file.en)),
     }));
   }
 
-  load(id) {
+  load(id, locale = 'en') {
+    const loc = normalizeLocale(locale);
     const entry = DOC_ENTRIES.find((e) => e.id === id);
-    if (!entry) throw new Error('Dokument nicht gefunden.');
-    const filePath = path.join(paths.docsDir(), entry.file);
+    if (!entry) {
+      const msg = loc === 'de' ? 'Dokument nicht gefunden.' : 'Document not found.';
+      throw new Error(msg);
+    }
+    const title = entry.title[loc] || entry.title.en;
+    const relFile = entry.file[loc] || entry.file.en;
+    const filePath = path.join(paths.docsDir(), relFile);
     if (!fs.existsSync(filePath)) {
-      return { id, title: entry.title, content: `# ${entry.title}\n\nDokument wird noch erstellt.` };
+      const placeholder = loc === 'de'
+        ? `# ${title}\n\nDokument wird noch erstellt.`
+        : `# ${title}\n\nThis document is not available yet.`;
+      return { id, title, content: placeholder };
     }
     return {
       id,
-      title: entry.title,
+      title,
       content: fs.readFileSync(filePath, 'utf8'),
     };
   }
 }
 
-module.exports = { DocLoader };
+module.exports = { DocLoader, DOC_ENTRIES };

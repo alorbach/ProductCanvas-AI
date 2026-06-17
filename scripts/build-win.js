@@ -9,7 +9,7 @@ const packagePath = path.join(root, 'package.json');
 const localBuildPath = path.join(root, '.build', 'build-number');
 const buildInfoPath = path.join(root, 'src', 'build-info.json');
 const packageInfo = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
-const version = String(process.env.WERBUNGMAKER_VERSION || packageInfo.version || '1.0.0').replace(/^v/, '');
+const version = String(process.env.PRODUCTCANVAS_VERSION || packageInfo.version || '1.0.0').replace(/^v/, '');
 
 function readLocalBuildNumber() {
   try {
@@ -41,7 +41,7 @@ fs.writeFileSync(buildInfoPath, JSON.stringify({
   built_at: new Date().toISOString(),
 }, null, 2) + '\n');
 
-const artifactName = `WerbungMaker-${version}-build.${buildNumber}-\${os}-\${arch}.\${ext}`;
+const artifactName = `ProductCanvas-AI-${version}-build.${buildNumber}-\${os}-\${arch}.\${ext}`;
 
 builder.build({
   projectDir: root,

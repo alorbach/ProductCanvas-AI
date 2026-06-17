@@ -12,7 +12,7 @@ const DEFAULT_TEMPLATE_META = {
   accent: 'yellow',
   accentHex: '#FFD700',
   textGold: '#c9a227',
-  stageHint: 'TELE-KOHLGRAF Werbevorlage mit Produktbühne und Footer',
+  stageHint: 'Retail layout template with product stage and footer',
   textZones: {
     brandName: { x: 80, y: 280, fontSize: 72, color: 'gold' },
     seriesName: { x: 80, y: 360, fontSize: 28 },

@@ -18,7 +18,7 @@ const {
 } = require('./layout-fidelity');
 const { resolveImageGenerationSettings } = require('./image-settings');
 
-const STYLE_REFERENCE_HINT = 'Image 1 = TELE-KOHLGRAF layout template to edit; Image 2 = visual style reference for the user request.';
+const STYLE_REFERENCE_HINT = 'Image 1 = layout template to edit; Image 2 = visual style reference for the user request.';
 
 function extractJson(text) {
   const match = String(text || '').match(/\{[\s\S]*\}/);

@@ -60,7 +60,7 @@ function sanitizePreflightPrompt(prompt, options = {}) {
     text = text.replace(pattern, '').trim();
   }
   text = text.replace(/\n{3,}/g, '\n\n').trim();
-  if (!options.allowGoldHeader && /\bgold\b.*\btele-kohlgraf\b/i.test(text)) {
+  if (!options.allowGoldHeader && /\bgold\b.*\b(brand|header)\b/i.test(text)) {
     text = text.replace(/\bgold\b/gi, 'exact template color');
   }
   return text;
@@ -86,7 +86,7 @@ function buildTemplateEditFrozenRules(changeRequest, imageSettings = {}, options
     ? `Target output size: ${imageSettings.size} (exact layout template dimensions). Do not change aspect ratio or canvas size.`
     : 'Keep exact template canvas dimensions.';
   const lines = [
-    'Edit the attached TELE-KOHLGRAF layout template image.',
+    'Edit the attached layout template image.',
     sizeLine,
     LAYOUT_FROZEN_RULES,
     'Only apply the user change inside allowed zones unless the user explicitly names a frozen element.',
@@ -114,7 +114,7 @@ function buildResizeOnlyPrompt(template, imageSettings, sourceDims = {}) {
     ? 'auto (best fit for layout)'
     : imageSettings.size;
   const base = [
-    `Resize the attached TELE-KOHLGRAF layout template from ${fromSize} to output size ${toSize}.`,
+    `Resize the attached layout template from ${fromSize} to output size ${toSize}.`,
     'Preserve header, footer, contact bar, neon accents, icons, typography colors, and product stage layout.',
     'Scale the full design proportionally — do not redesign, recolor, or omit layout elements.',
     'No content changes — format / canvas size only.',

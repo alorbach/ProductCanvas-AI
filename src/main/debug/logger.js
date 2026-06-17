@@ -34,8 +34,8 @@ function log(level, source, message, details = null) {
   while (entries.length > MAX_ENTRIES) entries.shift();
   const detailStr = details ? ` ${JSON.stringify(details)}` : '';
   appendFile(`[${entry.time}] ${level.toUpperCase()} ${source}: ${message}${detailStr}`);
-  if (typeof global.__werbungMakerOnDebugEntry === 'function') {
-    global.__werbungMakerOnDebugEntry(entry);
+  if (typeof global.__productCanvasOnDebugEntry === 'function') {
+    global.__productCanvasOnDebugEntry(entry);
   }
   return entry;
 }
@@ -64,7 +64,7 @@ function clear() {
 }
 
 function setBroadcast(fn) {
-  global.__werbungMakerOnDebugEntry = fn;
+  global.__productCanvasOnDebugEntry = fn;
 }
 
 module.exports = { log, info, warn, error, getLog, clear, setBroadcast };

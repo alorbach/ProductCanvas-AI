@@ -38,6 +38,10 @@ function getChoiceContent(result) {
   return result?.response?.choices?.[0]?.message?.content || '';
 }
 
+function brandLabel(options) {
+  return String(options.brandName || 'the brand').trim() || 'the brand';
+}
+
 class PromptBuilder {
   constructor(bridgeClient, templateRegistry) {
     this.client = bridgeClient;
@@ -63,16 +67,17 @@ class PromptBuilder {
     }
 
     const examplePath = path.join(paths.examplesDir(), template.exampleReference || 'Beispiel-Martin-Logan.png');
+    const brand = brandLabel(options);
     let exampleHint = '';
     if (fs.existsSync(examplePath)) {
-      exampleHint = 'Orientiere dich am TELE-KOHLGRAF-Werbelayout: Markenname groß in Gold, Serienname, Tagline, Produkt(e) auf Betonbühne, Footer-Kategorie hervorgehoben.';
+      exampleHint = `Orientiere dich am Layout-Beispiel: Markenname prominent, Serienname, Tagline, Produkt(e) auf der Bühne, Footer-Kategorie hervorgehoben. Marke: ${brand}.`;
     }
 
     const fidelityRules = `
-- imagePrompt MUSS englisch sein: photorealistic AI-generated premium TELE-KOHLGRAF retail advertisement, cinematic lighting, NOT a collage.
+- imagePrompt MUSS englisch sein: photorealistic AI-generated premium retail advertisement for ${brand}, cinematic lighting, NOT a collage.
 `;
 
-    const chatPrompt = `Du bist Werbetexter für TELE-KOHLGRAF (Bild & Ton).
+    const chatPrompt = `Du bist Werbetexter für Produktwerbung.
 Erzeuge ein JSON-Objekt für ein Werbebild. Nur gültiges JSON, keine Erklärung.
 
 Vorlage: ${template.name}, Akzentfarbe: ${template.accent}, Bühne: ${template.stageHint}
@@ -96,7 +101,7 @@ JSON-Felder:
 - productCategory (eines von: TV, BEAMER, LEINWÄNDE, LAUTSPRECHER, AV-RECEIVER, SUBWOOFER, KINOSESSEL)
 - productDescription (detailliert, zählbar, keine Erfindungen)
 - placementInstructions (nur Platzierung, Produkt unverändert)
-- imagePrompt (vollständiger englischer Prompt: merge products from attached Image 1 into layout from attached Image 2, photorealistic TELE-KOHLGRAF ad, gold brand text, highlighted footer category — NOT a flat collage)`;
+- imagePrompt (vollständiger englischer Prompt: merge products from attached Image 1 into layout from attached Image 2, photorealistic ${brand} retail ad, brand text matching template, highlighted footer category — NOT a flat collage)`;
 
     onProgress?.({ status: 'running', messageKey: 'wait.status.buildingPrompt' });
 
@@ -116,10 +121,11 @@ JSON-Felder:
 
   async suggestTagline(options, signalKey) {
     const productHint = options.productAnalysis || '';
+    const brand = brandLabel(options);
 
-    const chatPrompt = `Schreibe genau eine kurze deutsche Werbe-Tagline (max. 12 Wörter) für TELE-KOHLGRAF.
+    const chatPrompt = `Schreibe genau eine kurze deutsche Werbe-Tagline (max. 12 Wörter).
 
-Markenname: ${options.brandName || 'unbekannt'}
+Marke: ${brand}
 Serie: ${options.seriesName || 'unbekannt'}
 Kategorie: ${options.productCategory || 'LAUTSPRECHER'}
 Zusatz: ${options.extraPrompt || '–'}

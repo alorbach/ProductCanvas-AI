@@ -17,8 +17,12 @@ const { DocLoader } = require('./docs/doc-loader');
 const paths = require('./paths');
 const debugLog = require('./debug/logger');
 const { isImagePath } = require('./generate/image-prep');
+const { getPreferences, setPreferences } = require('./app-preferences');
+const { migrateIfNeeded } = require('./migration/user-data-migrate');
+const mainI18n = require('./i18n/main-i18n');
 
 let mainWindow = null;
+let settingsWindow = null;
 let bridgeManager;
 let codexManager;
 let templateRegistry;
@@ -30,6 +34,16 @@ let templateEditPipeline;
 let docLoader;
 let session = null;
 let autosaveTimer = null;
+let resolvedLocale = 'en';
+
+function systemLocale() {
+  return app.getLocale?.() || 'en';
+}
+
+function refreshLocale() {
+  resolvedLocale = getPreferences(systemLocale()).resolvedLocale;
+  return resolvedLocale;
+}
 
 function getBuildInfo() {
   try {
@@ -39,11 +53,37 @@ function getBuildInfo() {
   }
 }
 
+function mt(key, vars) {
+  return mainI18n.t(resolvedLocale, key, vars);
+}
+
 function scheduleAutosave() {
   if (autosaveTimer) clearTimeout(autosaveTimer);
   autosaveTimer = setTimeout(() => {
     if (session) profileStore.saveSession(session);
   }, 300);
+}
+
+function send(channel, data) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(channel, data);
+  }
+}
+
+function broadcastPreferences() {
+  const prefs = getPreferences(systemLocale());
+  resolvedLocale = prefs.resolvedLocale;
+  buildMenu();
+  send('preferences:changed', prefs);
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.webContents.send('preferences:loaded', prefs);
+  }
+}
+
+function profileFilters() {
+  return [
+    { name: mt('menu.profile.filter'), extensions: ['pcprofile.json', 'wmprofile.json'] },
+  ];
 }
 
 function createWindow() {
@@ -52,7 +92,7 @@ function createWindow() {
     height: 900,
     minWidth: 1100,
     minHeight: 700,
-    title: 'WerbungMaker',
+    title: 'ProductCanvas AI',
     backgroundColor: '#0d0d0d',
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload', 'preload.js'),
@@ -65,10 +105,32 @@ function createWindow() {
   buildMenu();
 }
 
-function send(channel, data) {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send(channel, data);
+function createSettingsWindow() {
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.focus();
+    return;
   }
+  settingsWindow = new BrowserWindow({
+    width: 480,
+    height: 380,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    parent: mainWindow || undefined,
+    modal: !!mainWindow,
+    title: mt('menu.preferences'),
+    backgroundColor: '#0d0d0d',
+    webPreferences: {
+      preload: path.join(__dirname, '..', 'preload', 'preload-settings.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  settingsWindow.setMenu(null);
+  settingsWindow.loadFile(path.join(__dirname, '..', 'renderer', 'settings.html'));
+  settingsWindow.on('closed', () => {
+    settingsWindow = null;
+  });
 }
 
 async function importTemplateFiles(filePaths, name) {
@@ -92,56 +154,56 @@ function buildMenu() {
           session = profileStore.loadProfile(item.path);
           send('session:loaded', session);
         } catch (err) {
-          dialog.showErrorBox('Fehler', err.message);
+          dialog.showErrorBox(mt('menu.error.title'), err.message);
         }
       },
     }))
-    : [{ label: '(keine)', enabled: false }];
+    : [{ label: mt('menu.recent.none'), enabled: false }];
 
   const template = [
     {
-      label: 'Vorlagen',
+      label: mt('menu.templates'),
       submenu: [
-        { label: 'Bearbeiten…', click: () => send('nav:template-editor', {}) },
-        { label: 'Klonen', click: () => send('action:template-clone', {}) },
+        { label: mt('menu.templates.edit'), click: () => send('nav:template-editor', {}) },
+        { label: mt('menu.templates.clone'), click: () => send('action:template-clone', {}) },
         { type: 'separator' },
         {
-          label: 'Importieren…',
+          label: mt('menu.templates.import'),
           click: async () => {
             const r = await dialog.showOpenDialog(mainWindow, {
-              filters: [{ name: 'Bilder', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
+              filters: [{ name: mt('menu.images'), extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
               properties: ['openFile', 'multiSelections'],
             });
             if (!r.canceled && r.filePaths.length) {
               try {
                 await importTemplateFiles(r.filePaths);
               } catch (err) {
-                dialog.showErrorBox('Fehler', err.message);
+                dialog.showErrorBox(mt('menu.error.title'), err.message);
               }
             }
           },
         },
-        { label: 'Löschen', click: () => send('action:template-delete', {}) },
+        { label: mt('menu.templates.delete'), click: () => send('action:template-delete', {}) },
       ],
     },
     {
-      label: 'Hilfe',
+      label: mt('menu.help'),
       submenu: [
-        { label: 'Erste Schritte', click: () => send('help:open', 'einrichtung') },
-        { label: 'Benutzerhandbuch', click: () => send('help:open', 'benutzerhandbuch') },
-        { label: 'Vorlagen bearbeiten', click: () => send('help:open', 'vorlagen-bearbeiten') },
+        { label: mt('menu.help.gettingStarted'), click: () => send('help:open', 'getting-started') },
+        { label: mt('menu.help.handbook'), click: () => send('help:open', 'user-guide') },
+        { label: mt('menu.help.editTemplates'), click: () => send('help:open', 'edit-templates') },
         { type: 'separator' },
-        { label: 'Debug-Log anzeigen', click: () => send('debug:show', {}) },
+        { label: mt('menu.help.debug'), click: () => send('debug:show', {}) },
         { type: 'separator' },
         {
-          label: 'Über WerbungMaker…',
+          label: mt('menu.help.about'),
           click: () => {
             const info = getBuildInfo();
             dialog.showMessageBox(mainWindow, {
               type: 'info',
-              title: 'Über WerbungMaker',
-              message: 'WerbungMaker',
-              detail: `Version ${info.version} (Build ${info.build_number})\nTELE-KOHLGRAF – Werbebild-Generator`,
+              title: mt('about.title'),
+              message: mt('about.message'),
+              detail: mt('about.detail', { version: info.version, build: info.build_number }),
             });
           },
         },
@@ -151,10 +213,10 @@ function buildMenu() {
 
   const menu = Menu.buildFromTemplate([
     {
-      label: 'Datei',
+      label: mt('menu.file'),
       submenu: [
         {
-          label: 'Neu',
+          label: mt('menu.new'),
           accelerator: 'CmdOrCtrl+N',
           click: () => {
             session = profileStore.newSession();
@@ -162,11 +224,11 @@ function buildMenu() {
           },
         },
         {
-          label: 'Öffnen…',
+          label: mt('menu.open'),
           accelerator: 'CmdOrCtrl+O',
           click: async () => {
             const r = await dialog.showOpenDialog(mainWindow, {
-              filters: [{ name: 'WerbungMaker-Profil', extensions: ['wmprofile.json'] }],
+              filters: profileFilters(),
               properties: ['openFile'],
             });
             if (!r.canceled && r.filePaths[0]) {
@@ -176,7 +238,7 @@ function buildMenu() {
           },
         },
         {
-          label: 'Speichern',
+          label: mt('menu.save'),
           accelerator: 'CmdOrCtrl+S',
           click: async () => {
             if (session?.profilePath) {
@@ -188,14 +250,20 @@ function buildMenu() {
           },
         },
         {
-          label: 'Speichern unter…',
+          label: mt('menu.saveAs'),
           accelerator: 'CmdOrCtrl+Shift+S',
           click: () => send('action:save-as', {}),
         },
         { type: 'separator' },
-        { label: 'Zuletzt geöffnet', submenu: recentSubmenu },
+        {
+          label: mt('menu.preferences'),
+          accelerator: 'CmdOrCtrl+,',
+          click: () => createSettingsWindow(),
+        },
         { type: 'separator' },
-        { role: 'quit', label: 'Beenden' },
+        { label: mt('menu.recent'), submenu: recentSubmenu },
+        { type: 'separator' },
+        { role: 'quit', label: mt('menu.quit') },
       ],
     },
     ...template,
@@ -205,6 +273,20 @@ function buildMenu() {
 
 function registerIpc() {
   ipcMain.handle('app:getBuildInfo', () => getBuildInfo());
+  ipcMain.handle('app:getPreferences', () => getPreferences(systemLocale()));
+  ipcMain.handle('app:setPreferences', (_, patch) => {
+    const prefs = setPreferences(patch, systemLocale());
+    if (patch.bridgeUrl !== undefined && session) {
+      session.bridgeUrl = prefs.bridgeUrl;
+      scheduleAutosave();
+    }
+    broadcastPreferences();
+    return prefs;
+  });
+  ipcMain.handle('app:openSettings', () => {
+    createSettingsWindow();
+    return true;
+  });
 
   ipcMain.handle('bridge:getStatus', async () => bridgeManager.getFullStatus());
 
@@ -218,7 +300,7 @@ function registerIpc() {
     try {
       return await bridgeManager.requirePaired(pairingCode);
     } catch (err) {
-      debugLog.warn('main', 'Bridge-Pairing erforderlich', { message: err.message, origin: err.origin });
+      debugLog.warn('main', 'Bridge pairing required', { message: err.message, origin: err.origin });
       throw err;
     }
   });
@@ -242,8 +324,8 @@ function registerIpc() {
 
   ipcMain.handle('profile:saveDialog', async (_, name) => {
     const r = await dialog.showSaveDialog(mainWindow, {
-      defaultPath: `${name || 'Profil'}.wmprofile.json`,
-      filters: [{ name: 'WerbungMaker-Profil', extensions: ['wmprofile.json'] }],
+      defaultPath: `${name || 'Profile'}.pcprofile.json`,
+      filters: profileFilters(),
     });
     if (r.canceled) return null;
     return profileStore.saveProfile(r.filePath, session, name);
@@ -253,7 +335,7 @@ function registerIpc() {
 
   ipcMain.handle('refs:addDialog', async () => {
     const r = await dialog.showOpenDialog(mainWindow, {
-      filters: [{ name: 'Bilder', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
+      filters: [{ name: mt('menu.images'), extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
       properties: ['openFile', 'multiSelections'],
     });
     return r.canceled ? [] : r.filePaths.map((p) => ({ path: p, name: path.basename(p) }));
@@ -265,7 +347,6 @@ function registerIpc() {
   });
 
   ipcMain.handle('templates:list', () => templateRegistry.listAll());
-
   ipcMain.handle('settings:imageCatalog', () => getImageSettingsCatalog());
 
   ipcMain.handle('templates:getDimensions', async (_, id) => {
@@ -276,7 +357,7 @@ function registerIpc() {
 
   ipcMain.handle('templates:importDialog', async () => {
     const r = await dialog.showOpenDialog(mainWindow, {
-      filters: [{ name: 'Bilder', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
+      filters: [{ name: mt('menu.images'), extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
       properties: ['openFile', 'multiSelections'],
     });
     if (r.canceled) return [];
@@ -294,9 +375,7 @@ function registerIpc() {
   });
 
   ipcMain.handle('templates:delete', (_, id) => templateRegistry.deleteUserTemplate(id));
-
   ipcMain.handle('templates:rename', (_, { id, name }) => templateRegistry.renameUserTemplate(id, name));
-
   ipcMain.handle('templates:reorder', (_, orderedIds) => {
     const list = templateRegistry.reorderTemplates(orderedIds);
     send('templates:updated', list);
@@ -327,7 +406,6 @@ function registerIpc() {
   });
 
   ipcMain.handle('templates:getPendingEdit', () => templateEditor.getPendingEdit());
-
   ipcMain.handle('templates:acceptEdit', () => templateEditor.acceptEdit());
   ipcMain.handle('templates:rejectEdit', () => templateEditor.rejectEdit());
 
@@ -342,7 +420,7 @@ function registerIpc() {
       send('job:progress', { status: 'completed', messageKey: 'wait.status.completed' });
       return result;
     } catch (err) {
-      debugLog.error('main', 'generate:buildPrompt fehlgeschlagen', { message: err.message, details: err.details });
+      debugLog.error('main', 'generate:buildPrompt failed', { message: err.message, details: err.details });
       throw err;
     } finally {
       unsubscribe();
@@ -356,7 +434,7 @@ function registerIpc() {
       await bridgeManager.requirePaired(pairingCode);
       return await promptBuilder.suggestTagline(taglineOpts, signalKey);
     } catch (err) {
-      debugLog.error('main', 'generate:suggestTagline fehlgeschlagen', { message: err.message });
+      debugLog.error('main', 'generate:suggestTagline failed', { message: err.message });
       throw err;
     }
   });
@@ -374,8 +452,8 @@ function registerIpc() {
 
   ipcMain.handle('export:savePng', async (_, sourcePath) => {
     const r = await dialog.showSaveDialog(mainWindow, {
-      defaultPath: `Werbung-${Date.now()}.png`,
-      filters: [{ name: 'PNG', extensions: ['png'] }],
+      defaultPath: mt('export.defaultName', { timestamp: Date.now() }),
+      filters: [{ name: mt('export.png'), extensions: ['png'] }],
     });
     if (r.canceled) return null;
     fs.copyFileSync(sourcePath, r.filePath);
@@ -384,8 +462,8 @@ function registerIpc() {
 
   ipcMain.handle('export:savePngFromB64', async (_, b64) => {
     const r = await dialog.showSaveDialog(mainWindow, {
-      defaultPath: `Werbung-${Date.now()}.png`,
-      filters: [{ name: 'PNG', extensions: ['png'] }],
+      defaultPath: mt('export.defaultName', { timestamp: Date.now() }),
+      filters: [{ name: mt('export.png'), extensions: ['png'] }],
     });
     if (r.canceled) return null;
     fs.writeFileSync(r.filePath, Buffer.from(b64, 'base64'));
@@ -407,11 +485,10 @@ function registerIpc() {
     return `data:image/png;base64,${b64}`;
   });
 
-  ipcMain.handle('docs:list', () => docLoader.list());
-  ipcMain.handle('docs:load', (_, id) => docLoader.load(id));
+  ipcMain.handle('docs:list', (_, locale) => docLoader.list(locale || resolvedLocale));
+  ipcMain.handle('docs:load', (_, id, locale) => docLoader.load(id, locale || resolvedLocale));
 
   ipcMain.handle('shell:openExternal', (_, url) => shell.openExternal(url));
-
   ipcMain.handle('shell:showItemInFolder', (_, filePath) => {
     if (filePath && fs.existsSync(filePath)) {
       shell.showItemInFolder(filePath);
@@ -430,9 +507,7 @@ function registerIpc() {
       };
 
       const template = (items || []).map((entry) => {
-        if (entry.separator) {
-          return { type: 'separator' };
-        }
+        if (entry.separator) return { type: 'separator' };
         return {
           label: entry.label || '',
           enabled: entry.enabled !== false,
@@ -458,6 +533,8 @@ function registerIpc() {
 }
 
 app.whenReady().then(() => {
+  migrateIfNeeded(paths.userDataRoot(), paths.bridgeDir());
+  refreshLocale();
   bridgeManager = new BridgeManager();
   codexManager = new CodexManager();
   templateRegistry = new TemplateRegistry();
@@ -469,6 +546,10 @@ app.whenReady().then(() => {
   templateEditor = new TemplateEditorService(templateEditPipeline, templateRegistry);
   docLoader = new DocLoader();
   session = profileStore.loadSession();
+  const prefs = getPreferences(systemLocale());
+  if (prefs.bridgeUrl && !session.bridgeUrl) {
+    session.bridgeUrl = prefs.bridgeUrl;
+  }
   debugLog.setBroadcast((entry) => send('debug:entry', entry));
   registerIpc();
   createWindow();

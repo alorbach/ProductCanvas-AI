@@ -23,8 +23,8 @@ async function ensurePng(filePath, accent) {
   const svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
     <rect width="100%" height="100%" fill="#1a1a1a"/>
     <rect x="40" y="120" width="${width - 80}" height="${height - 280}" fill="#2a2a2a" stroke="rgb(${color.r},${color.g},${color.b})" stroke-width="4"/>
-    <text x="80" y="80" fill="#fff" font-family="Arial" font-size="36" font-weight="bold">TELE-KOHLGRAF</text>
-    <text x="80" y="115" fill="${accent === 'yellow' ? '#FFD700' : '#31b4f2'}" font-family="Arial" font-size="18">Ihr Partner für Bild &amp; Ton</text>
+    <text x="80" y="80" fill="#fff" font-family="Arial" font-size="36" font-weight="bold">Sample Brand</text>
+    <text x="80" y="115" fill="${accent === 'yellow' ? '#FFD700' : '#31b4f2'}" font-family="Arial" font-size="18">Premium audio retail</text>
     <text x="${width / 2}" y="${height / 2}" fill="#666" font-family="Arial" font-size="24" text-anchor="middle">Produktbühne</text>
   </svg>`;
   await sharp(Buffer.from(svg)).png().toFile(filePath);

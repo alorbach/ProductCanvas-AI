@@ -28,9 +28,9 @@ const withoutRefs = appendFidelityToImagePrompt('Create ad image.', false);
 assert.equal(withoutRefs, 'Create ad image.', 'no block without refs');
 
 const genPrompt = buildImageGenerationPrompt({
-  finalPrompt: 'Photorealistic TELE-KOHLGRAF ad with exact Martin Logan speakers.',
+  finalPrompt: 'Photorealistic Acme Audio ad with exact Martin Logan speakers.',
 }, { hasProductReference: true });
-assert(genPrompt.includes('Photorealistic TELE-KOHLGRAF'), 'uses preflight final prompt');
+assert(genPrompt.includes('Photorealistic Acme Audio'), 'uses preflight final prompt');
 assert(genPrompt.includes('match attached product photo exactly'), 'short product hint');
 assert(!genPrompt.includes('CRITICAL PRODUCT FIDELITY'), 'no long fidelity block in runtime prompt');
 
@@ -43,7 +43,7 @@ assert(!dualPrompt.includes('TWO ATTACHED REFERENCE IMAGES'), 'no duplicate dual
 
 const apiPayload = buildImageApiPayload({
   promptData: {
-    finalPrompt: 'TELE-KOHLGRAF ad with exact speakers on neon stage.',
+    finalPrompt: 'Acme Audio ad with exact speakers on neon stage.',
   },
   settings: { size: '1536x1024', quality: 'high' },
   referenceImages: [

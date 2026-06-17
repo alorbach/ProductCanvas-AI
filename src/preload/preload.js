@@ -1,9 +1,18 @@
 'use strict';
 
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
+const { collectDroppedImagePaths } = require('../main/dropped-files');
 
-contextBridge.exposeInMainWorld('werbungMaker', {
+contextBridge.exposeInMainWorld('productCanvas', {
   getBuildInfo: () => ipcRenderer.invoke('app:getBuildInfo'),
+  getPathForFile: (file) => webUtils.getPathForFile(file),
+  collectDroppedImagePaths: (files) => collectDroppedImagePaths(
+    Array.from(files || []),
+    (file) => webUtils.getPathForFile(file),
+  ),
+  getPreferences: () => ipcRenderer.invoke('app:getPreferences'),
+  setPreferences: (patch) => ipcRenderer.invoke('app:setPreferences', patch),
+  openSettings: () => ipcRenderer.invoke('app:openSettings'),
   bridgeGetStatus: () => ipcRenderer.invoke('bridge:getStatus'),
   bridgeEnsureReady: (code) => ipcRenderer.invoke('bridge:ensureReady', code),
   bridgeRequirePaired: (code) => ipcRenderer.invoke('bridge:requirePaired', code),
@@ -37,8 +46,8 @@ contextBridge.exposeInMainWorld('werbungMaker', {
   exportSavePngFromB64: (b64) => ipcRenderer.invoke('export:savePngFromB64', b64),
   filesReadDataUrl: (p) => ipcRenderer.invoke('files:readDataUrl', p),
   examplesGetImage: () => ipcRenderer.invoke('examples:getImage'),
-  docsList: () => ipcRenderer.invoke('docs:list'),
-  docsLoad: (id) => ipcRenderer.invoke('docs:load', id),
+  docsList: (locale) => ipcRenderer.invoke('docs:list', locale),
+  docsLoad: (id, locale) => ipcRenderer.invoke('docs:load', id, locale),
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
   showItemInFolder: (filePath) => ipcRenderer.invoke('shell:showItemInFolder', filePath),
   showContextMenu: (opts) => ipcRenderer.invoke('context:show', opts),
@@ -48,7 +57,8 @@ contextBridge.exposeInMainWorld('werbungMaker', {
     const allowed = [
       'session:loaded', 'session:saved', 'bridge:progress', 'job:progress',
       'help:open', 'nav:template-editor', 'action:template-clone', 'action:template-delete',
-      'action:save-as', 'templates:updated', 'template:selected', 'action:template-import', 'debug:entry', 'debug:show',
+      'action:save-as', 'templates:updated', 'template:selected', 'action:template-import',
+      'debug:entry', 'debug:show', 'preferences:changed',
     ];
     if (allowed.includes(channel)) {
       ipcRenderer.on(channel, (_, data) => cb(data));

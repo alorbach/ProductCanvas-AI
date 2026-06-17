@@ -2,7 +2,7 @@
 
 import { t } from './i18n/i18n.js';
 
-const api = window.werbungMaker;
+const api = window.productCanvas;
 
 export function menuItem(id, labelKey, options = {}) {
   if (options.separator) {

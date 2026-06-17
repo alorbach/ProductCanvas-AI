@@ -1,4 +1,4 @@
-name: Release Windows WerbungMaker
+name: Release Windows ProductCanvas AI
 
 on:
   push:
@@ -21,8 +21,8 @@ jobs:
         run: |
           $version = "${{ github.ref_name }}" -replace '^v', ''
           $buildNumber = $env:GITHUB_RUN_NUMBER
-          $installerName = "WerbungMaker-$version-build.$buildNumber-win-x64.exe"
-          $zipName = "WerbungMaker-$version-build.$buildNumber-win-x64.zip"
+          $installerName = "ProductCanvas-AI-$version-build.$buildNumber-win-x64.exe"
+          $zipName = "ProductCanvas-AI-$version-build.$buildNumber-win-x64.zip"
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           "build_number=$buildNumber" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           "installer_name=$installerName" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
@@ -46,6 +46,10 @@ jobs:
       - name: Generate icons
         run: npm run icons
 
+      - name: Check JavaScript syntax
+        shell: pwsh
+        run: ./scripts/ci-syntax-check.ps1
+
       - name: Run tests
         run: npm test
 
@@ -65,32 +69,62 @@ jobs:
             const path = require('path');
             const tagName = context.ref.replace('refs/tags/', '');
             const version = process.env.RELEASE_VERSION || tagName.replace(/^v/, '');
-            const buildNumber = process.env.RELEASE_BUILD_NUMBER || '1';
-            const installerName = process.env.RELEASE_INSTALLER_NAME;
-            const zipName = process.env.RELEASE_ZIP_NAME;
+            const buildNumber = process.env.RELEASE_BUILD_NUMBER || process.env.GITHUB_RUN_NUMBER || '1';
+            const installerName = process.env.RELEASE_INSTALLER_NAME || `ProductCanvas-AI-${version}-build.${buildNumber}-win-x64.exe`;
+            const zipName = process.env.RELEASE_ZIP_NAME || `ProductCanvas-AI-${version}-build.${buildNumber}-win-x64.zip`;
             const notes = await github.rest.repos.generateReleaseNotes({
               owner: context.repo.owner,
               repo: context.repo.repo,
               tag_name: tagName,
               target_commitish: context.sha,
             });
+            const changelog = String(notes.data.body || '').trim() || 'No generated changelog entries were returned for this tag.';
             const body = [
-              `# WerbungMaker ${tagName}`,
+              `# ProductCanvas AI ${tagName}`,
               '',
-              'TELE-KOHLGRAF Werbebild-Generator für Windows.',
+              'Universal AI image studio for Windows — layout templates plus reference photos via Codex Local Bridge.',
               '',
               '## Downloads',
               '',
-              `- Installer: \`${installerName}\``,
+              `- Windows installer: \`${installerName}\``,
               `- Portable ZIP: \`${zipName}\``,
+              '',
+              '## Validation',
+              '',
+              'This release was built by GitHub Actions after icon generation, JavaScript syntax checks, tests, and Windows packaging completed successfully.',
               '',
               '## Changelog',
               '',
-              String(notes.data.body || '').trim() || 'Keine Einträge.',
+              changelog,
+              '',
+              '---',
+              '',
+              'Copyright (c) Andre Lorbach — https://github.com/alorbach',
+              'License: GPL-2.0-or-later',
               '',
             ].join('\n');
             fs.mkdirSync('dist', { recursive: true });
             fs.writeFileSync(path.join('dist', 'release-notes.md'), body);
+
+      - name: Remove previous build assets for this tag
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $repo = "${{ github.repository }}"
+          $releaseJson = gh release view $tag --repo $repo --json assets 2>$null
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($releaseJson)) {
+            Write-Host "No existing release assets to remove for $tag."
+            exit 0
+          }
+          $release = $releaseJson | ConvertFrom-Json
+          foreach ($asset in $release.assets) {
+            if ($asset.name -match '^ProductCanvas-AI-.+-win-x64\.(exe|zip)$') {
+              Write-Host "Removing old release asset $($asset.name)"
+              gh release delete-asset $tag $asset.name --repo $repo --yes
+            }
+          }
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
