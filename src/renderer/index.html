@@ -97,6 +97,14 @@
         </div>
       </div>
       <p id="editor-locked-hint" class="editor-locked-hint hidden muted"></p>
+      <div id="editor-review-bar" class="editor-review-bar hidden">
+        <p id="change-summary" class="muted editor-review-summary"></p>
+        <div class="accept-row" id="accept-row">
+          <button type="button" class="btn secondary" id="btn-editor-compare">Vergleich Vollbild</button>
+          <button type="button" class="btn primary" id="btn-accept">Änderung akzeptieren</button>
+          <button type="button" class="btn danger" id="btn-reject">Änderung verwerfen</button>
+        </div>
+      </div>
       <div class="editor-workspace">
         <div class="editor-col">
           <h3 id="lbl-original">Original</h3>
@@ -104,9 +112,18 @@
         </div>
         <div class="editor-controls">
           <div class="editor-settings-row">
-            <label><span id="lbl-editor-size">Ausgabeformat</span>
-              <select id="editor-size"></select>
+            <label class="editor-size-preset-label"><span id="lbl-editor-size">Ausgabeformat</span>
+              <select id="editor-size-preset"></select>
             </label>
+            <div class="editor-size-custom">
+              <label><span id="lbl-editor-width">Breite</span>
+                <input type="number" id="editor-size-width" min="64" max="8192" step="1" inputmode="numeric" />
+              </label>
+              <span class="editor-size-times" aria-hidden="true">×</span>
+              <label><span id="lbl-editor-height">Höhe</span>
+                <input type="number" id="editor-size-height" min="64" max="8192" step="1" inputmode="numeric" />
+              </label>
+            </div>
             <label><span id="lbl-editor-quality">Qualität</span>
               <select id="editor-quality"></select>
             </label>
@@ -127,15 +144,10 @@
             </div>
           </div>
           <button type="button" class="btn primary" id="btn-generate-edit">KI-Änderung generieren</button>
-          <label><span id="lbl-opt-prompt">Optimierter Prompt</span>
+          <details class="prompt-details editor-prompt-details" id="editor-prompt-details">
+            <summary id="lbl-opt-prompt">Optimierter Prompt</summary>
             <textarea id="optimized-prompt" rows="6" readonly></textarea>
-          </label>
-          <p id="change-summary" class="muted"></p>
-          <div class="accept-row hidden" id="accept-row">
-            <button type="button" class="btn secondary" id="btn-editor-compare">Vergleich Vollbild</button>
-            <button type="button" class="btn primary" id="btn-accept">Änderung akzeptieren</button>
-            <button type="button" class="btn danger" id="btn-reject">Änderung verwerfen</button>
-          </div>
+          </details>
         </div>
         <div class="editor-col">
           <h3 id="lbl-ki-preview">KI-Vorschau</h3>

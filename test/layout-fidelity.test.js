@@ -13,9 +13,10 @@ const {
   appendLayoutLockBlock,
   LAYOUT_FROZEN_RULES,
 } = require(path.join(root, 'src', 'main', 'generate', 'layout-fidelity'));
-const { buildPreflightTaskPrompt } = require(path.join(root, 'src', 'main', 'generate', 'image-preflight'));
+const { buildPreflightTaskPrompt, buildReferenceImageEntry } = require(path.join(root, 'src', 'main', 'generate', 'image-preflight'));
 const { buildImageApiPayload } = require(path.join(root, 'src', 'main', 'generate', 'image-request'));
 const { resolveImageGenerationSettings } = require(path.join(root, 'src', 'main', 'generate', 'image-settings'));
+const { TemplateEditorService } = require(path.join(root, 'src', 'main', 'templates', 'template-editor-service'));
 
 const template = {
   id: 'tpl-test',
@@ -73,6 +74,21 @@ assert(apiPayload.prompt.includes('FROZEN'), 'api prompt has layout lock');
 
 (async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wm-accept-'));
+  const refPath = path.join(tmpDir, 'ref.png');
+  await sharp({
+    create: {
+      width: 1024,
+      height: 768,
+      channels: 3,
+      background: { r: 1, g: 2, b: 3 },
+    },
+  }).png().toFile(refPath);
+
+  const entry = await buildReferenceImageEntry(refPath, 'product');
+  assert.equal(entry.width, 1024, 'reference width preserved');
+  assert.equal(entry.height, 768, 'reference height preserved');
+  assert.equal(entry.mime_type, 'image/png', 'png mime preserved');
+
   const previewPath = path.join(tmpDir, 'preview.png');
   await sharp({
     create: {
@@ -83,14 +99,34 @@ assert(apiPayload.prompt.includes('FROZEN'), 'api prompt has layout lock');
     },
   }).png().toFile(previewPath);
 
-  const resizedPath = path.join(tmpDir, 'resized.png');
-  await sharp(previewPath)
-    .resize(1536, 1024, { fit: 'fill' })
-    .png()
-    .toFile(resizedPath);
-  const meta = await sharp(resizedPath).metadata();
-  assert.equal(meta.width, 1536, 'accept resize width');
-  assert.equal(meta.height, 1024, 'accept resize height');
+  const templatePath = path.join(tmpDir, 'template.png');
+  fs.copyFileSync(refPath, templatePath);
+
+  let persisted = null;
+  const registry = {
+    getById: () => ({ id: 't1', file: 'template.png' }),
+    resolveTemplatePath: () => templatePath,
+    getDimensions: async () => ({ width: 1536, height: 1024 }),
+    readTemplateDimensions: async (p) => {
+      const m = await sharp(p).metadata();
+      return { width: m.width, height: m.height };
+    },
+    persistTemplateDimensions: (_id, dims) => { persisted = dims; },
+  };
+
+  const service = new TemplateEditorService(null, registry);
+  service.pendingEdit = {
+    templateId: 't1',
+    previewPath,
+    imageSize: '1536x1024',
+  };
+  await service.acceptEdit();
+
+  const savedMeta = await sharp(templatePath).metadata();
+  assert.equal(savedMeta.width, 1365, 'accept preserves preview width');
+  assert.equal(savedMeta.height, 1024, 'accept preserves preview height');
+  assert.equal(persisted.width, 1365, 'registry gets actual width');
+  assert.equal(persisted.height, 1024, 'registry gets actual height');
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
   console.log('All layout-fidelity tests passed.');

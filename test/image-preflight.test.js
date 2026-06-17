@@ -34,7 +34,7 @@ const { BridgeClient } = require(path.join(root, 'src', 'main', 'bridge', 'bridg
   assert.equal(built[0].label, 'product', 'product first');
   assert.equal(built[1].label, 'layout', 'layout second');
   assert(built[0].b64_json.length > 10, 'product has b64');
-  assert.equal(built[0].mime_type, 'image/jpeg', 'jpeg mime');
+  assert.equal(built[0].mime_type, 'image/png', 'png mime preserved');
 
   const messages = buildPreflightMessages('Create ad', built);
   const imageParts = messages[1].content.filter((p) => p.type === 'input_image' || p.type === 'image_url');
@@ -83,7 +83,7 @@ const { BridgeClient } = require(path.join(root, 'src', 'main', 'bridge', 'bridg
   }, 'sig-test');
 
   assert.equal(result._attachmentMode, 'frames', 'third attempt succeeds');
-  assert.equal(callIndex, 3, 'tried reference_images, paths, frames');
+  assert.equal(callIndex, 3, 'tried referenced_image_paths, reference_images, frames');
 
   let promptOnlyThrown = false;
   const strictClient = new BridgeClient('http://127.0.0.1:1');

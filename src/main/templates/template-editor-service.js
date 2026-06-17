@@ -2,7 +2,6 @@
 
 const fs = require('fs');
 const path = require('path');
-const sharp = require('sharp');
 const paths = require('../paths');
 const debugLog = require('../debug/logger');
 
@@ -77,32 +76,25 @@ class TemplateEditorService {
     const histFile = path.join(historyDir, `${Date.now()}.png`);
     fs.copyFileSync(targetPath, histFile);
 
-    let previewPath = this.pendingEdit.previewPath;
+    const previewPath = this.pendingEdit.previewPath;
     const targetDims = parsePixelSize(this.pendingEdit.imageSize)
       || (this.pendingEdit.outputWidth && this.pendingEdit.outputHeight
         ? { width: this.pendingEdit.outputWidth, height: this.pendingEdit.outputHeight }
         : null)
       || (dims?.width && dims?.height ? { width: dims.width, height: dims.height } : null);
 
-    if (targetDims?.width && targetDims?.height) {
-      const meta = await sharp(previewPath).metadata();
-      if (meta.width !== targetDims.width || meta.height !== targetDims.height) {
-        const resizedPath = path.join(paths.tempPreviewDir(), `template-accept-${Date.now()}.png`);
-        await sharp(previewPath)
-          .resize(targetDims.width, targetDims.height, { fit: 'fill' })
-          .png()
-          .toFile(resizedPath);
-        previewPath = resizedPath;
-        debugLog.info('template-editor', 'Vorschau auf Zielmaß skaliert', {
-          from: `${meta.width}x${meta.height}`,
-          to: `${targetDims.width}x${targetDims.height}`,
+    fs.copyFileSync(previewPath, targetPath);
+
+    const savedDims = await this.registry.readTemplateDimensions(targetPath);
+    if (savedDims?.width && savedDims?.height) {
+      this.registry.persistTemplateDimensions(template.id, savedDims);
+      if (targetDims?.width && targetDims?.height
+        && (savedDims.width !== targetDims.width || savedDims.height !== targetDims.height)) {
+        debugLog.info('template-editor', 'KI-Vorschau weicht vom gewählten Ausgabeformat ab', {
+          preview: `${savedDims.width}x${savedDims.height}`,
+          requested: `${targetDims.width}x${targetDims.height}`,
         });
       }
-    }
-
-    fs.copyFileSync(previewPath, targetPath);
-    if (targetDims?.width && targetDims?.height) {
-      this.registry.persistTemplateDimensions(template.id, targetDims);
     }
     const accepted = { templateId: template.id, path: targetPath };
     this.pendingEdit = null;

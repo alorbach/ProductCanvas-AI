@@ -6,7 +6,8 @@ const fs = require('fs');
 const os = require('os');
 
 const root = path.join(__dirname, '..');
-const { TemplateEditPipeline, isFormatOnlyEdit } = require(path.join(root, 'src', 'main', 'generate', 'template-edit-pipeline'));
+const { TemplateEditPipeline, isFormatOnlyEdit, buildTemplateEditReferences } = require(path.join(root, 'src', 'main', 'generate', 'template-edit-pipeline'));
+const { MAX_BRIDGE_FRAME_BYTES } = require(path.join(root, 'src', 'main', 'generate', 'image-prep'));
 const { buildTemplateEditFrozenRules } = require(path.join(root, 'src', 'main', 'generate', 'layout-fidelity'));
 
 assert(isFormatOnlyEdit('', { size: '1792x1024' }, { width: 1536, height: 1024 }), 'empty change + new size = format only');
@@ -51,6 +52,7 @@ class MockRegistry {
   fs.writeFileSync(templatePath, png);
 
   let chatCalled = false;
+  let chatPayload = null;
   let imagesPayload = null;
   const client = {
     async getCapabilities() {
@@ -58,11 +60,13 @@ class MockRegistry {
     },
     async chat(body) {
       chatCalled = true;
+      chatPayload = body;
       const userContent = body.messages[1].content;
       const textPart = userContent.find((p) => p.type === 'input_text' || p.type === 'text');
       assert(textPart.text.includes(changeRequest), 'chat task includes change request');
       const imageParts = userContent.filter((p) => p.type === 'input_image' || p.type === 'image_url');
-      assert.equal(imageParts.length, 1, 'exactly one template image in chat');
+      assert.equal(imageParts.length, 0, 'chat uses path attachments instead of inline images');
+      assert.equal(body.referenced_image_paths.length, 1, 'chat sends template path');
       return {
         response: {
           choices: [{
@@ -97,8 +101,10 @@ class MockRegistry {
   );
 
   assert(chatCalled, 'chat optimization called');
+  assert(chatPayload, 'chat payload captured');
   assert(imagesPayload, 'images generation called');
-  assert.equal(imagesPayload.reference_images.length, 1, 'exactly one reference image');
+  assert(!imagesPayload.reference_images, 'images use paths only for template edit');
+  assert.equal(imagesPayload.referenced_image_paths.length, 1, 'template path attached');
   assert.equal(imagesPayload.size, '1536x1024', 'api size matches template dimensions');
   assert.equal(imagesPayload.quality, 'high', 'quality normalized');
   assert(imagesPayload.prompt.includes('FROZEN'), 'final image prompt includes frozen block');
@@ -112,7 +118,7 @@ class MockRegistry {
 
   const stylePath = path.join(tmpDir, 'style-ref.png');
   fs.writeFileSync(stylePath, png);
-  let styleChatImages = 0;
+  let styleChatPaths = 0;
   let styleImagesPayload = null;
   const styleClient = {
     async getCapabilities() {
@@ -122,7 +128,7 @@ class MockRegistry {
       const userContent = body.messages[1].content;
       const textPart = userContent.find((p) => p.type === 'input_text' || p.type === 'text');
       assert(textPart.text.includes('IMAGE 2'), 'style chat task mentions IMAGE 2');
-      styleChatImages = userContent.filter((p) => p.type === 'input_image' || p.type === 'image_url').length;
+      styleChatPaths = body.referenced_image_paths?.length || 0;
       return {
         response: {
           choices: [{
@@ -159,8 +165,9 @@ class MockRegistry {
     () => {},
     'sig-style',
   );
-  assert.equal(styleChatImages, 2, 'style edit chat has two images');
-  assert.equal(styleImagesPayload.reference_images.length, 2, 'style edit images payload has two refs');
+  assert.equal(styleChatPaths, 2, 'style edit chat has two path attachments');
+  assert(!styleImagesPayload.reference_images, 'style edit images payload uses paths only');
+  assert.equal(styleImagesPayload.referenced_image_paths.length, 2, 'style edit paths include template and style');
   assert(styleImagesPayload.prompt.includes('visual style reference'), 'style hint in image prompt');
   assert.equal(styleResult.referenceImagePath, stylePath, 'result stores reference path');
 
@@ -180,7 +187,8 @@ class MockRegistry {
     async images(payload) {
       assert.equal(payload.size, '1792x1024', 'format-only uses selected size');
       assert(/Resize the attached/i.test(payload.prompt), 'format-only resize prompt');
-      assert.equal(payload.reference_images.length, 1, 'format-only ignores style reference');
+      assert(!payload.reference_images, 'format-only uses path attachment only');
+      assert.equal(payload.referenced_image_paths.length, 1, 'format-only sends template path only');
       return {
         response: { data: [{ b64_json: png.toString('base64') }] },
         _attachmentMode: 'reference_images',
@@ -195,6 +203,21 @@ class MockRegistry {
   );
   assert(!formatChatCalled, 'format-only skips chat optimization');
   assert(formatResult.formatOnly, 'formatOnly flag set');
+
+  const largePath = path.join(tmpDir, 'large-template.png');
+  const sharp = require('sharp');
+  await sharp({
+    create: {
+      width: 1800,
+      height: 1800,
+      channels: 3,
+      background: { r: 10, g: 20, b: 30 },
+    },
+  }).png({ compressionLevel: 0 }).toFile(largePath);
+  assert(fs.statSync(largePath).size > MAX_BRIDGE_FRAME_BYTES, 'fixture exceeds bridge byte limit');
+  const largeRefs = await buildTemplateEditReferences(largePath, '');
+  assert.equal(largeRefs.length, 1, 'large template yields path-only reference');
+  assert(!largeRefs[0].b64_json, 'large template is not base64-encoded');
 
   fs.rmSync(tmpDir, { recursive: true, force: true });
   if (formatResult.previewPath && fs.existsSync(formatResult.previewPath)) {

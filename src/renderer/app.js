@@ -16,6 +16,8 @@ let editorTemplateId = '';
 let editorLocked = false;
 let editorGenerating = false;
 let editorOutputSize = 'template';
+let editorAspectRatio = 1;
+let editorSizeFieldSync = false;
 let editorReferenceImage = null;
 let waitStart = 0;
 let waitTimer = null;
@@ -723,6 +725,8 @@ function applyLabels() {
   $('lbl-opt-prompt').textContent = t('prompt.optimized');
   $('btn-generate-edit').textContent = t('template.generateEdit');
   $('lbl-editor-size').textContent = t('template.outputFormat');
+  if ($('lbl-editor-width')) $('lbl-editor-width').textContent = t('template.editorWidth');
+  if ($('lbl-editor-height')) $('lbl-editor-height').textContent = t('template.editorHeight');
   $('lbl-editor-quality').textContent = t('settings.quality');
   $('editor-change-hint').textContent = t('template.changeOptionalHint');
   $('lbl-editor-template').textContent = t('template.current');
@@ -903,6 +907,156 @@ function templateSizeModeValues(tmpl) {
   ];
 }
 
+function parseSizeWxH(size) {
+  const m = String(size || '').match(/^(\d{2,5})x(\d{2,5})$/i);
+  if (!m) return null;
+  return { width: parseInt(m[1], 10), height: parseInt(m[2], 10) };
+}
+
+function setEditorTemplateAspectRatio(tmpl) {
+  const w = Number(tmpl?.width || 0);
+  const h = Number(tmpl?.height || 0);
+  editorAspectRatio = w > 0 && h > 0 ? w / h : 1;
+}
+
+function setEditorDimensionFields(width, height) {
+  editorSizeFieldSync = true;
+  if ($('editor-size-width')) $('editor-size-width').value = width > 0 ? String(width) : '';
+  if ($('editor-size-height')) $('editor-size-height').value = height > 0 ? String(height) : '';
+  editorSizeFieldSync = false;
+}
+
+function populateEditorSizePresetSelect(sizeSelect, tmpl) {
+  sizeSelect.innerHTML = '';
+  const templateOpt = document.createElement('option');
+  templateOpt.value = imageSettingsCatalog.sizeFromTemplate;
+  templateOpt.textContent = t('settings.sizeTemplate').replace('{size}', templateSizeLabel(tmpl));
+  sizeSelect.appendChild(templateOpt);
+  for (const size of imageSettingsCatalog.sizes) {
+    if (size === 'auto') continue;
+    const opt = document.createElement('option');
+    opt.value = size;
+    opt.textContent = formatGatewaySizeLabel(size);
+    sizeSelect.appendChild(opt);
+  }
+  const customOpt = document.createElement('option');
+  customOpt.value = 'custom';
+  customOpt.textContent = t('template.sizeCustom');
+  sizeSelect.appendChild(customOpt);
+}
+
+function syncEditorSizeFieldsFromValue(sizeValue, tmpl) {
+  setEditorTemplateAspectRatio(tmpl);
+  const nativeW = Number(tmpl?.width || 0);
+  const nativeH = Number(tmpl?.height || 0);
+  const presetSelect = $('editor-size-preset');
+  if (!presetSelect) return;
+
+  const normalized = String(sizeValue || '').trim();
+  if (!normalized
+    || normalized === imageSettingsCatalog.sizeFromTemplate
+    || normalized === imageSettingsCatalog.sizeFromTemplate2x) {
+    presetSelect.value = imageSettingsCatalog.sizeFromTemplate;
+    setEditorDimensionFields(nativeW, nativeH);
+    editorOutputSize = imageSettingsCatalog.sizeFromTemplate;
+    return;
+  }
+
+  const parsed = parseSizeWxH(normalized);
+  if (parsed) {
+    const isPreset = imageSettingsCatalog.sizes.includes(normalized);
+    presetSelect.value = isPreset ? normalized : 'custom';
+    setEditorDimensionFields(parsed.width, parsed.height);
+    editorOutputSize = normalized;
+    return;
+  }
+
+  presetSelect.value = imageSettingsCatalog.sizeFromTemplate;
+  setEditorDimensionFields(nativeW, nativeH);
+  editorOutputSize = imageSettingsCatalog.sizeFromTemplate;
+}
+
+function getEditorSizeValue() {
+  const preset = $('editor-size-preset')?.value || imageSettingsCatalog?.sizeFromTemplate;
+  if (preset === imageSettingsCatalog.sizeFromTemplate) {
+    return imageSettingsCatalog.sizeFromTemplate;
+  }
+  if (preset !== 'custom' && imageSettingsCatalog?.sizes?.includes(preset)) {
+    return preset;
+  }
+  const w = parseInt($('editor-size-width')?.value, 10);
+  const h = parseInt($('editor-size-height')?.value, 10);
+  if (!w || !h) return imageSettingsCatalog.sizeFromTemplate;
+  const tmpl = getEditorTemplate();
+  if (tmpl?.width === w && tmpl?.height === h) {
+    return imageSettingsCatalog.sizeFromTemplate;
+  }
+  return `${w}x${h}`;
+}
+
+function editorDimensionsValid() {
+  const w = parseInt($('editor-size-width')?.value, 10);
+  const h = parseInt($('editor-size-height')?.value, 10);
+  return w >= 64 && h >= 64 && w <= 8192 && h <= 8192;
+}
+
+function onEditorSizePresetChange() {
+  const preset = $('editor-size-preset')?.value;
+  const tmpl = getEditorTemplate();
+  if (preset === imageSettingsCatalog.sizeFromTemplate) {
+    setEditorDimensionFields(tmpl?.width, tmpl?.height);
+    editorOutputSize = imageSettingsCatalog.sizeFromTemplate;
+    return;
+  }
+  if (preset === 'custom') {
+    editorOutputSize = getEditorSizeValue();
+    return;
+  }
+  const parsed = parseSizeWxH(preset);
+  if (parsed) {
+    setEditorDimensionFields(parsed.width, parsed.height);
+    editorOutputSize = preset;
+  }
+}
+
+function onEditorDimensionInput(axis) {
+  if (editorSizeFieldSync) return;
+  const widthEl = $('editor-size-width');
+  const heightEl = $('editor-size-height');
+  let w = parseInt(widthEl?.value, 10);
+  let h = parseInt(heightEl?.value, 10);
+  if (!editorAspectRatio || editorAspectRatio <= 0) return;
+
+  editorSizeFieldSync = true;
+  if (axis === 'width' && w > 0) {
+    h = Math.max(1, Math.round(w / editorAspectRatio));
+    heightEl.value = String(h);
+  } else if (axis === 'height' && h > 0) {
+    w = Math.max(1, Math.round(h * editorAspectRatio));
+    widthEl.value = String(w);
+  }
+  editorSizeFieldSync = false;
+
+  w = parseInt(widthEl?.value, 10);
+  h = parseInt(heightEl?.value, 10);
+  if (w > 0 && h > 0) {
+    $('editor-size-preset').value = 'custom';
+    editorOutputSize = getEditorSizeValue();
+  }
+}
+
+function setupEditorSizeControls() {
+  $('editor-size-preset')?.addEventListener('change', () => {
+    onEditorSizePresetChange();
+  });
+  $('editor-size-width')?.addEventListener('input', () => {
+    onEditorDimensionInput('width');
+  });
+  $('editor-size-height')?.addEventListener('input', () => {
+    onEditorDimensionInput('height');
+  });
+}
+
 function getEditorTemplate() {
   const id = editorTemplateId || session.templateId;
   return templates.find((item) => item.id === id) || null;
@@ -988,26 +1142,15 @@ async function refreshEditorUi() {
   if (!imageSettingsCatalog) {
     imageSettingsCatalog = await api.getImageSettingsCatalog();
   }
-  const sizeSelect = $('editor-size');
-  const prevSize = sizeSelect?.value || editorOutputSize || imageSettingsCatalog.defaultSize;
-  if (sizeSelect) {
-    sizeSelect.innerHTML = '';
-    appendTemplateSizeOptions(sizeSelect, displayTmpl);
-    for (const size of imageSettingsCatalog.sizes) {
-      const opt = document.createElement('option');
-      opt.value = size;
-      opt.textContent = formatGatewaySizeLabel(size);
-      sizeSelect.appendChild(opt);
-    }
-    const validSizes = templateSizeModeValues(displayTmpl);
-    let nextSize = validSizes.includes(prevSize) ? prevSize : imageSettingsCatalog.defaultSize;
-    if (prevSize === imageSettingsCatalog.sizeFromTemplate2x && !shouldOfferTemplate2x(displayTmpl)) {
-      nextSize = imageSettingsCatalog.defaultSize;
-    }
-    sizeSelect.value = nextSize;
-    editorOutputSize = nextSize;
-    sizeSelect.disabled = editorLocked || editorGenerating;
+  const presetSelect = $('editor-size-preset');
+  const prevSize = editorOutputSize || imageSettingsCatalog.defaultSize;
+  if (presetSelect) {
+    populateEditorSizePresetSelect(presetSelect, displayTmpl);
+    syncEditorSizeFieldsFromValue(prevSize, displayTmpl);
+    presetSelect.disabled = editorLocked || editorGenerating;
   }
+  if ($('editor-size-width')) $('editor-size-width').disabled = editorLocked || editorGenerating;
+  if ($('editor-size-height')) $('editor-size-height').disabled = editorLocked || editorGenerating;
 
   const qualitySelect = $('editor-quality');
   const prevQuality = qualitySelect.value || session.quality || imageSettingsCatalog.defaultQuality;
@@ -1035,7 +1178,9 @@ function updateEditorLockUi() {
   hint.textContent = t('template.lockedHint');
   $('btn-generate-edit').disabled = editorGenerating;
   $('change-request').disabled = editorGenerating;
-  if ($('editor-size')) $('editor-size').disabled = locked || editorGenerating;
+  if ($('editor-size-preset')) $('editor-size-preset').disabled = locked || editorGenerating;
+  if ($('editor-size-width')) $('editor-size-width').disabled = locked || editorGenerating;
+  if ($('editor-size-height')) $('editor-size-height').disabled = locked || editorGenerating;
   if ($('editor-quality')) $('editor-quality').disabled = locked || editorGenerating;
   if ($('btn-editor-ref-add')) $('btn-editor-ref-add').disabled = locked || editorGenerating;
 }
@@ -1124,12 +1269,19 @@ function setupEditorReference() {
   });
 }
 
+function setEditorReviewBarVisible(visible) {
+  const bar = $('editor-review-bar');
+  if (bar) bar.classList.toggle('hidden', !visible);
+}
+
 function clearEditorPreview() {
   $('editor-preview').classList.add('hidden');
   $('editor-preview-empty').classList.remove('hidden');
-  $('accept-row').classList.add('hidden');
+  setEditorReviewBarVisible(false);
   $('optimized-prompt').value = '';
   $('change-summary').textContent = '';
+  const promptDetails = $('editor-prompt-details');
+  if (promptDetails) promptDetails.open = false;
 }
 
 async function refreshImageSettingsUi() {
@@ -1488,7 +1640,7 @@ function setupEditorImageContextMenus() {
       menuItem('compare', 'context.compareFullscreen'),
       menuItem('fullscreen', 'context.fullscreen'),
     ];
-    if (!$('accept-row').classList.contains('hidden')) {
+    if (!$('editor-review-bar').classList.contains('hidden')) {
       items.push(menuItem('sep', '', { separator: true }));
       items.push(menuItem('accept', 'context.acceptEdit'));
       items.push(menuItem('reject', 'context.rejectEdit'));
@@ -1895,6 +2047,7 @@ function setupInteractionHandlers() {
   setupDragDrop();
   setupPreviewLightbox();
   setupEditorCompareLightbox();
+  setupEditorSizeControls();
   setupEditorReference();
   setupEditorImageContextMenus();
   setupPanelContextMenus();
@@ -2029,16 +2182,16 @@ function setupInteractionHandlers() {
     await selectEditorTemplate(id);
   });
 
-  $('editor-size').addEventListener('change', () => {
-    editorOutputSize = $('editor-size').value;
-  });
-
   $('btn-generate-edit').addEventListener('click', async () => {
     if (!(await ensureBridgeReady())) return;
     const id = editorTemplateId || session.templateId;
     const changeRequest = $('change-request').value.trim();
-    const size = $('editor-size').value;
+    const size = getEditorSizeValue();
     const tmpl = getEditorTemplate();
+    if (!editorDimensionsValid()) {
+      showStatus(t('template.invalidSize'), { level: 'warn' });
+      return;
+    }
     if (!isEditorFormatOnly(changeRequest, size, tmpl) && !changeRequest) {
       showStatus(t('template.needChangeOrSize'), { level: 'warn' });
       return;
@@ -2070,7 +2223,7 @@ function setupInteractionHandlers() {
         $('editor-preview').src = `data:image/png;base64,${result.previewB64}`;
         $('editor-preview').classList.remove('hidden');
         $('editor-preview-empty').classList.add('hidden');
-        $('accept-row').classList.remove('hidden');
+        setEditorReviewBarVisible(true);
       }
       editorLocked = true;
       hideWait();
@@ -2211,7 +2364,7 @@ async function init() {
       $('editor-preview').src = `data:image/png;base64,${pendingEdit.previewB64}`;
       $('editor-preview').classList.remove('hidden');
       $('editor-preview-empty').classList.add('hidden');
-      $('accept-row').classList.remove('hidden');
+      setEditorReviewBarVisible(true);
     }
   } else {
     editorTemplateId = session.templateId;

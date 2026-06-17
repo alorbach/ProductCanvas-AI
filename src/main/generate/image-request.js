@@ -4,9 +4,6 @@ const fs = require('fs');
 const path = require('path');
 const {
   isImagePath,
-  prepareBridgeFrame,
-  prepareProductReferenceFrame,
-  frameByteSize,
 } = require('./image-prep');
 const { buildReferenceImageEntries } = require('./image-preflight');
 const {
@@ -38,8 +35,6 @@ const ANALYZE_PRODUCT_PROMPT = `Analysiere das Produktbild für eine Werbeanzeig
 Wichtig: Nichts hinzuerfinden, nichts weglassen. Nur sichtbare Details beschreiben.`;
 
 const MAX_IMAGE_ATTACHMENTS = 2;
-const LAYOUT_REF_MAX_EDGE = 1536;
-const LAYOUT_REF_JPEG_QUALITY = 90;
 
 function appendFidelityToImagePrompt(imagePrompt, hasReferenceImages, hasLayoutTemplate = false) {
   const base = String(imagePrompt || '').trim();
@@ -90,28 +85,6 @@ function collectReferencePaths(referenceImages) {
     .map((p) => path.resolve(p));
 }
 
-async function prepareAttachmentFrames(attachmentPaths, productPathCount) {
-  const frames = [];
-  const meta = [];
-  for (let i = 0; i < attachmentPaths.length; i++) {
-    const filePath = attachmentPaths[i];
-    const isProduct = i < productPathCount;
-    const frame = isProduct
-      ? await prepareProductReferenceFrame(filePath)
-      : await prepareBridgeFrame(filePath, {
-        maxEdge: LAYOUT_REF_MAX_EDGE,
-        quality: LAYOUT_REF_JPEG_QUALITY,
-      });
-    frames.push(frame);
-    meta.push({
-      path: filePath,
-      bytes: frameByteSize(frame),
-      role: isProduct ? 'product' : 'layout',
-    });
-  }
-  return { frames, meta };
-}
-
 async function buildImageAttachments(referenceImages, templatePath, options = {}) {
   const attachTemplate = options.attachTemplate !== false
     && templatePath
@@ -132,14 +105,12 @@ async function buildImageAttachments(referenceImages, templatePath, options = {}
     attachmentPaths.push(layoutPath);
   }
 
-  const { frames, meta } = await prepareAttachmentFrames(attachmentPaths, selectedProducts.length);
-
   return {
     productPaths: selectedProducts,
     attachmentPaths,
     referenceImages: referenceImagesEntries,
-    frames,
-    frameMeta: meta,
+    frames: [],
+    frameMeta: [],
     hasProductReference: selectedProducts.length > 0,
     hasTemplateReference: Boolean(layoutPath),
   };
@@ -176,7 +147,10 @@ function buildImageApiPayload({
   };
 
   if (referenceImages?.length) {
-    payload.reference_images = referenceImages;
+    const encodedRefs = referenceImages.filter((r) => r.b64_json);
+    if (encodedRefs.length) {
+      payload.reference_images = encodedRefs;
+    }
   }
   if (attachmentPaths?.length) {
     payload.referenced_image_paths = attachmentPaths;
@@ -199,5 +173,4 @@ module.exports = {
   collectReferencePaths,
   buildImageAttachments,
   buildImageApiPayload,
-  frameByteSize,
 };

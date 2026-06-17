@@ -21,6 +21,11 @@ const { getPreferences, setPreferences } = require('./app-preferences');
 const { migrateIfNeeded } = require('./migration/user-data-migrate');
 const mainI18n = require('./i18n/main-i18n');
 
+const MAIN_WINDOW_WIDTH = 1440;
+const MAIN_WINDOW_HEIGHT = 900;
+const MAIN_WINDOW_MIN_WIDTH = 1440;
+const MAIN_WINDOW_MIN_HEIGHT = 800;
+
 let mainWindow = null;
 let settingsWindow = null;
 let bridgeManager;
@@ -95,10 +100,10 @@ function profileFilters() {
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
-    minWidth: 1100,
-    minHeight: 700,
+    width: MAIN_WINDOW_WIDTH,
+    height: MAIN_WINDOW_HEIGHT,
+    minWidth: MAIN_WINDOW_MIN_WIDTH,
+    minHeight: MAIN_WINDOW_MIN_HEIGHT,
     title: 'ProductCanvas AI',
     backgroundColor: '#0d0d0d',
     webPreferences: {

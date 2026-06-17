@@ -445,7 +445,29 @@ body.lightbox-open { overflow: hidden; }
 .editor-ref-drop.drag-over { border-color: var(--accent); background: rgba(255, 215, 0, 0.06); }
 .editor-ref-preview .ref-thumb { display: inline-block; position: relative; }
 .editor-ref-preview .ref-thumb img { width: 72px; height: 72px; object-fit: cover; border-radius: 4px; }
-.editor-settings-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.editor-settings-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.editor-size-preset-label { min-width: 12rem; }
+.editor-size-custom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+.editor-size-custom label { display: flex; flex-direction: column; gap: 4px; min-width: 5.5rem; }
+.editor-size-custom input[type="number"] {
+  width: 6.5rem;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+}
+.editor-size-times {
+  align-self: center;
+  padding-bottom: 8px;
+  color: var(--muted);
+  font-weight: 600;
+}
 .editor-template-badge {
   display: inline-block;
   padding: 4px 10px;
@@ -455,6 +477,18 @@ body.lightbox-open { overflow: hidden; }
   font-size: 0.9rem;
 }
 .editor-locked-hint { margin: 6px 0 0; font-size: 0.9rem; }
+.editor-review-bar {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 6px;
+  background: rgba(255, 215, 0, 0.06);
+  border: 1px solid var(--accent);
+}
+.editor-review-summary {
+  margin: 0 0 10px;
+  line-height: 1.45;
+}
+.editor-review-bar .accept-row { margin: 0; }
 .template-list.locked { opacity: 0.55; pointer-events: none; }
 .template-list.locked .template-card { cursor: not-allowed; }
 #optimized-prompt[readonly] { opacity: 0.92; }
@@ -735,6 +769,11 @@ body { padding-bottom: 36px; }
 body.debug-open { padding-bottom: 220px; }
 
 .prompt-details summary { cursor: pointer; color: var(--muted); margin-bottom: 8px; }
+.editor-prompt-details { margin-top: 12px; }
+.editor-prompt-details textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
 
 @media (max-width: 1200px) {
   #view-werbung { grid-template-columns: 1fr 1fr; }

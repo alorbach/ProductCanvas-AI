@@ -6,7 +6,7 @@ const paths = require('../paths');
 const debugLog = require('../debug/logger');
 const { isImagePath } = require('./image-prep');
 const {
-  buildReferenceImageEntry,
+  buildReferencePathEntry,
   buildPreflightMessages,
   gatewayErrorNeedsResponsesContentParts,
 } = require('./image-preflight');
@@ -51,17 +51,21 @@ function formatResizeSummary(imageSettings) {
 }
 
 async function buildTemplateEditReferences(templatePath, referenceImagePath) {
-  const layout = await buildReferenceImageEntry(templatePath, 'layout');
+  const layout = await buildReferencePathEntry(templatePath, 'layout');
   if (!layout) {
     throw new Error('Vorlagenbild konnte nicht gelesen werden.');
   }
   const refs = [layout];
   const stylePath = String(referenceImagePath || '').trim();
   if (stylePath && fs.existsSync(stylePath) && isImagePath(stylePath)) {
-    const style = await buildReferenceImageEntry(stylePath, 'style');
+    const style = await buildReferencePathEntry(stylePath, 'style');
     if (style) refs.push(style);
   }
   return refs;
+}
+
+function collectReferencePaths(referenceImages) {
+  return (referenceImages || []).map((r) => r.path).filter(Boolean);
 }
 
 class TemplateEditPipeline {
@@ -75,6 +79,7 @@ class TemplateEditPipeline {
 
     const referenceImages = await buildTemplateEditReferences(templatePath, referenceImagePath);
     const hasStyleReference = referenceImages.length > 1;
+    const refPaths = collectReferencePaths(referenceImages);
 
     const taskPrompt = buildTemplateEditFrozenRules(changeRequest, imageSettings, { hasStyleReference });
     const model = 'codex-local:auto';
@@ -82,14 +87,24 @@ class TemplateEditPipeline {
 
     let result;
     try {
-      result = await this.client.chat({ model, messages, max_tokens: 2048 }, signalKey);
+      result = await this.client.chat({
+        model,
+        messages,
+        max_tokens: 2048,
+        referenced_image_paths: refPaths,
+      }, signalKey);
     } catch (err) {
       if (!gatewayErrorNeedsResponsesContentParts(err)) throw err;
       messages = buildPreflightMessages(taskPrompt, referenceImages, {
         model,
         forceResponsesContentParts: true,
       });
-      result = await this.client.chat({ model, messages, max_tokens: 2048 }, signalKey);
+      result = await this.client.chat({
+        model,
+        messages,
+        max_tokens: 2048,
+        referenced_image_paths: refPaths,
+      }, signalKey);
     }
 
     const parsed = extractJson(getChoiceContent(result));
@@ -129,6 +144,7 @@ class TemplateEditPipeline {
     onProgress?.({ status: 'running', messageKey: 'wait.status.templateEditImage' });
 
     const referenceImages = await buildTemplateEditReferences(templatePath, referenceImagePath);
+    const refPaths = collectReferencePaths(referenceImages);
 
     let bridgeCapabilities = null;
     try {
@@ -142,14 +158,18 @@ class TemplateEditPipeline {
       prompt = `${prompt}\n\n${STYLE_REFERENCE_HINT}`;
     }
 
+    const encodedRefs = referenceImages.filter((r) => r.b64_json);
     const apiPayload = {
       model: 'codex-local:image',
       prompt,
       size: imageSettings.size,
       quality: imageSettings.quality,
       requireReferences: true,
-      reference_images: referenceImages,
+      referenced_image_paths: refPaths,
     };
+    if (encodedRefs.length) {
+      apiPayload.reference_images = encodedRefs;
+    }
 
     debugLog.info('template-edit-pipeline', 'Vorlagen-Edit Bildgenerierung', {
       templateId: template.id,

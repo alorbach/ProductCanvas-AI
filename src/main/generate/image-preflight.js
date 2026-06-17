@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const sharp = require('sharp');
-const { isImagePath } = require('./image-prep');
+const { isImagePath, MAX_BRIDGE_FRAME_BYTES } = require('./image-prep');
 const {
   LAYOUT_EDITABLE_RULES,
   LAYOUT_FROZEN_RULES,
@@ -13,35 +13,92 @@ const {
   sanitizePreflightPrompt,
 } = require('./layout-fidelity');
 
-const PREFLIGHT_REF_MAX_EDGE = 1024;
-const PREFLIGHT_JPEG_QUALITY = 88;
+const PREFLIGHT_JPEG_QUALITY = 92;
 
 function getChoiceContent(result) {
   return result?.response?.choices?.[0]?.message?.content || '';
 }
 
-async function buildReferenceImageEntry(filePath, label, maxPx = PREFLIGHT_REF_MAX_EDGE) {
+async function readReferenceImageMeta(filePath) {
+  const meta = await sharp(filePath).rotate().metadata();
+  const width = meta.width || 0;
+  const height = meta.height || 0;
+  return { width, height };
+}
+
+async function buildReferencePathEntry(filePath, label) {
   if (!filePath || !fs.existsSync(filePath) || !isImagePath(filePath)) {
     return null;
   }
-  const meta = await sharp(filePath).rotate().metadata();
-  const buffer = await sharp(filePath)
-    .rotate()
-    .resize(maxPx, maxPx, { fit: 'inside', withoutEnlargement: false })
-    .jpeg({ quality: PREFLIGHT_JPEG_QUALITY, mozjpeg: true })
-    .toBuffer();
-  const outMeta = await sharp(buffer).metadata();
+  const { width, height } = await readReferenceImageMeta(filePath);
   return {
     label,
     path: path.resolve(filePath),
-    b64_json: buffer.toString('base64'),
-    mime_type: 'image/jpeg',
+    width,
+    height,
+    original_width: width,
+    original_height: height,
+  };
+}
+
+async function encodeReferenceImage(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  const meta = await sharp(filePath).rotate().metadata();
+  let buffer;
+  let mime_type;
+  if (ext === '.png' || ext === '.webp') {
+    buffer = await sharp(filePath).rotate().png().toBuffer();
+    mime_type = 'image/png';
+  } else {
+    buffer = await sharp(filePath)
+      .rotate()
+      .jpeg({ quality: PREFLIGHT_JPEG_QUALITY, mozjpeg: true })
+      .toBuffer();
+    mime_type = 'image/jpeg';
+  }
+  if (buffer.length > MAX_BRIDGE_FRAME_BYTES) {
+    const name = path.basename(filePath);
+    throw new Error(
+      `Referenzbild „${name}“ ist zu groß (${Math.round(buffer.length / 1024)} KB). Bitte eine kleinere Datei verwenden – die App skaliert Referenzen nicht mehr automatisch.`,
+    );
+  }
+  const outMeta = await sharp(buffer).metadata();
+  return {
+    buffer,
+    mime_type,
     width: outMeta.width || meta.width || 0,
     height: outMeta.height || meta.height || 0,
     original_width: meta.width || 0,
     original_height: meta.height || 0,
-    max_px: maxPx,
   };
+}
+
+async function buildReferenceImageEntry(filePath, label) {
+  if (!filePath || !fs.existsSync(filePath) || !isImagePath(filePath)) {
+    return null;
+  }
+  try {
+    const fileSize = fs.statSync(filePath).size;
+    if (fileSize > MAX_BRIDGE_FRAME_BYTES) {
+      return buildReferencePathEntry(filePath, label);
+    }
+    const encoded = await encodeReferenceImage(filePath);
+    return {
+      label,
+      path: path.resolve(filePath),
+      b64_json: encoded.buffer.toString('base64'),
+      mime_type: encoded.mime_type,
+      width: encoded.width,
+      height: encoded.height,
+      original_width: encoded.original_width,
+      original_height: encoded.original_height,
+    };
+  } catch (err) {
+    if (/zu groß/i.test(String(err?.message || ''))) {
+      return buildReferencePathEntry(filePath, label);
+    }
+    throw err;
+  }
 }
 
 async function buildReferenceImageEntries({ productPath, layoutPath } = {}) {
@@ -182,13 +239,14 @@ async function runImagePreflight(bridgeClient, {
   const taskPrompt = buildPreflightTaskPrompt({ settings, promptData, template });
   const model = 'codex-local:auto';
   let messages = buildPreflightMessages(taskPrompt, referenceImages, { model });
+  const refPaths = (referenceImages || []).map((r) => r.path).filter(Boolean);
+  const chatPayload = { model, messages, max_tokens: 1800 };
+  if (refPaths.length) {
+    chatPayload.referenced_image_paths = refPaths;
+  }
   let result;
   try {
-    result = await bridgeClient.chat({
-      model,
-      messages,
-      max_tokens: 1800,
-    }, signalKey);
+    result = await bridgeClient.chat(chatPayload, signalKey);
   } catch (err) {
     if (!gatewayErrorNeedsResponsesContentParts(err)) {
       throw err;
@@ -197,11 +255,8 @@ async function runImagePreflight(bridgeClient, {
       model,
       forceResponsesContentParts: true,
     });
-    result = await bridgeClient.chat({
-      model,
-      messages,
-      max_tokens: 1800,
-    }, signalKey);
+    chatPayload.messages = messages;
+    result = await bridgeClient.chat(chatPayload, signalKey);
   }
 
   let finalPrompt = getChoiceContent(result).trim().replace(/^["']|["']$/g, '');
@@ -220,8 +275,8 @@ async function runImagePreflight(bridgeClient, {
 }
 
 module.exports = {
-  PREFLIGHT_REF_MAX_EDGE,
   buildReferenceImageEntry,
+  buildReferencePathEntry,
   buildReferenceImageEntries,
   buildPreflightTaskPrompt,
   buildPreflightMessages,

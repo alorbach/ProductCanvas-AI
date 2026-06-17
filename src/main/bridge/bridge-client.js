@@ -299,16 +299,16 @@ class BridgeClient {
     } = payload;
 
     const attempts = [];
-    if (referenceImages?.length) {
-      attempts.push({
-        mode: 'reference_images',
-        body: { ...rest, reference_images: referenceImages },
-      });
-    }
     if (refPaths?.length) {
       attempts.push({
         mode: 'referenced_image_paths',
         body: { ...rest, referenced_image_paths: refPaths },
+      });
+    }
+    if (referenceImages?.length) {
+      attempts.push({
+        mode: 'reference_images',
+        body: { ...rest, reference_images: referenceImages },
       });
     }
     if (frames?.length) {
