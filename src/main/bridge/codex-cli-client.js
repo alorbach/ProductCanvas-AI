@@ -10,7 +10,77 @@ const codexBinaryEnv = process.env.ALORBACH_CODEX_BINARY || 'codex';
 const codexHome = process.env.CODEX_HOME || path.join(os.homedir(), '.codex');
 const authPath = path.join(codexHome, 'auth.json');
 const generatedImagesDir = path.join(codexHome, 'generated_images');
+const LOG_TEXT_MAX = 8000;
 let resolvedBinaryCache = null;
+let binaryResolutionLogged = false;
+
+function truncateLogText(text, max = LOG_TEXT_MAX) {
+  const raw = String(text || '');
+  if (raw.length <= max) return raw;
+  return `${raw.slice(0, max)}\n… (${raw.length} chars total, truncated)`;
+}
+
+function formatArgForLog(arg) {
+  const value = String(arg || '');
+  if (value.length > 120) return `${value.slice(0, 117)}…`;
+  return value;
+}
+
+function codexCommandLabel(args) {
+  return `${resolveCodexBinary()} ${(Array.isArray(args) ? args : []).map(formatArgForLog).join(' ')}`;
+}
+
+function pathLookupMatches() {
+  if (process.platform !== 'win32') return [];
+  const lookup = spawnSync('where.exe', [codexBinaryEnv], { encoding: 'utf8', shell: false });
+  if (lookup.status !== 0) return [];
+  return (lookup.stdout || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+}
+
+function logBinaryResolution() {
+  if (binaryResolutionLogged) return;
+  binaryResolutionLogged = true;
+  const binary = resolveCodexBinary();
+  const details = {
+    codex_binary: binary,
+    codex_home: codexHome,
+    auth_path: authPath,
+    env_override: codexBinaryEnv,
+  };
+  if (process.platform === 'win32' && !/[\\/]/.test(codexBinaryEnv)) {
+    const pathMatches = pathLookupMatches();
+    if (pathMatches.length) details.path_lookup = pathMatches;
+    const extensionBinary = findWindowsCodexExtensionBinary();
+    if (extensionBinary) details.extension_binary = extensionBinary;
+    if (extensionBinary && extensionBinary !== binary) {
+      details.note = 'App uses extension binary; terminal may use PATH codex instead.';
+    }
+  }
+  debugLog.info('codex-cli-client', 'Codex-Binary aufgelöst', details);
+}
+
+function buildCliFailureDetails(run, meta = {}) {
+  const details = {
+    codex_binary: resolveCodexBinary(),
+    codex_home: codexHome,
+    ...meta,
+    exit_status: run?.status ?? null,
+    exit_signal: run?.signal ?? null,
+    used_json: run?.used_json ?? null,
+    json_fallback_reason: run?.json_fallback_reason || null,
+    stderr: truncateLogText(run?.stderr),
+    stdout: truncateLogText(run?.stdout),
+  };
+  if (run?.structured?.errors?.length) details.event_errors = run.structured.errors;
+  if (run?.error) details.spawn_error = run.error.message || String(run.error);
+  const stderrHint = String(run?.stderr || '').trim().split(/\r?\n/).find(Boolean);
+  if (stderrHint) details.stderr_hint = stderrHint;
+  return details;
+}
+
+function logCliFailure(kind, run, meta = {}) {
+  debugLog.error('codex-cli-client', `Codex CLI ${kind} fehlgeschlagen`, buildCliFailureDetails(run, meta));
+}
 
 function collectCodexExe(root, matches, depth = 0) {
   if (!root || depth > 6 || !fs.existsSync(root)) return;
@@ -184,16 +254,58 @@ function codexJsonUnsupported(run) {
   return !!(run && run.status !== 0 && /(?:unknown|unexpected|unrecognized).{0,80}(?:--json|json)|(?:--json|json).{0,80}(?:unknown|unexpected|unrecognized)/i.test(combined));
 }
 
-async function runCodexExec(args, options = {}) {
+async function runCodexExec(args, options = {}, meta = {}) {
+  logBinaryResolution();
+  const command = codexCommandLabel(args);
+  debugLog.info('codex-cli-client', 'Codex exec start', {
+    kind: meta.kind || 'exec',
+    command,
+    cwd: options.cwd || process.cwd(),
+    input_bytes: typeof options.input === 'string'
+      ? Buffer.byteLength(options.input, 'utf8')
+      : (Buffer.isBuffer(options.input) ? options.input.length : 0),
+    timeout_ms: options.timeout || null,
+  });
+
   const jsonArgs = args[0] === 'exec' ? ['exec', '--json', ...args.slice(1)] : ['--json', ...args];
+  const jsonCommand = codexCommandLabel(jsonArgs);
   const run = await runCodexAsync(jsonArgs, options);
   run.structured = parseCodexJsonEvents(run.stdout || '');
   run.used_json = true;
-  if (!codexJsonUnsupported(run)) return run;
+  if (!codexJsonUnsupported(run)) {
+    if (run.error || run.status !== 0) {
+      logCliFailure(meta.kind || 'exec', run, { command: jsonCommand, phase: 'exec --json' });
+    } else {
+      debugLog.info('codex-cli-client', 'Codex exec ok', {
+        kind: meta.kind || 'exec',
+        command: jsonCommand,
+        exit_status: run.status,
+        stdout_bytes: Buffer.byteLength(String(run.stdout || ''), 'utf8'),
+        stderr_bytes: Buffer.byteLength(String(run.stderr || ''), 'utf8'),
+        event_errors: run.structured?.errors?.length ? run.structured.errors : undefined,
+      });
+    }
+    return run;
+  }
+
+  debugLog.warn('codex-cli-client', 'Codex exec --json nicht unterstützt, Fallback ohne --json', {
+    kind: meta.kind || 'exec',
+    command: jsonCommand,
+    stderr: truncateLogText(run.stderr, 500),
+  });
   const fallback = await runCodexAsync(args, options);
   fallback.structured = parseCodexJsonEvents('');
   fallback.used_json = false;
   fallback.json_fallback_reason = 'Codex CLI does not support `codex exec --json`.';
+  if (fallback.error || fallback.status !== 0) {
+    logCliFailure(meta.kind || 'exec', fallback, { command, phase: 'exec fallback' });
+  } else {
+    debugLog.info('codex-cli-client', 'Codex exec ok (Fallback ohne --json)', {
+      kind: meta.kind || 'exec',
+      command,
+      exit_status: fallback.status,
+    });
+  }
   return fallback;
 }
 
@@ -485,6 +597,7 @@ class CodexCliClient {
   async chat(payload, signalKey) {
     const status = checkStatus();
     if (!status.success) {
+      debugLog.warn('codex-cli-client', 'Codex chat abgebrochen: Status nicht bereit', status.details || { message: status.message });
       const err = new Error(status.message);
       err.details = status.details;
       throw err;
@@ -511,15 +624,22 @@ class CodexCliClient {
         timeout: Number(process.env.ALORBACH_CODEX_CHAT_TIMEOUT_MS || 600000),
         input: prompt,
         abortSignal: controller.signal,
-      });
+      }, { kind: 'chat', model, message_count: messages.length, attachment_count: attachments.length });
       let responseText = '';
       if (fs.existsSync(outputFile)) responseText = fs.readFileSync(outputFile, 'utf8').trim();
       if (!responseText && run.structured?.finalMessages?.length) {
         responseText = run.structured.finalMessages[run.structured.finalMessages.length - 1].trim();
       }
       if (run.error || run.status !== 0) {
-        const err = new Error(run.error?.message || 'Codex CLI chat request failed.');
-        err.details = { stdout: run.stdout, stderr: run.stderr };
+        const details = buildCliFailureDetails(run, {
+          kind: 'chat',
+          command: codexCommandLabel(args),
+          model,
+          message_count: messages.length,
+          attachment_count: attachments.length,
+        });
+        const err = new Error(details.stderr_hint || run.error?.message || 'Codex CLI chat request failed.');
+        err.details = details;
         throw err;
       }
       return {
@@ -536,6 +656,7 @@ class CodexCliClient {
   async images(payload, signalKey) {
     const status = checkStatus();
     if (!status.success) {
+      debugLog.warn('codex-cli-client', 'Codex images abgebrochen: Status nicht bereit', status.details || { message: status.message });
       const err = new Error(status.message);
       err.details = status.details;
       throw err;
@@ -577,14 +698,31 @@ class CodexCliClient {
         timeout: Number(process.env.ALORBACH_CODEX_IMAGE_TIMEOUT_MS || 1800000),
         input: imagePrompt(payload, attachments, maskPath),
         abortSignal: controller.signal,
+      }, {
+        kind: 'images',
+        attachment_count: attachments.length,
+        mask_applied: Boolean(maskPath),
+        generated_images_dir: generatedImagesDir,
       });
       const after = listGeneratedImages(generatedImagesDir);
       const newImages = detectNewImage(before, after);
       if (run.error || run.status !== 0 || !newImages.length) {
         const failure = codexImageFailureFromOutput(run.stdout, run.stderr, run.structured);
-        const err = new Error(failure.message);
+        const details = {
+          ...buildCliFailureDetails(run, {
+            kind: 'images',
+            command: codexCommandLabel(args),
+            attachment_count: attachments.length,
+            mask_applied: Boolean(maskPath),
+            generated_images_dir: generatedImagesDir,
+            new_image_count: newImages.length,
+          }),
+          ...failure.details,
+        };
+        debugLog.error('codex-cli-client', 'Codex CLI Bildgenerierung fehlgeschlagen', details);
+        const err = new Error(details.stderr_hint || failure.message);
         err.code = failure.code;
-        err.details = failure.details;
+        err.details = details;
         throw err;
       }
       const bytes = fs.readFileSync(newImages[0].path);
