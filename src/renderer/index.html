@@ -94,13 +94,14 @@
     </section>
     <section class="panel preview-panel">
       <h2 id="lbl-preview">Preview</h2>
-      <div class="preview-wrap">
+      <div class="preview-wrap preview-drop-zone" id="preview-drop">
         <div class="preview-frame">
           <img id="preview-image" alt="Preview" class="hidden preview-clickable" title="" />
           <div id="preview-image-meta" class="preview-meta-overlay hidden" aria-hidden="true"></div>
         </div>
         <p id="preview-empty" class="muted">Generate an image to see the preview.</p>
       </div>
+      <p id="preview-drop-hint" class="preview-drop-hint muted">Drag an image here to replace the preview</p>
       <button type="button" class="btn secondary hidden" id="btn-export">Save as PNG</button>
       <div id="preview-edit-block" class="preview-edit-block hidden">
         <p id="preview-locked-hint" class="editor-locked-hint hidden muted"></p>

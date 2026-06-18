@@ -11,6 +11,7 @@ const { TemplateEditorService } = require('./templates/template-editor-service')
 const { TemplateEditPipeline } = require('./generate/template-edit-pipeline');
 const { PreviewEditPipeline } = require('./generate/preview-edit-pipeline');
 const { PreviewEditService } = require('./generate/preview-edit-service');
+const { importPreviewFromPaths } = require('./generate/preview-import');
 const { ProfileStore } = require('./profiles/profile-store');
 const { PromptBuilder } = require('./generate/prompt-builder');
 const { getImageSettingsCatalog } = require('./generate/image-settings');
@@ -509,6 +510,14 @@ function registerIpc() {
       send('session:saved', session);
     }
     return result;
+  });
+
+  ipcMain.handle('preview:importPaths', (_, filePaths) => {
+    const imported = importPreviewFromPaths(filePaths);
+    if (!imported) {
+      throw new Error('PREVIEW_IMPORT_INVALID');
+    }
+    return imported;
   });
 
   ipcMain.handle('preview:resolveStored', () => {

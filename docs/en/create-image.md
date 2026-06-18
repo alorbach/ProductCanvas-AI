@@ -89,7 +89,7 @@ When complete, the preview panel shows the result. Click the preview for fullscr
 
 ### 6. Refine preview with AI
 
-After generation, use **Edit with AI** below the preview:
+After generation, use **Edit with AI** below the preview. You can also **replace the preview manually**: drag PNG, JPG, or WebP onto the preview area (the file is copied into the temporary preview store).
 
 1. Describe what should change in **Change request** (e.g. “change neon frame from blue to red”).
 2. Click **Edit with AI**. The app optimizes the prompt and generates an edited preview via the bridge.

@@ -64,6 +64,7 @@ contextBridge.exposeInMainWorld('productCanvas', {
   previewAcceptEdit: () => ipcRenderer.invoke('preview:acceptEdit'),
   previewRejectEdit: () => ipcRenderer.invoke('preview:rejectEdit'),
   previewResolveStored: () => ipcRenderer.invoke('preview:resolveStored'),
+  previewImportPaths: (paths) => ipcRenderer.invoke('preview:importPaths', paths),
   generateBuildPrompt: (opts) => ipcRenderer.invoke('generate:buildPrompt', opts),
   generateSuggestAdLine: (opts) => ipcRenderer.invoke('generate:suggestAdLine', opts),
   generateImage: (opts) => ipcRenderer.invoke('generate:image', opts),
