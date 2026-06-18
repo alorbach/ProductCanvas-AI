@@ -480,10 +480,11 @@ function registerIpc() {
   });
 
   ipcMain.handle('templates:getImage', (_, id) => {
-    const t = templateRegistry.getById(id);
-    if (!t) return null;
-    const p = templateRegistry.resolveTemplatePath(t);
-    return templateRegistry.imageToDataUrl(p);
+    const result = templateRegistry.getImageDataUrl(id);
+    if (result.pruned) {
+      send('templates:updated', templateRegistry.listAll());
+    }
+    return result.dataUrl;
   });
 
   ipcMain.handle('templates:runEdit', async (_, { templateId, changeRequest, quality, size, referenceImagePath, pairingCode }) => {
@@ -800,6 +801,7 @@ app.whenReady().then(() => {
     session.bridgeUrl = prefs.bridgeUrl;
   }
   debugLog.setBroadcast((entry) => send('debug:entry', entry));
+  templateRegistry.listAll();
   createWindow();
 
   app.on('activate', () => {

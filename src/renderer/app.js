@@ -2159,7 +2159,7 @@ function renderTemplateList(containerId, selectedId, onSelect) {
     const img = document.createElement('img');
     img.alt = tmpl.name;
     img.draggable = false;
-    api.templatesGetImage(tmpl.id).then((url) => { if (url) img.src = url; });
+    api.templatesGetImage(tmpl.id).then((url) => { if (url) img.src = url; }).catch(() => {});
     const span = document.createElement('span');
     span.textContent = tmpl.name;
     card.appendChild(img);

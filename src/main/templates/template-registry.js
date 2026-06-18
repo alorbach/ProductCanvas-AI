@@ -98,7 +98,28 @@ class TemplateRegistry {
     this.saveUserRegistry(reg);
   }
 
+  pruneMissingTemplates() {
+    const reg = this.getUserRegistry();
+    const before = reg.templates || [];
+    const kept = [];
+    const removedIds = [];
+    for (const entry of before) {
+      const filePath = this.resolveTemplatePath(entry);
+      if (fs.existsSync(filePath)) {
+        kept.push(entry);
+      } else {
+        removedIds.push(entry.id);
+      }
+    }
+    if (removedIds.length) {
+      reg.templates = kept;
+      this.saveUserRegistry(reg);
+    }
+    return { removedIds };
+  }
+
   listAll() {
+    this.pruneMissingTemplates();
     return (this.getUserRegistry().templates || []).map((t) => enrichTemplateMeta({
       ...t,
       type: 'user',
@@ -254,10 +275,23 @@ class TemplateRegistry {
   }
 
   imageToDataUrl(filePath) {
+    if (!filePath || !fs.existsSync(filePath)) return null;
     const ext = path.extname(filePath).toLowerCase();
     const mime = ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 'image/png';
     const b64 = fs.readFileSync(filePath).toString('base64');
     return `data:${mime};base64,${b64}`;
+  }
+
+  getImageDataUrl(id) {
+    const reg = this.getUserRegistry();
+    const entry = (reg.templates || []).find((t) => t.id === id);
+    if (!entry) return { dataUrl: null, pruned: false };
+    const filePath = this.resolveTemplatePath(entry);
+    if (!fs.existsSync(filePath)) {
+      const { removedIds } = this.pruneMissingTemplates();
+      return { dataUrl: null, pruned: removedIds.length > 0 };
+    }
+    return { dataUrl: this.imageToDataUrl(filePath), pruned: false };
   }
 }
 

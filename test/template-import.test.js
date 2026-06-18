@@ -49,6 +49,21 @@ async function run() {
 
     const renamed = registry.renameUserTemplate(imported.id, '  Neuer Name  ');
     assert.strictEqual(renamed.name, 'Neuer Name');
+
+    const missingId = imported.id;
+    const missingPath = registry.resolveTemplatePath(imported);
+    fs.unlinkSync(missingPath);
+    const afterList = registry.listAll();
+    assert.equal(afterList.some((t) => t.id === missingId), false, 'listAll removes missing template');
+    const regAfterList = registry.getUserRegistry();
+    assert.equal(regAfterList.templates.some((t) => t.id === missingId), false, 'registry json pruned on listAll');
+
+    const imported2 = await registry.importFromFile(src, 'keep-me');
+    fs.unlinkSync(registry.resolveTemplatePath(imported2));
+    const imageResult = registry.getImageDataUrl(imported2.id);
+    assert.equal(imageResult.dataUrl, null, 'getImageDataUrl returns null for missing file');
+    assert.equal(imageResult.pruned, true, 'getImageDataUrl reports prune');
+    assert.equal(registry.getUserRegistry().templates.some((t) => t.id === imported2.id), false, 'registry pruned on getImageDataUrl');
   } finally {
     paths.userDataRoot = origUserData;
     fs.rmSync(tmpDir, { recursive: true, force: true });
