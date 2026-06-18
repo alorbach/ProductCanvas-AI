@@ -10,19 +10,40 @@
 <body>
   <main class="settings-window">
     <h1 id="lbl-settings-title">Settings</h1>
-    <label class="field">
-      <span id="lbl-language">Language</span>
-      <select id="setting-locale">
-        <option value="auto" id="opt-locale-auto">Automatic (system)</option>
-        <option value="en" id="opt-locale-en">English</option>
-        <option value="de" id="opt-locale-de">German</option>
-      </select>
-    </label>
-    <p id="system-locale-hint" class="muted"></p>
-    <label class="field">
-      <span id="lbl-bridge-url">Bridge URL</span>
-      <input type="url" id="setting-bridge-url" placeholder="http://127.0.0.1:8765">
-    </label>
+
+    <nav class="settings-tabs" role="tablist" aria-label="Settings sections">
+      <button type="button" class="settings-tab active" role="tab" id="tab-btn-general" data-tab="general" aria-selected="true" aria-controls="tab-panel-general">General</button>
+      <button type="button" class="settings-tab" role="tab" id="tab-btn-codex" data-tab="codex" aria-selected="false" aria-controls="tab-panel-codex">Codex</button>
+    </nav>
+
+    <section id="tab-panel-general" class="settings-panel active" role="tabpanel" aria-labelledby="tab-btn-general">
+      <label class="field">
+        <span id="lbl-language">Language</span>
+        <select id="setting-locale">
+          <option value="auto" id="opt-locale-auto">Automatic (system)</option>
+          <option value="en" id="opt-locale-en">English</option>
+          <option value="de" id="opt-locale-de">German</option>
+        </select>
+      </label>
+      <p id="system-locale-hint" class="muted"></p>
+    </section>
+
+    <section id="tab-panel-codex" class="settings-panel" role="tabpanel" aria-labelledby="tab-btn-codex" hidden>
+      <p id="codex-subscription-hint" class="muted settings-info"></p>
+      <label class="field">
+        <span id="lbl-codex-backend">Codex backend</span>
+        <select id="setting-codex-backend">
+          <option value="direct" id="opt-backend-direct">Direct CLI</option>
+          <option value="bridge" id="opt-backend-bridge">Codex Local Bridge</option>
+        </select>
+      </label>
+      <p id="codex-backend-hint" class="muted"></p>
+      <label class="field" id="bridge-url-field">
+        <span id="lbl-bridge-url">Bridge URL</span>
+        <input type="url" id="setting-bridge-url" placeholder="http://127.0.0.1:8765">
+      </label>
+    </section>
+
     <div class="actions">
       <button type="button" class="btn primary" id="btn-save-settings">Save</button>
     </div>

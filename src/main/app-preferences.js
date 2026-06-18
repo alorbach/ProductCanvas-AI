@@ -6,6 +6,8 @@ const { normalizeBridgeUrl } = require('./safe-paths');
 
 const SUPPORTED_LOCALES = ['en', 'de'];
 const DEFAULT_UI_LOCALE = 'auto';
+const DEFAULT_CODEX_BACKEND = 'direct';
+const SUPPORTED_CODEX_BACKENDS = ['direct', 'bridge'];
 
 function readDefaults() {
   try {
@@ -34,11 +36,15 @@ function resolveLocale(preference, systemLocale) {
 function getPreferences(systemLocale) {
   const defaults = readDefaults();
   const uiLocale = defaults.uiLocale || DEFAULT_UI_LOCALE;
+  const codexBackend = SUPPORTED_CODEX_BACKENDS.includes(defaults.codexBackend)
+    ? defaults.codexBackend
+    : DEFAULT_CODEX_BACKEND;
   return {
     uiLocale,
     resolvedLocale: resolveLocale(uiLocale, systemLocale),
     systemLocale: systemLocale || 'en',
     bridgeUrl: normalizeBridgeUrl(defaults.bridgeUrl),
+    codexBackend,
   };
 }
 
@@ -51,6 +57,10 @@ function setPreferences(patch, systemLocale) {
   if (patch.bridgeUrl !== undefined) {
     allowed.bridgeUrl = normalizeBridgeUrl(patch.bridgeUrl);
   }
+  if (patch.codexBackend !== undefined) {
+    const value = String(patch.codexBackend);
+    allowed.codexBackend = SUPPORTED_CODEX_BACKENDS.includes(value) ? value : DEFAULT_CODEX_BACKEND;
+  }
   writeDefaults(allowed);
   return getPreferences(systemLocale);
 }
@@ -58,6 +68,8 @@ function setPreferences(patch, systemLocale) {
 module.exports = {
   SUPPORTED_LOCALES,
   DEFAULT_UI_LOCALE,
+  DEFAULT_CODEX_BACKEND,
+  SUPPORTED_CODEX_BACKENDS,
   resolveLocale,
   getPreferences,
   setPreferences,

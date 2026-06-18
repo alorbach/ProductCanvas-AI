@@ -23,10 +23,14 @@ scripts/           Icons, Windows-Build, Platzhalter
 | Modul | Aufgabe |
 |-------|---------|
 | `bridge/bridge-client.js` | HTTP zur [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge), Job-Envelope, Pairing |
+| `bridge/codex-cli-client.js` | Direktes `codex exec` für Chat- und Bild-Jobs |
+| `bridge/codex-provider.js` | `CodexProviderRouter` — Direct CLI oder Bridge je nach Einstellung |
+| `bridge/codex-service.js` | Einheitlicher ensure-ready / Status für beide Backends |
 | `bridge/bridge-manager.js` | Bridge-Lebenszyklus, ensure-ready, Status |
 | `bridge/codex-manager.js` | Codex-CLI-Installation/Login |
+| `generate/stage-mask.js` | Produktbühnen-PNG-Masken (vorbereitet; aktiv wenn CLI `--mask` unterstützt) |
 | `generate/prompt-builder.js` | Referenzanalyse, Werbe-Prompt |
-| `generate/image-pipeline.js` | Preflight + `/v1/images` |
+| `generate/image-pipeline.js` | Preflight + Codex-Bildgenerierung |
 | `generate/template-edit-pipeline.js` | KI-Vorlagenbearbeitung |
 | `templates/template-registry.js` | Benutzer-Vorlagen-Index (`user-templates.json` + PNG-Dateien) |
 | `profiles/profile-store.js` | Sitzung, `.pcprofile.json`, Zuletzt geöffnet |
@@ -36,7 +40,9 @@ scripts/           Icons, Windows-Build, Platzhalter
 
 Bridge-Aufrufe **nur im Main Process**. Renderer nutzt `preload.js`. Lange Jobs senden Fortschritt (`job:progress`, `bridge:progress`).
 
-Bridge-Requests enthalten `job_token`, `request_hash` und `request_id` gemäß Bridge-HTTP-Beispielen.
+**Direct CLI** (Standard): `CodexCliClient` startet `codex exec --image` mit Referenz-Anhängen. Kein Job-Envelope.
+
+**Bridge-Modus**: Requests enthalten `job_token`, `request_hash` und `request_id` gemäß Bridge-HTTP-Beispielen.
 
 ## Voraussetzungen
 

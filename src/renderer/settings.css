@@ -12,11 +12,58 @@ body {
 
 .settings-window {
   padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  box-sizing: border-box;
 }
 
 h1 {
-  margin: 0 0 16px;
+  margin: 0 0 14px;
   font-size: 1.25rem;
+}
+
+.settings-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #333;
+  padding-bottom: 0;
+}
+
+.settings-tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #9a9a9a;
+  padding: 8px 14px 10px;
+  margin-bottom: -1px;
+  cursor: pointer;
+  font: inherit;
+  border-radius: 6px 6px 0 0;
+}
+
+.settings-tab:hover {
+  color: #e8e8e8;
+}
+
+.settings-tab.active {
+  color: #6ea8ff;
+  border-bottom-color: #2d6cdf;
+}
+
+.settings-panel {
+  display: none;
+  flex: 1;
+}
+
+.settings-panel.active {
+  display: block;
+}
+
+.settings-info {
+  margin: 0 0 14px;
+  line-height: 1.45;
 }
 
 .field {
@@ -38,7 +85,8 @@ input, select {
 .status { margin-top: 10px; }
 
 .actions {
-  margin-top: 18px;
+  margin-top: auto;
+  padding-top: 18px;
   display: flex;
   justify-content: flex-end;
 }

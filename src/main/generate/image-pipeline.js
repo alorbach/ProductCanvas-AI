@@ -14,10 +14,11 @@ const {
   computePreflightFingerprint,
 } = require('./image-preflight');
 const { resolveImageGenerationSettings } = require('./image-settings');
+const { buildStageMaskPath } = require('./stage-mask');
 
 class ImagePipeline {
-  constructor(bridgeClient, templateRegistry) {
-    this.client = bridgeClient;
+  constructor(codexClient, templateRegistry) {
+    this.client = codexClient;
     this.registry = templateRegistry;
   }
 
@@ -105,6 +106,21 @@ class ImagePipeline {
 
     enrichedPromptData.finalPrompt = finalPrompt;
 
+    let stageMaskPath = null;
+    if (template?.productStage) {
+      try {
+        stageMaskPath = await buildStageMaskPath(template, templateDims, imageSettings.size);
+        if (stageMaskPath) {
+          debugLog.info('image-pipeline', 'Produktbühnen-Maske erzeugt', {
+            maskPath: stageMaskPath,
+            templateId: template.id,
+          });
+        }
+      } catch (err) {
+        debugLog.warn('image-pipeline', 'Produktbühnen-Maske konnte nicht erzeugt werden', { message: err.message });
+      }
+    }
+
     const apiPayload = buildImageApiPayload({
       promptData: enrichedPromptData,
       settings: imageSettings,
@@ -114,21 +130,28 @@ class ImagePipeline {
       frames: attachments.frames,
       hasProductReference: attachments.hasProductReference,
       hasTemplateReference: attachments.hasTemplateReference,
+      maskPath: stageMaskPath,
     });
 
-    let bridgeCapabilities = null;
+    let providerCapabilities = null;
     try {
-      bridgeCapabilities = await this.client.getCapabilities();
+      providerCapabilities = await this.client.getCapabilities();
     } catch (err) {
-      debugLog.warn('image-pipeline', 'Bridge-Capabilities nicht abrufbar', { message: err.message });
+      debugLog.warn('image-pipeline', 'Codex-Capabilities nicht abrufbar', { message: err.message });
     }
-    const bridgeSupportsRefs = bridgeCapabilities?.features?.image_reference_attachments === true;
+    const providerSupportsRefs = providerCapabilities?.features?.image_reference_attachments === true;
+    const providerSupportsMasks = providerCapabilities?.features?.image_masks === true;
+    if (stageMaskPath && !providerSupportsMasks) {
+      debugLog.info('image-pipeline', 'Layout-Maske vorbereitet, Provider unterstützt Masken noch nicht', {
+        maskPath: stageMaskPath,
+      });
+    }
     const hasReferencePayload = attachments.referenceImages.length > 0
       || attachments.attachmentPaths.length > 0
       || attachments.frames.length > 0;
-    if (hasReferencePayload && !bridgeSupportsRefs) {
-      debugLog.warn('image-pipeline', 'Bridge ohne image_reference_attachments – Referenzen nur per Preflight-Text', {
-        bridgeVersion: bridgeCapabilities?.bridge?.version || 'unknown',
+    if (hasReferencePayload && !providerSupportsRefs) {
+      debugLog.warn('image-pipeline', 'Provider ohne image_reference_attachments – Referenzen nur per Preflight-Text', {
+        providerVersion: providerCapabilities?.bridge?.version || providerCapabilities?.codex?.version || 'unknown',
       });
     }
 
@@ -145,8 +168,10 @@ class ImagePipeline {
         attachments.attachmentPaths.length ? 'referenced_image_paths' : null,
         attachments.frames.length ? 'frames' : null,
       ].filter(Boolean),
-      bridgeSupportsRefs,
-      bridgeVersion: bridgeCapabilities?.bridge?.version || 'unknown',
+      providerSupportsRefs,
+      providerSupportsMasks,
+      stageMaskPrepared: Boolean(stageMaskPath),
+      providerVersion: providerCapabilities?.bridge?.version || providerCapabilities?.codex?.version || 'unknown',
       imageSize: imageSettings.size,
       imageSizeMode: imageSettings.sizeMode,
       imageQuality: imageSettings.quality,
@@ -181,12 +206,13 @@ class ImagePipeline {
         referenceCount: attachments.referenceImages.length,
         refsForwardedToCodex,
         referenceAttachmentCount,
-        bridgeSupportsRefs,
+        providerSupportsRefs,
+        providerSupportsMasks,
       });
 
       const b64 = result?.response?.data?.[0]?.b64_json;
       if (!b64) {
-        throw new Error('Keine Bilddaten von der Bridge erhalten.');
+        throw new Error('Keine Bilddaten vom Codex-Provider erhalten.');
       }
 
       const outPath = path.join(paths.tempPreviewDir(), `preview-${Date.now()}.png`);
@@ -201,8 +227,10 @@ class ImagePipeline {
         preflightPrompt: finalPrompt,
         preflightFingerprint,
         refsForwardedToCodex,
-        bridgeSupportsRefs,
+        providerSupportsRefs,
+        providerSupportsMasks,
         referenceAttachmentCount,
+        stageMaskPrepared: Boolean(stageMaskPath),
       };
     } finally {
       unsubscribe();

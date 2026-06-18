@@ -7,7 +7,15 @@
   <title>ProductCanvas AI</title>
   <link rel="stylesheet" href="styles.css">
 </head>
-<body class="i18n-pending">
+<body>
+  <div id="fatal-error" class="fatal-error hidden" role="alert" aria-live="assertive">
+    <div class="fatal-error-panel">
+      <h2 class="fatal-error-title">Application error</h2>
+      <p class="fatal-error-message"></p>
+      <pre class="fatal-error-detail hidden"></pre>
+    </div>
+  </div>
+
   <header class="app-header">
     <div class="brand">
       <h1 id="app-title">ProductCanvas AI</h1>
@@ -23,8 +31,11 @@
 
   <div id="setup-banner" class="setup-banner hidden">
     <span id="setup-message">Setting up Codex Local Bridge…</span>
-    <input type="text" id="pairing-code" placeholder="Pairing code (6 digits from tray app)" maxlength="6" pattern="[0-9]*">
-    <button type="button" id="btn-bridge-connect">Connect</button>
+    <p id="setup-subscription-hint" class="setup-subscription-hint muted hidden"></p>
+    <span id="setup-pairing-row" class="setup-pairing-row">
+      <input type="text" id="pairing-code" placeholder="Pairing code (6 digits from tray app)" maxlength="6" pattern="[0-9]*">
+      <button type="button" id="btn-bridge-connect">Connect</button>
+    </span>
     <button type="button" id="btn-codex-login">Sign in to Codex</button>
   </div>
 
@@ -275,8 +286,9 @@
     <form method="dialog" id="bridge-setup-form" class="prompt-form bridge-setup-form">
       <h2 id="bridge-dialog-title">Codex Local Bridge</h2>
       <p id="bridge-dialog-hint" class="muted"></p>
+      <p id="bridge-dialog-subscription" class="muted bridge-subscription-hint hidden"></p>
       <dl class="bridge-status-grid" id="bridge-dialog-status"></dl>
-      <label class="bridge-pairing-row">
+      <label class="bridge-pairing-row" id="bridge-dialog-pairing-row">
         <span id="bridge-dialog-lbl-code">Pairing code</span>
         <input type="text" id="bridge-dialog-pairing-code" maxlength="6" pattern="[0-9]*" autocomplete="off">
       </label>
@@ -313,6 +325,6 @@
     <div id="app-status" class="app-status hidden" aria-live="polite"></div>
   </footer>
 
-  <script type="module" src="app.js"></script>
+  <script type="module" src="fatal-error.js"></script>
 </body>
 </html>

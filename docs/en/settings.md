@@ -23,6 +23,15 @@ UI strings live in the app’s i18n files; help content loads from `docs/en/` or
 
 Click **Save** to apply. The main window refreshes labels without restart.
 
+## Codex backend
+
+| Option | Behavior |
+|--------|----------|
+| **Direct CLI (default)** | ProductCanvas AI calls `codex exec` on this PC. Requires Codex CLI installed and signed in (`codex login`). No bridge tray app or pairing code. |
+| **Codex Local Bridge** | Uses HTTP to [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge). Requires pairing and the bridge URL below. Useful if you already use the bridge with WordPress Gateway. |
+
+Switch backends in **File → Preferences**. After changing, the status dot reflects the new path (Codex CLI ready vs. bridge paired).
+
 ## Bridge URL
 
 Default: `http://127.0.0.1:8765` ([Codex Local Bridge](https://github.com/alorbach/codex-local-bridge))
@@ -39,6 +48,12 @@ After saving, ProductCanvas AI updates:
 - The open session’s `bridgeUrl` field (if a session is loaded)
 
 Only **`http://` and `https://`** URLs are accepted. Invalid values fall back to `http://127.0.0.1:8765`. Use no trailing slash.
+
+This field is shown only when **Codex Local Bridge** is selected as the backend.
+
+## Layout stage masks (experimental)
+
+When a template defines a **product stage** rectangle, ProductCanvas AI can generate a PNG mask for that region during image generation. Mask inpainting is **not yet active** in the subscription Codex CLI path — the mask is prepared and logged for when Codex exposes `--mask` support. Until then, layout fidelity relies on prompt rules.
 
 ## Project settings (Create image tab)
 

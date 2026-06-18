@@ -125,6 +125,7 @@ function buildImageApiPayload({
   frames,
   hasProductReference,
   hasTemplateReference,
+  maskPath,
 }) {
   const requireReferences = hasProductReference || hasTemplateReference;
   let prompt = buildImageGenerationPrompt(promptData, {
@@ -157,6 +158,9 @@ function buildImageApiPayload({
   }
   if (frames?.length) {
     payload.frames = frames;
+  }
+  if (maskPath) {
+    payload.mask_path = maskPath;
   }
 
   return payload;

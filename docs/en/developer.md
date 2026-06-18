@@ -23,10 +23,14 @@ scripts/           Icons, Windows build, placeholders
 | Module | Responsibility |
 |--------|----------------|
 | `bridge/bridge-client.js` | HTTP to [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge), job envelope, pairing state |
+| `bridge/codex-cli-client.js` | Direct `codex exec` for chat and image jobs |
+| `bridge/codex-provider.js` | `CodexProviderRouter` — selects direct CLI or bridge from preferences |
+| `bridge/codex-service.js` | Unified ensure-ready / status for both backends |
 | `bridge/bridge-manager.js` | Bridge lifecycle, ensure-ready, status |
 | `bridge/codex-manager.js` | Codex CLI install/login helpers |
+| `generate/stage-mask.js` | Product-stage PNG masks (prepared; active when CLI supports `--mask`) |
 | `generate/prompt-builder.js` | Reference analysis, werbung prompt |
-| `generate/image-pipeline.js` | Preflight + `/v1/images` generation |
+| `generate/image-pipeline.js` | Preflight + Codex image generation |
 | `generate/template-edit-pipeline.js` | Template AI edits |
 | `templates/template-registry.js` | User template index (`user-templates.json` + PNG files) |
 | `profiles/profile-store.js` | Session, `.pcprofile.json`, recent list |
@@ -36,7 +40,9 @@ scripts/           Icons, Windows build, placeholders
 
 Bridge calls run **only in the main process**. The renderer uses `preload.js` APIs. Long jobs use progress events (`job:progress`, `bridge:progress`).
 
-Job requests to the bridge include `job_token`, `request_hash`, and `request_id` per bridge HTTP examples.
+**Direct CLI** (default): `CodexCliClient` spawns `codex exec --image` with reference attachments. No job envelope.
+
+**Bridge mode**: Job requests include `job_token`, `request_hash`, and `request_id` per bridge HTTP examples.
 
 ## Prerequisites
 

@@ -23,6 +23,15 @@ UI-Texte kommen aus den i18n-Dateien; Hilfe aus `docs/de/` oder `docs/en/` je na
 
 **Speichern** klicken – die Hauptansicht aktualisiert Labels ohne Neustart.
 
+## Codex-Backend
+
+| Option | Verhalten |
+|--------|-----------|
+| **Direct CLI (Standard)** | ProductCanvas AI ruft `codex exec` auf diesem PC auf. Codex CLI muss installiert und angemeldet sein (`codex login`). Keine Bridge-Tray-App, kein Pairing-Code. |
+| **Codex Local Bridge** | HTTP zur [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge). Erfordert Pairing und die Bridge-URL unten. Sinnvoll bei WordPress-Gateway-Workflow. |
+
+Backend in **Datei → Einstellungen** wechseln. Der Statuspunkt in der Kopfzeile zeigt danach „Codex CLI bereit“ oder „Bridge gepairt“.
+
 ## Bridge-URL
 
 Standard: `http://127.0.0.1:8765` ([Codex Local Bridge](https://github.com/alorbach/codex-local-bridge))
@@ -39,6 +48,12 @@ Nach dem Speichern aktualisiert ProductCanvas AI:
 - das `bridgeUrl`-Feld der offenen Sitzung (falls geladen)
 
 Nur **`http://`** und **`https://`** sind erlaubt. Ungültige Werte fallen auf `http://127.0.0.1:8765` zurück. Kein abschließender Schrägstrich.
+
+Dieses Feld erscheint nur bei Backend **Codex Local Bridge**.
+
+## Layout-Bühnen-Masken (experimentell)
+
+Definiert eine Vorlage eine **Produktbühne** (Rechteck), erzeugt ProductCanvas AI beim Generieren optional eine PNG-Maske für diese Region. Mask-Inpainting ist im Subscription-Codex-CLI-Pfad **noch nicht aktiv** — die Maske wird vorbereitet und geloggt, bis Codex `--mask` unterstützt. Bis dahin gilt Layout-Treue über Prompt-Regeln.
 
 ## Projekteinstellungen (Tab Bild erstellen)
 

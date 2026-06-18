@@ -12,6 +12,7 @@ import {
   formatFileSize,
 } from './preview-meta.js';
 let session = {};
+let appPreferences = { codexBackend: 'direct' };
 let templates = [];
 let imageSettingsCatalog = null;
 let promptData = null;
@@ -110,6 +111,12 @@ function isAbortError(err) {
 
 function formatError(err) {
   const raw = String(err?.message || err || '');
+  if (err?.needsCodexLogin || raw.toLowerCase().includes('not logged in')) {
+    return t('error.needsCodexLogin');
+  }
+  if (err?.needsCodexInstall || /not installed/i.test(raw)) {
+    return t('bridge.status.needsInstall');
+  }
   if (err?.needsPairing || raw.toLowerCase().includes('not paired') || raw.toLowerCase().includes('pairing-code')) {
     return t('error.needsPairing');
   }
@@ -145,6 +152,36 @@ function formatError(err) {
 
 let bridgeDialogAutoShown = false;
 
+function isDirectBackend(status) {
+  return (status?.backend || appPreferences.codexBackend || 'direct') === 'direct';
+}
+
+function updateBridgeOnlyUi(status) {
+  const direct = isDirectBackend(status);
+  $('setup-pairing-row')?.classList.toggle('hidden', direct);
+  $('bridge-dialog-pairing-row')?.classList.toggle('hidden', direct);
+  $('bridge-dialog-connect')?.classList.toggle('hidden', direct);
+  $('bridge-dialog-reset')?.classList.toggle('hidden', direct);
+  $('bridge-dialog-open-status')?.classList.toggle('hidden', direct);
+  const connectBtn = $('btn-bridge-connect');
+  if (connectBtn) {
+    connectBtn.textContent = !status?.codexInstalled
+      ? t('codex.install.title')
+      : t('bridge.setup.connect');
+  }
+}
+
+function updateSubscriptionHints(status) {
+  const hint = t('codex.subscription.hint');
+  const show = Boolean(status && (isDirectBackend(status) || !status.codexInstalled));
+  for (const id of ['setup-subscription-hint', 'bridge-dialog-subscription']) {
+    const el = $(id);
+    if (!el) continue;
+    el.textContent = hint;
+    el.classList.toggle('hidden', !show);
+  }
+}
+
 function showPairingBanner(message) {
   $('setup-banner').classList.remove('hidden');
   $('setup-message').textContent = message || t('bridge.status.needsPairing');
@@ -162,6 +199,10 @@ function syncPairingCodeInputs(code) {
 }
 
 function bridgeDialogHint(status) {
+  if (!status?.codexInstalled) return t('bridge.dialog.hintInstallCodex');
+  if (isDirectBackend(status)) {
+    return status?.ready ? t('bridge.status.directReady') : t('bridge.dialog.hintDirect');
+  }
   if (!status?.running) return t('bridge.dialog.hintNotRunning');
   if (!status?.ready) return t('bridge.dialog.hintLogin');
   if (!status?.paired) return t('bridge.dialog.hint');
@@ -171,13 +212,18 @@ function bridgeDialogHint(status) {
 function renderBridgeDialogStatus(status) {
   const grid = $('bridge-dialog-status');
   if (!grid) return;
-  const rows = [
-    [t('bridge.dialog.lblRunning'), status?.running ? t('bridge.dialog.valYes') : t('bridge.dialog.valNo')],
-    [t('bridge.dialog.lblReady'), status?.ready ? t('bridge.dialog.valReady') : t('bridge.dialog.valNotReady')],
-    [t('bridge.dialog.lblPaired'), status?.paired ? t('bridge.dialog.valPaired') : t('bridge.dialog.valNotPaired')],
-    [t('bridge.dialog.lblOrigin'), status?.origin || '—'],
-    [t('bridge.dialog.lblUrl'), status?.bridgeUrl || '—'],
-  ];
+  const rows = isDirectBackend(status)
+    ? [
+      [t('bridge.dialog.lblBackend'), t('bridge.dialog.valDirect')],
+      [t('bridge.dialog.lblReady'), status?.ready ? t('bridge.dialog.valReady') : t('bridge.dialog.valNotReady')],
+    ]
+    : [
+      [t('bridge.dialog.lblRunning'), status?.running ? t('bridge.dialog.valYes') : t('bridge.dialog.valNo')],
+      [t('bridge.dialog.lblReady'), status?.ready ? t('bridge.dialog.valReady') : t('bridge.dialog.valNotReady')],
+      [t('bridge.dialog.lblPaired'), status?.paired ? t('bridge.dialog.valPaired') : t('bridge.dialog.valNotPaired')],
+      [t('bridge.dialog.lblOrigin'), status?.origin || '—'],
+      [t('bridge.dialog.lblUrl'), status?.bridgeUrl || '—'],
+    ];
   grid.innerHTML = rows.map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`).join('');
 }
 
@@ -188,45 +234,95 @@ function closeBridgeSetupDialog() {
 
 async function openBridgeSetupDialog(options = {}) {
   const status = await api.bridgeGetStatus();
-  $('bridge-dialog-title').textContent = t('bridge.dialog.title');
+  updateBridgeOnlyUi(status);
+  $('bridge-dialog-title').textContent = isDirectBackend(status)
+    ? t('bridge.setup.directTitle')
+    : t('bridge.dialog.title');
   $('bridge-dialog-hint').textContent = options.message || bridgeDialogHint(status);
   renderBridgeDialogStatus(status);
   syncPairingCodeInputs(getPairingCode());
   const dialog = $('bridge-setup-dialog');
   if (!dialog.open) dialog.showModal();
-  if (options.focusPairing !== false && (!status.paired || options.focusPairing)) {
+  if (!isDirectBackend(status) && options.focusPairing !== false && (!status.paired || options.focusPairing)) {
     $('bridge-dialog-pairing-code')?.focus();
   }
 }
 
 function showBridgeSetup(message, options = {}) {
   if (message) showPairingBanner(message);
-  openBridgeSetupDialog({ message, focusPairing: options.focusPairing });
+  if (options.openDialog !== false) {
+    openBridgeSetupDialog({ message, focusPairing: options.focusPairing });
+  }
 }
 
 function withPairing(opts = {}) {
   return { ...opts, pairingCode: getPairingCode() };
 }
 
-async function ensureBridgeReady() {
-  const status = await api.bridgeGetStatus();
-  if (status.running && status.ready && status.paired) {
-    return true;
-  }
+async function ensureCodexInstallWithPrompt() {
+  const check = await api.codexCheckInstalled();
+  if (check.installed) return true;
 
-  const message = !status.running
-    ? t('bridge.status.notRunning')
-    : !status.ready
-      ? (status.status?.message || t('bridge.status.needsLogin'))
-      : t('bridge.status.needsPairing');
-  showBridgeSetup(message);
-
-  const code = getPairingCode();
-  if (!code && status.running && status.ready) {
+  const ok = await askConfirm(
+    t('codex.install.title'),
+    `${t('codex.subscription.hint')}\n\n${t('codex.install.message')}`,
+  );
+  if (!ok) {
+    showStatus(t('codex.install.declined'), { level: 'warn', ms: 8000 });
     return false;
   }
 
-  showWait(t('bridge.setup.title'), waitContextForBridge(message));
+  showWait(t('codex.install.title'), { kind: 'codexInstall' });
+  try {
+    const result = await api.codexInstall();
+    hideWait();
+    if (!result?.success) {
+      showStatus(result?.message || t('codex.install.failed'), { level: 'error', ms: 10000 });
+      return false;
+    }
+    showStatus(t('codex.install.success', { version: result.version || 'OK' }), { level: 'info', ms: 8000 });
+    await refreshBridgeStatus();
+    return true;
+  } catch (err) {
+    hideWait();
+    showError(err);
+    return false;
+  }
+}
+
+async function ensureBridgeReady() {
+  let status = await api.bridgeGetStatus();
+  updateBridgeOnlyUi(status);
+  updateSubscriptionHints(status);
+
+  if (!status.codexInstalled) {
+    if (!(await ensureCodexInstallWithPrompt())) return false;
+    status = await api.bridgeGetStatus();
+    updateBridgeOnlyUi(status);
+    updateSubscriptionHints(status);
+  }
+  if (status.ready && (isDirectBackend(status) || status.paired)) {
+    return true;
+  }
+
+  const message = isDirectBackend(status)
+    ? (status.status?.message || t('bridge.status.needsLogin'))
+    : !status.running
+      ? t('bridge.status.notRunning')
+      : !status.ready
+        ? (status.status?.message || t('bridge.status.needsLogin'))
+        : t('bridge.status.needsPairing');
+  showBridgeSetup(message);
+
+  const code = getPairingCode();
+  if (!isDirectBackend(status) && !code && status.running && status.ready) {
+    return false;
+  }
+
+  showWait(
+    isDirectBackend(status) ? t('bridge.setup.directTitle') : t('bridge.setup.title'),
+    waitContextForBridge(message),
+  );
   const result = await api.bridgeEnsureReady(code);
   hideWait();
   if (!result.success) {
@@ -256,7 +352,7 @@ function showStatus(message, { level = 'info', ms = 5000 } = {}) {
   }, ms);
 }
 
-function showError(err, context = '') {
+async function showError(err, context = '') {
   if (isAbortError(err)) return;
   const message = formatError(err);
   const full = context ? `${context}: ${message}` : message;
@@ -264,6 +360,13 @@ function showError(err, context = '') {
   appendDebugLine({ time: new Date().toISOString(), level: 'error', source: 'ui', message: full, details: err?.details || null });
   if (err?.needsPairing || message === t('error.needsPairing')) {
     showBridgeSetup(message);
+    return;
+  }
+  if (err?.needsCodexInstall) {
+    if (await ensureCodexInstallWithPrompt()) return;
+  }
+  if (err?.needsCodexLogin || message === t('error.needsCodexLogin')) {
+    showBridgeSetup(message, { focusPairing: false });
     return;
   }
   showStatus(full, { level: 'error', ms: 8000 });
@@ -914,13 +1017,21 @@ function applyLabels() {
 
 async function connectBridgeFromUi() {
   const status = await api.bridgeGetStatus();
+  updateBridgeOnlyUi(status);
+  updateSubscriptionHints(status);
+  if (!status.codexInstalled) {
+    return ensureCodexInstallWithPrompt();
+  }
   const code = getPairingCode();
-  if (status.running && status.ready && !/^\d{6}$/.test(code)) {
+  if (!isDirectBackend(status) && status.running && status.ready && !/^\d{6}$/.test(code)) {
     showBridgeSetup(t('bridge.status.needsPairing'), { focusPairing: true });
     return false;
   }
   try {
-    showWait(t('bridge.setup.title'), waitContextForBridge(t('bridge.setup.title')));
+    showWait(
+      isDirectBackend(status) ? t('bridge.setup.directTitle') : t('bridge.setup.title'),
+      waitContextForBridge(t('bridge.setup.title')),
+    );
     const result = await api.bridgeEnsureReady(code);
     hideWait();
     if (!result.success) {
@@ -2337,13 +2448,32 @@ async function refreshBridgeStatus(options = {}) {
 }
 
 async function applyBridgeStatusUi(status, options = {}) {
+  updateBridgeOnlyUi(status);
+  updateSubscriptionHints(status);
   const el = $('bridge-status');
   const banner = $('setup-banner');
-  if (status.running && status.ready && status.paired) {
+  const direct = isDirectBackend(status);
+  if (status.ready && (direct || status.paired)) {
     el.className = 'bridge-status ready';
-    el.title = t('bridge.status.paired');
+    el.title = direct ? t('bridge.status.directReady') : t('bridge.status.paired');
     banner.classList.add('hidden');
     closeBridgeSetupDialog();
+  } else if (!status.codexInstalled) {
+    el.className = 'bridge-status error';
+    el.title = t('bridge.status.needsInstall');
+    banner.classList.remove('hidden');
+    $('setup-message').textContent = t('bridge.status.needsInstall');
+    if (options.autoOpen && !bridgeDialogAutoShown) {
+      bridgeDialogAutoShown = true;
+    }
+  } else if (direct) {
+    el.className = 'bridge-status error';
+    el.title = t('bridge.status.needsLogin');
+    banner.classList.remove('hidden');
+    $('setup-message').textContent = status.status?.message || t('bridge.status.needsLogin');
+    if (options.autoOpen && !bridgeDialogAutoShown) {
+      bridgeDialogAutoShown = true;
+    }
   } else if (status.running && status.ready) {
     el.className = 'bridge-status error';
     el.title = t('bridge.status.needsPairing');
@@ -2351,7 +2481,6 @@ async function applyBridgeStatusUi(status, options = {}) {
     $('setup-message').textContent = t('bridge.status.needsPairing');
     if (options.autoOpen && !bridgeDialogAutoShown) {
       bridgeDialogAutoShown = true;
-      showBridgeSetup(t('bridge.status.needsPairing'), { focusPairing: true });
     }
   } else if (status.running) {
     el.className = 'bridge-status error';
@@ -2360,7 +2489,6 @@ async function applyBridgeStatusUi(status, options = {}) {
     $('setup-message').textContent = status.status?.message || t('bridge.status.needsLogin');
     if (options.autoOpen && !bridgeDialogAutoShown) {
       bridgeDialogAutoShown = true;
-      showBridgeSetup(status.status?.message || t('bridge.status.needsLogin'), { focusPairing: false });
     }
   } else {
     el.className = 'bridge-status error';
@@ -2369,7 +2497,6 @@ async function applyBridgeStatusUi(status, options = {}) {
     $('setup-message').textContent = t('bridge.status.notRunning');
     if (options.autoOpen && !bridgeDialogAutoShown) {
       bridgeDialogAutoShown = true;
-      showBridgeSetup(t('bridge.status.notRunning'), { focusPairing: false });
     }
   }
   if ($('bridge-setup-dialog')?.open) {
@@ -2847,6 +2974,7 @@ function setupInteractionHandlers() {
     openHelpDoc(id, $('help-content'), $('help-sidebar'), getLocale());
   });
   api.on('preferences:changed', async (prefs) => {
+    appPreferences = prefs;
     await reloadLocale(prefs);
     await refreshBridgeStatus();
   });
@@ -2887,71 +3015,77 @@ function setupInteractionHandlers() {
 
 async function init() {
   document.body.classList.add('i18n-pending');
-  const prefs = await api.getPreferences();
-  await loadI18n(prefs.resolvedLocale || 'en');
-  document.documentElement.lang = prefs.resolvedLocale || 'en';
-  applyLabels();
-  document.body.classList.remove('i18n-pending');
+  try {
+    const prefs = await api.getPreferences();
+    appPreferences = prefs;
+    await loadI18n(prefs.resolvedLocale || 'en');
+    document.documentElement.lang = prefs.resolvedLocale || 'en';
+    applyLabels();
 
-  setupInteractionHandlers();
+    setupInteractionHandlers();
 
-  session = await api.sessionGet();
-  if (session.editorReferenceImagePath) {
-    setEditorReferenceImage({
-      path: session.editorReferenceImagePath,
-      name: session.editorReferenceImagePath.split(/[/\\]/).pop() || '',
-    }, { persist: false });
-  }
-  await refreshImageSettingsUi();
-  writeSettingsToUi();
-  restorePromptFromSession();
-  await loadTemplates();
-  renderRefs();
-  await restorePreviewFromSession(session);
-  await refreshBridgeStatus({ autoOpen: true });
-  await renderHelp($('help-sidebar'), $('help-content'));
-
-  const pendingEdit = await api.templatesGetPendingEdit();
-  if (pendingEdit?.templateId) {
-    editorTemplateId = pendingEdit.templateId;
-    editorLocked = true;
-    $('change-request').value = pendingEdit.changeRequest || '';
-    $('optimized-prompt').value = pendingEdit.optimizedEditPrompt || '';
-    $('change-summary').textContent = pendingEdit.changeSummary || '';
-    if (pendingEdit.referenceImagePath) {
+    session = await api.sessionGet();
+    if (session.editorReferenceImagePath) {
       setEditorReferenceImage({
-        path: pendingEdit.referenceImagePath,
-        name: pendingEdit.referenceImagePath.split(/[/\\]/).pop() || '',
-      });
+        path: session.editorReferenceImagePath,
+        name: session.editorReferenceImagePath.split(/[/\\]/).pop() || '',
+      }, { persist: false });
     }
-    updateEditorLockUi();
-    await selectEditorTemplate(pendingEdit.templateId, {
-      preservePreview: true,
-      preserveReference: true,
-      force: true,
-    });
-    if (pendingEdit.previewB64) {
-      editorPreviewMetaContext = {
-        format: 'PNG',
-        fileSizeBytes: estimateBytesFromB64(pendingEdit.previewB64),
-        requestedLabel: formatGatewaySizeLabel(pendingEdit.imageSize, getEditorTemplate()),
-        quality: session.quality || 'high',
-      };
-      $('editor-preview').src = `data:image/png;base64,${pendingEdit.previewB64}`;
-      $('editor-preview').classList.remove('hidden');
-      $('editor-preview-empty').classList.add('hidden');
-      refreshPreviewMetaOverlay('editor-preview', 'editor-preview-meta', editorPreviewMetaContext);
-      setEditorReviewBarVisible(true);
-    }
-  } else {
-    editorTemplateId = session.templateId;
-    if (editorTemplateId) await selectEditorTemplate(editorTemplateId);
-  }
+    await refreshImageSettingsUi();
+    writeSettingsToUi();
+    restorePromptFromSession();
+    await loadTemplates();
+    renderRefs();
+    await restorePreviewFromSession(session);
+    await renderHelp($('help-sidebar'), $('help-content'));
 
-  await loadDebugLog();
+    const pendingEdit = await api.templatesGetPendingEdit();
+    if (pendingEdit?.templateId) {
+      editorTemplateId = pendingEdit.templateId;
+      editorLocked = true;
+      $('change-request').value = pendingEdit.changeRequest || '';
+      $('optimized-prompt').value = pendingEdit.optimizedEditPrompt || '';
+      $('change-summary').textContent = pendingEdit.changeSummary || '';
+      if (pendingEdit.referenceImagePath) {
+        setEditorReferenceImage({
+          path: pendingEdit.referenceImagePath,
+          name: pendingEdit.referenceImagePath.split(/[/\\]/).pop() || '',
+        });
+      }
+      updateEditorLockUi();
+      await selectEditorTemplate(pendingEdit.templateId, {
+        preservePreview: true,
+        preserveReference: true,
+        force: true,
+      });
+      if (pendingEdit.previewB64) {
+        editorPreviewMetaContext = {
+          format: 'PNG',
+          fileSizeBytes: estimateBytesFromB64(pendingEdit.previewB64),
+          requestedLabel: formatGatewaySizeLabel(pendingEdit.imageSize, getEditorTemplate()),
+          quality: session.quality || 'high',
+        };
+        $('editor-preview').src = `data:image/png;base64,${pendingEdit.previewB64}`;
+        $('editor-preview').classList.remove('hidden');
+        $('editor-preview-empty').classList.add('hidden');
+        refreshPreviewMetaOverlay('editor-preview', 'editor-preview-meta', editorPreviewMetaContext);
+        setEditorReviewBarVisible(true);
+      }
+    } else {
+      editorTemplateId = session.templateId;
+      if (editorTemplateId) await selectEditorTemplate(editorTemplateId);
+    }
+
+    await loadDebugLog();
+    void refreshBridgeStatus({ autoOpen: true }).catch((err) => console.error(err));
+  } finally {
+    document.body.classList.remove('i18n-pending');
+  }
 }
 
 init().catch((err) => {
   console.error(err);
-  showStatus(err.message || 'Startfehler', { level: 'error', ms: 10000 });
+  const message = typeof formatError === 'function' ? formatError(err) : (err?.message || String(err));
+  const title = typeof t === 'function' ? t('error.startupFailed') : 'Startup failed';
+  window.productCanvasReportFatal?.(title, message, err?.stack || '');
 });

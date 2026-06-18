@@ -38,6 +38,8 @@ contextBridge.exposeInMainWorld('productCanvas', {
   bridgeRequirePaired: (code) => ipcRenderer.invoke('bridge:requirePaired', code),
   bridgeResetPairing: () => ipcRenderer.invoke('bridge:resetPairing'),
   codexLogin: () => ipcRenderer.invoke('codex:login'),
+  codexCheckInstalled: () => ipcRenderer.invoke('codex:checkInstalled'),
+  codexInstall: () => ipcRenderer.invoke('codex:install'),
   sessionGet: () => ipcRenderer.invoke('session:get'),
   sessionUpdate: (patch) => ipcRenderer.invoke('session:update', patch),
   profileSave: (opts) => ipcRenderer.invoke('profile:save', opts),

@@ -4,13 +4,13 @@ Guide for AI agents (Cursor, Codex) working on this repository.
 
 ## Project purpose
 
-**ProductCanvas AI** is a universal, brand-neutral Electron desktop app. It creates AI-generated product images from layout templates and reference photos via [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) (`http://127.0.0.1:8765`). Users define brand, series, and tagline per project — no fixed corporate identity in the product.
+**ProductCanvas AI** is a universal, brand-neutral Electron desktop app. It creates AI-generated product images from layout templates and reference photos via **Codex CLI** (default: direct `codex exec`) or optionally [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) (`http://127.0.0.1:8765`). Users define brand, series, and tagline per project — no fixed corporate identity in the product.
 
 ## Mandatory rules
 
 1. **UI strings in both locales** — add keys to `src/renderer/i18n/en.json` and `de.json`; use `t('key')` in the renderer. English is the default fallback locale.
-2. **Bridge calls only in main process** — renderer uses `preload.js` / IPC (`window.productCanvas`).
-3. **Job envelope** for bridge execution: `job_token`, `request_hash`, `request_id` + `payload` (see `src/main/bridge/bridge-client.js`).
+2. **Codex calls only in main process** — renderer uses `preload.js` / IPC (`window.productCanvas`). Use `CodexProviderRouter` (`src/main/bridge/codex-provider.js`) for direct CLI or bridge backends.
+3. **Job envelope** for bridge execution only: `job_token`, `request_hash`, `request_id` + `payload` (see `src/main/bridge/bridge-client.js`). Direct CLI skips the envelope.
 4. **Do not overwrite user templates in system paths** — user template changes only under `%APPDATA%\productcanvas-ai\templates\`.
 5. **No secrets in commits**.
 6. **No vendor-specific branding** — do not hardcode retailer or brand names in code, prompts, or docs. Use user project fields (`brandName`, etc.).
@@ -30,9 +30,9 @@ docs/en/ docs/de/   User documentation (bilingual)
 
 | Channel | Purpose |
 |---------|---------|
-| `app:getPreferences` / `app:setPreferences` | Locale, bridge URL |
+| `app:getPreferences` / `app:setPreferences` | Locale, bridge URL, codex backend (`direct` \| `bridge`) |
 | `app:openSettings` | Settings window |
-| `bridge:ensureReady` | Bridge start/pairing |
+| `bridge:ensureReady` | Codex CLI login (direct) or bridge start/pairing |
 | `generate:buildPrompt` | Prompt from reference images |
 | `generate:image` | Image generation |
 | `templates:*` | Template editor |

@@ -1,15 +1,13 @@
 # Erste Schritte
 
-Dieses Kapitel führt Sie durch Installation, Einrichtung der [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge), Codex-CLI-Anmeldung und Ihr erstes Bild mit ProductCanvas AI.
+Dieses Kapitel führt Sie durch Installation, Codex-CLI-Anmeldung und Ihr erstes Bild mit ProductCanvas AI. Standard ist **Direct CLI** (`codex exec` auf Ihrem PC). Optional können Sie in **Datei → Einstellungen** auf die [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) wechseln.
 
 ## Systemvoraussetzungen
 
 - **Windows 10 oder neuer** (64-Bit)
-- Internetzugang für die Ersteinrichtung von Codex CLI / Bridge und für KI-Anfragen
-- **Codex CLI** mit aktivem Login
-- **[Codex Local Bridge ≥ 1.0.4](https://github.com/alorbach/codex-local-bridge)** (Referenzbilder unter `/v1/images` erfordern diese Version; [Releases](https://github.com/alorbach/codex-local-bridge/releases))
-
-ProductCanvas AI kann die Bridge beim ersten Start automatisch herunterladen und starten. Den Pairing-Code geben Sie in der Regel nur einmal ein.
+- Internetzugang für Codex-CLI-Einrichtung und KI-Anfragen
+- **Codex CLI** mit aktivem Login (`codex login`)
+- **[Codex Local Bridge ≥ 1.0.4](https://github.com/alorbach/codex-local-bridge)** — nur im Bridge-Backend (Referenzbilder unter `/v1/images`; [Releases](https://github.com/alorbach/codex-local-bridge/releases))
 
 ## Installation
 
@@ -27,11 +25,32 @@ ProductCanvas AI kann die Bridge beim ersten Start automatisch herunterladen und
 
 Für die normale Nutzung sind keine Administratorrechte nötig. Einstellungen liegen unter `%APPDATA%\productcanvas-ai\`.
 
-## Erster Start
+## Erster Start (Direct CLI — Standard)
 
-Beim Start prüft ProductCanvas AI, ob die [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) unter der konfigurierten URL erreichbar ist (Standard: `http://127.0.0.1:8765`).
+Beim Start prüft ProductCanvas AI, ob **Codex CLI** installiert und für Ihren Windows-Benutzer angemeldet ist.
 
-Ist die Bridge nicht bereit, erscheint ein **Einrichtungs-Banner** oben. Die App kann:
+Fehlt Codex CLI, bietet das Einrichtungs-Banner **Codex CLI installieren** nach Ihrer Bestätigung. ProductCanvas nutzt den [offiziellen OpenAI-Windows-Installer](https://developers.openai.com/codex/quickstart) (`install.ps1`), danach winget und npm als Fallback.
+
+**ChatGPT-Abo erforderlich:** Codex ist in ChatGPT Plus, Pro, Business, Edu und Enterprise enthalten. Bildgenerierung läuft über Ihr ChatGPT-Kontingent — ProductCanvas verkauft kein separates KI-Abo.
+
+1. Fehlt Codex CLI: **Codex CLI installieren** im Banner klicken und bestätigen.
+2. **Codex anmelden** klicken oder in PowerShell:
+
+```powershell
+codex login
+```
+
+2. Prüfen, dass der Statuspunkt grün wird (**Codex CLI bereit**).
+
+Im Direct-CLI-Modus sind keine Bridge-Tray-App und kein Pairing-Code nötig.
+
+## Optional: Codex Local Bridge
+
+Wechseln Sie in **Datei → Einstellungen** zu **Codex Local Bridge**, wenn Sie die Bridge mit WordPress Gateway nutzen.
+
+Mit Bridge-Backend prüft ProductCanvas AI, ob die [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) unter der konfigurierten URL erreichbar ist (Standard: `http://127.0.0.1:8765`).
+
+Ist die Bridge nicht bereit, erscheint ein **Einrichtungs-Banner**. Die App kann:
 
 1. Die neueste [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge/releases) herunterladen (Ablage: `%LOCALAPPDATA%\productcanvas-ai\bridge\`)
 2. Die Bridge starten (Tray-Symbol in der Taskleiste)

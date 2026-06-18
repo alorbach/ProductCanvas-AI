@@ -5,6 +5,9 @@ const { promisify } = require('util');
 
 const execFileAsync = promisify(execFile);
 
+const CODEX_INSTALL_DOCS = 'https://developers.openai.com/codex/cli';
+const CODEX_INSTALL_SCRIPT = 'https://chatgpt.com/codex/install.ps1';
+
 class CodexManager {
   async isInstalled() {
     try {
@@ -15,49 +18,99 @@ class CodexManager {
     }
   }
 
+  async installViaOfficialScript(onProgress) {
+    onProgress?.({
+      step: 'codex-install',
+      message: 'Installiere Codex CLI (offizieller Windows-Installer)…',
+      messageKey: 'wait.status.codexInstallOfficial',
+    });
+    try {
+      await execFileAsync('powershell.exe', [
+        '-NoProfile',
+        '-ExecutionPolicy', 'Bypass',
+        '-Command',
+        `$env:CODEX_NON_INTERACTIVE='1'; irm ${CODEX_INSTALL_SCRIPT} | iex`,
+      ], { windowsHide: true, timeout: 600000 });
+      return { success: true, method: 'official-script' };
+    } catch (err) {
+      return {
+        success: false,
+        method: 'official-script',
+        message: err.message || 'Offizieller Codex-Installer fehlgeschlagen.',
+      };
+    }
+  }
+
   async installViaWinget(onProgress) {
-    onProgress?.({ step: 'codex-install', message: 'Installiere Codex CLI über winget…' });
+    onProgress?.({
+      step: 'codex-install',
+      message: 'Installiere Codex CLI über winget…',
+      messageKey: 'wait.status.codexInstallWinget',
+    });
     try {
       await execFileAsync('winget', [
         'install', '--id', 'OpenAI.Codex', '-e',
         '--accept-source-agreements', '--accept-package-agreements',
       ], { windowsHide: true, timeout: 300000 });
-      return { success: true };
+      return { success: true, method: 'winget' };
     } catch (err) {
-      return { success: false, message: err.message || 'winget-Installation fehlgeschlagen.' };
+      return {
+        success: false,
+        method: 'winget',
+        message: err.message || 'winget-Installation fehlgeschlagen.',
+      };
     }
   }
 
   async installViaNpm(onProgress) {
-    onProgress?.({ step: 'codex-install', message: 'Installiere Codex CLI über npm…' });
+    onProgress?.({
+      step: 'codex-install',
+      message: 'Installiere Codex CLI über npm…',
+      messageKey: 'wait.status.codexInstallNpm',
+    });
     try {
       await execFileAsync('npm', ['install', '-g', '@openai/codex'], {
         windowsHide: true,
         timeout: 300000,
         shell: true,
       });
-      return { success: true };
+      return { success: true, method: 'npm' };
     } catch (err) {
-      return { success: false, message: err.message || 'npm-Installation fehlgeschlagen.' };
+      return {
+        success: false,
+        method: 'npm',
+        message: err.message || 'npm-Installation fehlgeschlagen.',
+      };
     }
   }
 
-  async ensureInstalled(onProgress) {
-    let check = await this.isInstalled();
+  async install(onProgress) {
+    const methods = [
+      () => this.installViaOfficialScript(onProgress),
+      () => this.installViaWinget(onProgress),
+      () => this.installViaNpm(onProgress),
+    ];
+    const attempts = [];
+    for (const run of methods) {
+      const result = await run();
+      attempts.push(result);
+      if (result.success) break;
+    }
+    const check = await this.isInstalled();
     if (check.installed) {
-      return { success: true, version: check.version };
+      return {
+        success: true,
+        version: check.version,
+        method: attempts.find((a) => a.success)?.method || 'unknown',
+        attempts,
+      };
     }
-    let result = await this.installViaWinget(onProgress);
-    if (!result.success) {
-      result = await this.installViaNpm(onProgress);
-    }
-    check = await this.isInstalled();
-    if (check.installed) {
-      return { success: true, version: check.version };
-    }
+    const lastMessage = attempts.filter((a) => !a.success).map((a) => a.message).filter(Boolean).pop();
     return {
       success: false,
-      message: 'Codex CLI konnte nicht automatisch installiert werden. Bitte manuell installieren: https://github.com/openai/codex',
+      message: lastMessage || `Codex CLI konnte nicht installiert werden. Siehe ${CODEX_INSTALL_DOCS}`,
+      attempts,
+      docsUrl: CODEX_INSTALL_DOCS,
     };
   }
 
@@ -81,4 +134,8 @@ class CodexManager {
   }
 }
 
-module.exports = { CodexManager };
+module.exports = {
+  CodexManager,
+  CODEX_INSTALL_DOCS,
+  CODEX_INSTALL_SCRIPT,
+};

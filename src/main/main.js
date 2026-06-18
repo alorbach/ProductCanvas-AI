@@ -6,6 +6,8 @@ const fs = require('fs');
 const { BridgeManager } = require('./bridge/bridge-manager');
 const { subscribeBridgeJobProgress } = require('./bridge/bridge-job-progress');
 const { CodexManager } = require('./bridge/codex-manager');
+const { createCodexProvider } = require('./bridge/codex-provider');
+const { CodexService } = require('./bridge/codex-service');
 const { TemplateRegistry } = require('./templates/template-registry');
 const { TemplateEditorService } = require('./templates/template-editor-service');
 const { TemplateEditPipeline } = require('./generate/template-edit-pipeline');
@@ -38,6 +40,8 @@ let mainWindow = null;
 let settingsWindow = null;
 let bridgeManager;
 let codexManager;
+let codexProvider;
+let codexService;
 let templateRegistry;
 let profileStore;
 let promptBuilder;
@@ -64,7 +68,7 @@ function getBuildInfo() {
   try {
     return require('../build-info.json');
   } catch {
-    return { version: '1.0.0', build_number: 0 };
+    return { version: '1.0.3', build_number: 0 };
   }
 }
 
@@ -133,8 +137,8 @@ function createSettingsWindow() {
     return;
   }
   settingsWindow = new BrowserWindow({
-    width: 480,
-    height: 380,
+    width: 520,
+    height: 420,
     resizable: false,
     minimizable: false,
     maximizable: false,
@@ -316,6 +320,26 @@ function buildMenu() {
   Menu.setApplicationMenu(menu);
 }
 
+function subscribeCodexJobProgress(onProgress) {
+  if (!codexService?.isBridgeBackend()) return () => {};
+  return subscribeBridgeJobProgress(bridgeManager.getClient(), onProgress);
+}
+
+async function requireCodexReady(pairingCode) {
+  try {
+    return await codexService.requireReady(pairingCode);
+  } catch (err) {
+    if (err.needsPairing) {
+      debugLog.warn('main', 'Bridge pairing required', { message: err.message, origin: err.origin });
+    } else if (err.needsCodexLogin) {
+      debugLog.warn('main', 'Codex login required', { message: err.message });
+    } else if (err.needsCodexInstall) {
+      debugLog.warn('main', 'Codex CLI install required', { message: err.message });
+    }
+    throw err;
+  }
+}
+
 function registerIpc() {
   ipcMain.handle('app:getBuildInfo', () => getBuildInfo());
   ipcMain.handle('app:getPreferences', () => getPreferences(systemLocale()));
@@ -336,29 +360,30 @@ function registerIpc() {
     return true;
   });
 
-  ipcMain.handle('bridge:getStatus', async () => bridgeManager.getFullStatus());
+  ipcMain.handle('bridge:getStatus', async () => codexService.getFullStatus());
 
   ipcMain.handle('bridge:ensureReady', async (_, pairingCode) => {
     const onProgress = (p) => send('bridge:progress', p);
-    await codexManager.ensureInstalled(onProgress);
-    return bridgeManager.ensureReady(pairingCode, onProgress);
+    return codexService.ensureReady(pairingCode, onProgress);
   });
 
-  ipcMain.handle('bridge:requirePaired', async (_, pairingCode) => {
-    try {
-      return await bridgeManager.requirePaired(pairingCode);
-    } catch (err) {
-      debugLog.warn('main', 'Bridge pairing required', { message: err.message, origin: err.origin });
-      throw err;
-    }
-  });
+  ipcMain.handle('bridge:requirePaired', async (_, pairingCode) => requireCodexReady(pairingCode));
 
   ipcMain.handle('bridge:resetPairing', async () => {
-    bridgeManager.getClient().clearToken();
-    return bridgeManager.getFullStatus();
+    if (codexService.isBridgeBackend()) {
+      bridgeManager.getClient().clearToken();
+    }
+    return codexService.getFullStatus();
   });
 
   ipcMain.handle('codex:login', async () => codexManager.startLogin());
+
+  ipcMain.handle('codex:checkInstalled', async () => codexManager.isInstalled());
+
+  ipcMain.handle('codex:install', async () => {
+    const onProgress = (p) => send('bridge:progress', p);
+    return codexManager.install(onProgress);
+  });
 
   ipcMain.handle('session:get', () => session || profileStore.loadSession());
   ipcMain.handle('session:update', (_, patch) => {
@@ -451,8 +476,8 @@ function registerIpc() {
     const signalKey = `edit-${Date.now()}`;
     send('job:progress', { status: 'running', signalKey, messageKey: 'wait.status.templateEditPrompt' });
     const onProgress = (p) => send('job:progress', { ...p, signalKey });
-    await bridgeManager.requirePaired(pairingCode);
-    const unsubscribe = subscribeBridgeJobProgress(bridgeManager.getClient(), onProgress);
+    await requireCodexReady(pairingCode);
+    const unsubscribe = subscribeCodexJobProgress(onProgress);
     try {
       return await templateEditor.runEdit(
         { templateId, changeRequest, quality, size, referenceImagePath },
@@ -475,8 +500,8 @@ function registerIpc() {
     const signalKey = `preview-edit-${Date.now()}`;
     send('job:progress', { status: 'running', signalKey, messageKey: 'wait.status.previewEditPrompt' });
     const onProgress = (p) => send('job:progress', { ...p, signalKey });
-    await bridgeManager.requirePaired(pairingCode);
-    const unsubscribe = subscribeBridgeJobProgress(bridgeManager.getClient(), onProgress);
+    await requireCodexReady(pairingCode);
+    const unsubscribe = subscribeCodexJobProgress(onProgress);
     try {
       return await previewEditor.runEdit(
         { previewPath, templateId, changeRequest, quality, size },
@@ -563,9 +588,9 @@ function registerIpc() {
     const signalKey = `prompt-${Date.now()}`;
     send('job:progress', { status: 'running', signalKey, messageKey: 'wait.status.buildingPrompt' });
     const onProgress = (p) => send('job:progress', { ...p, signalKey });
-    const unsubscribe = subscribeBridgeJobProgress(bridgeManager.getClient(), onProgress);
+    const unsubscribe = subscribeCodexJobProgress(onProgress);
     try {
-      await bridgeManager.requirePaired(pairingCode);
+      await requireCodexReady(pairingCode);
       const result = await promptBuilder.buildWerbungPrompt(promptOpts, signalKey, onProgress);
       send('job:progress', { status: 'completed', messageKey: 'wait.status.completed' });
       return result;
@@ -582,7 +607,7 @@ function registerIpc() {
     const signalKey = `adLine-${Date.now()}`;
     send('job:progress', { status: 'running', signalKey, messageKey: 'wait.context.task.adLine' });
     try {
-      await bridgeManager.requirePaired(pairingCode);
+      await requireCodexReady(pairingCode);
       return await promptBuilder.suggestAdLine(adLineOpts, signalKey);
     } catch (err) {
       debugLog.error('main', 'generate:suggestAdLine failed', { message: err.message });
@@ -594,7 +619,7 @@ function registerIpc() {
     const signalKey = `image-${Date.now()}`;
     send('job:progress', { status: 'running', signalKey, messageKey: 'wait.status.running' });
     const onProgress = (p) => send('job:progress', { ...p, signalKey });
-    await bridgeManager.requirePaired(pairingCode);
+    await requireCodexReady(pairingCode);
     const onPreflightComplete = (preflight) => {
       if (!preflight?.preflightPrompt) return;
       if (!session) {
@@ -619,7 +644,7 @@ function registerIpc() {
   });
 
   ipcMain.handle('generate:abort', (_, signalKey) => {
-    const success = bridgeManager.getClient().abort(signalKey);
+    const success = codexProvider.abort(signalKey);
     return { success };
   });
 
@@ -734,14 +759,15 @@ app.whenReady().then(() => {
   refreshLocale();
   bridgeManager = new BridgeManager();
   codexManager = new CodexManager();
+  codexProvider = createCodexProvider(bridgeManager.getClient(), { systemLocaleFn: systemLocale });
+  codexService = new CodexService(bridgeManager, codexManager, codexProvider, systemLocale);
   templateRegistry = new TemplateRegistry();
   profileStore = new ProfileStore();
-  const client = bridgeManager.getClient();
-  promptBuilder = new PromptBuilder(client, templateRegistry);
-  imagePipeline = new ImagePipeline(client, templateRegistry);
-  templateEditPipeline = new TemplateEditPipeline(client, templateRegistry);
+  promptBuilder = new PromptBuilder(codexProvider, templateRegistry);
+  imagePipeline = new ImagePipeline(codexProvider, templateRegistry);
+  templateEditPipeline = new TemplateEditPipeline(codexProvider, templateRegistry);
   templateEditor = new TemplateEditorService(templateEditPipeline, templateRegistry);
-  previewEditPipeline = new PreviewEditPipeline(client, templateRegistry);
+  previewEditPipeline = new PreviewEditPipeline(codexProvider, templateRegistry);
   previewEditor = new PreviewEditService(previewEditPipeline, {
     getSession: () => session || profileStore.loadSession(),
     patchSession: (patch) => {
