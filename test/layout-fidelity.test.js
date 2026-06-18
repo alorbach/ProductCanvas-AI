@@ -38,7 +38,8 @@ const taskPrompt = buildPreflightTaskPrompt({
   template,
 });
 assert(taskPrompt.includes('LAYOUT FROZEN ZONES'), 'preflight task includes frozen rules');
-assert(!/Highlight category/i.test(taskPrompt), 'preflight task must not highlight category');
+assert(taskPrompt.includes('Main line:'), 'preflight task uses main line label');
+assert(!/Category:/i.test(taskPrompt), 'preflight task must not include category');
 assert(!/Gold typography for brand/i.test(taskPrompt), 'preflight task must not force gold brand');
 
 const dirty = 'Add gold typography for brand. Highlight category: TV. Output 1365x1024 with futuristic font.';

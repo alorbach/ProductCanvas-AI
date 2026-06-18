@@ -134,10 +134,9 @@ function buildPreflightTaskPrompt({ settings, promptData, template }) {
     LAYOUT_FROZEN_RULES,
     LAYOUT_EDITABLE_RULES,
     '',
-    `Brand: ${promptData?.brandName || settings?.brandName || '–'}`,
-    `Series: ${promptData?.seriesName || settings?.seriesName || '–'}`,
-    `Tagline: ${promptData?.tagline || settings?.tagline || '–'}`,
-    `Category: ${promptData?.productCategory || settings?.productCategory || 'LAUTSPRECHER'}`,
+    `Main line: ${promptData?.brandName || settings?.brandName || '–'}`,
+    `Ad line 1: ${promptData?.seriesName || settings?.seriesName || '–'}`,
+    `Ad line 2: ${promptData?.tagline || settings?.tagline || '–'}`,
     `Extra: ${settings?.extraPrompt || '–'}`,
     `Target output size: ${size || '1536x1024'}${settings?.sizeMode === 'template' ? ' (from selected layout template)' : ''}${settings?.sizeMode === 'template2x' ? ' (2× selected layout template)' : ''}`,
     `Preferred quality: ${quality || 'high'}`,
@@ -205,7 +204,6 @@ function computePreflightFingerprint(settings, templatePath, productPaths) {
     brandName: settings?.brandName || '',
     seriesName: settings?.seriesName || '',
     tagline: settings?.tagline || '',
-    productCategory: settings?.productCategory || '',
     extraPrompt: settings?.extraPrompt || '',
     size: settings?.sizeMode === 'template' || settings?.sizeMode === 'template2x'
       ? settings.sizeMode

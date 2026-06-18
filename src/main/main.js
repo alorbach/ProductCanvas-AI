@@ -568,15 +568,15 @@ function registerIpc() {
     }
   });
 
-  ipcMain.handle('generate:suggestTagline', async (_, options = {}) => {
-    const { pairingCode, ...taglineOpts } = options;
-    const signalKey = `tagline-${Date.now()}`;
-    send('job:progress', { status: 'running', signalKey, messageKey: 'wait.context.task.tagline' });
+  ipcMain.handle('generate:suggestAdLine', async (_, options = {}) => {
+    const { pairingCode, ...adLineOpts } = options;
+    const signalKey = `adLine-${Date.now()}`;
+    send('job:progress', { status: 'running', signalKey, messageKey: 'wait.context.task.adLine' });
     try {
       await bridgeManager.requirePaired(pairingCode);
-      return await promptBuilder.suggestTagline(taglineOpts, signalKey);
+      return await promptBuilder.suggestAdLine(adLineOpts, signalKey);
     } catch (err) {
-      debugLog.error('main', 'generate:suggestTagline failed', { message: err.message });
+      debugLog.error('main', 'generate:suggestAdLine failed', { message: err.message });
       throw err;
     }
   });

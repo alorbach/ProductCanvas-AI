@@ -12,7 +12,7 @@ const LAYOUT_FROZEN_RULES = [
 const LAYOUT_EDITABLE_RULES = [
   'EDITABLE ZONE (product stage only):',
   '- Place products from IMAGE 1 only inside the central stage area.',
-  '- Series name and tagline may appear in the stage text zone only.',
+  '- Ad lines (main line, line 1, line 2) may appear in the stage text zone only.',
   '- Use colors and typography that match IMAGE 2 for stage product lines — do not force gold on header brand text.',
 ].join('\n');
 

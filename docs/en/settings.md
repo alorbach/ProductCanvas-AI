@@ -49,7 +49,7 @@ These settings are part of your **session** and **profiles**, not the Settings w
 | Template selection | Yes |
 | Reference images | Yes (paths; copied on profile save) |
 | Image resolution / quality | Yes |
-| Product category, brand, series, tagline | Yes |
+| Headline, ad lines, extra prompt | Yes |
 | Extra prompt, image prompt, analysis fields | Yes |
 
 They autosave to `%APPDATA%\productcanvas-ai\session.json` every few seconds while you work.

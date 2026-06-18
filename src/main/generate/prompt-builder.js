@@ -7,10 +7,14 @@ const debugLog = require('../debug/logger');
 const { collectReferencePaths } = require('./image-request');
 const {
   buildReferenceImageEntries,
+  buildPreflightMessages,
   computePreflightFingerprint,
+  gatewayErrorNeedsResponsesContentParts,
   runImagePreflight,
 } = require('./image-preflight');
 const { resolveImageGenerationSettings } = require('./image-settings');
+
+const AD_LINE_KEYS = new Set(['brandName', 'seriesName', 'tagline']);
 
 function buildReferencePromptFromForm(options, template, templateRegistry, productAnalysis, imagePaths) {
   const templatePath = templateRegistry.resolveTemplatePath(template);
@@ -18,7 +22,6 @@ function buildReferencePromptFromForm(options, template, templateRegistry, produ
     brandName: String(options.brandName || '').trim().toUpperCase(),
     seriesName: String(options.seriesName || '').trim(),
     tagline: String(options.tagline || '').trim(),
-    productCategory: options.productCategory || 'LAUTSPRECHER',
     productDescription: String(options.extraPrompt || '').trim(),
     placementInstructions: 'Place products naturally on the stage from the layout template without altering product appearance.',
     productAnalysis: productAnalysis || '',
@@ -45,6 +48,36 @@ function getChoiceContent(result) {
 
 function brandLabel(options) {
   return String(options.brandName || 'the brand').trim() || 'the brand';
+}
+
+function buildAdLineTaskPrompt(line, options) {
+  const mainLine = options.brandName || '–';
+  const adLine1 = options.seriesName || '–';
+  const adLine2 = options.tagline || '–';
+  const extra = options.extraPrompt || '–';
+
+  if (line === 'brandName') {
+    return `Du bist Werbetexter für Produktwerbung.
+Analysiere das angehängte Produktbild und schreibe genau eine kurze deutsche Hauptzeile (1–4 Wörter).
+Nur sichtbare Marken, Logos oder Produktfamilien – nichts erfinden.
+Bereits bekannt – Werbezeile 1: ${adLine1}, Werbezeile 2: ${adLine2}
+Zusatz: ${extra}
+Antworte nur mit der Hauptzeile, ohne Anführungszeichen.`;
+  }
+  if (line === 'seriesName') {
+    return `Du bist Werbetexter für Produktwerbung.
+Analysiere das angehängte Produktbild und schreibe genau eine kurze deutsche Werbezeile 1 (2–6 Wörter).
+Serie, Modellfamilie oder Produktlinie – prägnant, nur aus dem Bild ableitbar.
+Bereits bekannt – Hauptzeile: ${mainLine}, Werbezeile 2: ${adLine2}
+Zusatz: ${extra}
+Antworte nur mit Werbezeile 1, ohne Anführungszeichen.`;
+  }
+  return `Du bist Werbetexter für Produktwerbung.
+Analysiere das angehängte Produktbild und schreibe genau eine kurze deutsche Werbezeile 2 (2–8 Wörter).
+Knackiger Werbesatz – nur aus dem Bild ableitbar, nichts erfinden.
+Bereits bekannt – Hauptzeile: ${mainLine}, Werbezeile 1: ${adLine1}
+Zusatz: ${extra}
+Antworte nur mit Werbezeile 2, ohne Anführungszeichen.`;
 }
 
 class PromptBuilder {
@@ -112,7 +145,7 @@ class PromptBuilder {
     const brand = brandLabel(options);
     let exampleHint = '';
     if (fs.existsSync(examplePath)) {
-      exampleHint = `Orientiere dich am Layout-Beispiel: Markenname prominent, Serienname, Tagline, Produkt(e) auf der Bühne, Footer-Kategorie hervorgehoben. Marke: ${brand}.`;
+      exampleHint = `Orientiere dich am Layout-Beispiel: Hauptzeile prominent, Werbezeile 1 und 2, Produkt(e) auf der Bühne. Marke: ${brand}.`;
     }
 
     const fidelityRules = `
@@ -126,24 +159,22 @@ Vorlage: ${template.name}, Akzentfarbe: ${template.accent}, Bühne: ${template.s
 ${exampleHint}
 ${fidelityRules}
 
-Bereits bekannt – Markenname: ${options.brandName || '–'}
-Serie: ${options.seriesName || '–'}
-Tagline-Vorgabe: ${options.tagline || '–'}
+Bereits bekannt – Hauptzeile: ${options.brandName || '–'}
+Werbezeile 1: ${options.seriesName || '–'}
+Werbezeile 2: ${options.tagline || '–'}
 
 Produktanalyse:
 Keine Referenzbilder – nutze allgemeine Produktbeschreibung aus Zusatz-Prompt.
 
 Zusatz-Prompt: ${options.extraPrompt || '–'}
-Gewünschte Kategorie: ${options.productCategory || 'LAUTSPRECHER'}
 
 JSON-Felder:
-- brandName (Großbuchstaben)
-- seriesName
-- tagline (1 Zeile Deutsch)
-- productCategory (eines von: TV, BEAMER, LEINWÄNDE, LAUTSPRECHER, AV-RECEIVER, SUBWOOFER, KINOSESSEL)
+- brandName (Großbuchstaben, Hauptzeile)
+- seriesName (Werbezeile 1)
+- tagline (Werbezeile 2, 1 Zeile Deutsch)
 - productDescription (detailliert, zählbar, keine Erfindungen)
 - placementInstructions (nur Platzierung, Produkt unverändert)
-- imagePrompt (vollständiger englischer Prompt: merge products from attached Image 1 into layout from attached Image 2, photorealistic ${brand} retail ad, brand text matching template, highlighted footer category — NOT a flat collage)`;
+- imagePrompt (vollständiger englischer Prompt: merge products from attached Image 1 into layout from attached Image 2, photorealistic ${brand} retail ad, ad text matching template — NOT a flat collage)`;
 
     onProgress?.({ status: 'running', messageKey: 'wait.status.buildingPrompt' });
 
@@ -161,29 +192,67 @@ JSON-Felder:
     return parsed;
   }
 
-  async suggestTagline(options, signalKey) {
-    const productHint = options.productAnalysis || '';
-    const brand = brandLabel(options);
+  async suggestAdLine(options, signalKey) {
+    const line = String(options.line || '').trim();
+    if (!AD_LINE_KEYS.has(line)) {
+      throw new Error('Ungültige Werbezeile für KI-Vorschlag.');
+    }
 
-    const chatPrompt = `Schreibe genau eine kurze deutsche Werbe-Tagline (max. 12 Wörter).
+    const imagePaths = collectReferencePaths(options.referenceImages);
+    const productPath = imagePaths[0] || '';
+    if (!productPath) {
+      throw new Error('Keine Referenzbilder für KI-Vorschlag vorhanden.');
+    }
 
-Marke: ${brand}
-Serie: ${options.seriesName || 'unbekannt'}
-Kategorie: ${options.productCategory || 'LAUTSPRECHER'}
-Zusatz: ${options.extraPrompt || '–'}
-Produkthinweis: ${productHint || '–'}
+    const referenceImages = await buildReferenceImageEntries({ productPath, layoutPath: '' });
+    if (!referenceImages.length) {
+      throw new Error('Keine Referenzbilder für KI-Vorschlag vorhanden.');
+    }
 
-Antworte nur mit der Tagline, ohne Anführungszeichen.`;
+    const taskPrompt = buildAdLineTaskPrompt(line, options);
+    const model = 'codex-local:auto';
+    let messages = buildPreflightMessages(taskPrompt, referenceImages, {
+      model,
+      useResponsesContentParts: false,
+    });
+    messages[0] = {
+      role: 'system',
+      content: 'You are ProductCanvas AI ad copywriter. Analyze the attached product image and return only the requested German ad line. No explanation, no markdown, no quotes.',
+    };
 
-    const result = await this.client.chat({
-      model: 'codex-local:auto',
-      messages: [{ role: 'user', content: chatPrompt }],
-      max_tokens: 128,
-    }, signalKey);
+    const refPaths = referenceImages.map((r) => r.path).filter(Boolean);
+    const chatPayload = { model, messages, max_tokens: 64 };
+    if (refPaths.length) {
+      chatPayload.referenced_image_paths = refPaths;
+    }
 
-    const tagline = getChoiceContent(result).trim().replace(/^["']|["']$/g, '');
-    if (!tagline) throw new Error('KI konnte keinen Werbetext vorschlagen.');
-    return { tagline };
+    let result;
+    try {
+      result = await this.client.chat(chatPayload, signalKey);
+    } catch (err) {
+      if (!gatewayErrorNeedsResponsesContentParts(err)) {
+        throw err;
+      }
+      messages = buildPreflightMessages(taskPrompt, referenceImages, {
+        model,
+        forceResponsesContentParts: true,
+      });
+      messages[0] = {
+        role: 'system',
+        content: 'You are ProductCanvas AI ad copywriter. Analyze the attached product image and return only the requested German ad line. No explanation, no markdown, no quotes.',
+      };
+      chatPayload.messages = messages;
+      result = await this.client.chat(chatPayload, signalKey);
+    }
+
+    let text = getChoiceContent(result).trim().replace(/^["']|["']$/g, '');
+    if (!text) {
+      throw new Error('KI konnte keinen Werbetext vorschlagen.');
+    }
+    if (line === 'brandName') {
+      text = text.toUpperCase();
+    }
+    return { [line]: text };
   }
 }
 

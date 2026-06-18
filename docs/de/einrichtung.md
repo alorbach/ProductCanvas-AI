@@ -103,7 +103,7 @@ Damit haben Sie den Kern-Workflow abgeschlossen. Details: [Bild erstellen](bild-
 
 ## Weiterführend
 
-- [Bild erstellen](bild-erstellen.md) – Auflösung, Qualität, Tagline-Vorschläge
+- [Bild erstellen](bild-erstellen.md) – Auflösung, Qualität, KI-Werbezeilen-Vorschläge
 - [Vorlagen bearbeiten](vorlagen-bearbeiten.md) – Layouts anpassen
 - [Einstellungen](einstellungen.md) – Sprache und Bridge-URL
 - [Fehlerbehebung](fehlerbehebung.md) – wenn etwas nicht funktioniert

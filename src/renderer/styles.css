@@ -146,6 +146,20 @@ body {
 .preview-panel {
   display: flex;
   flex-direction: column;
+  min-height: 0;
+}
+
+.preview-panel {
+  overflow-y: auto;
+}
+
+.preview-panel .preview-wrap {
+  flex-shrink: 1;
+}
+
+#btn-export,
+.preview-edit-block {
+  flex-shrink: 0;
 }
 
 .preview-edit-block {
@@ -326,29 +340,36 @@ input, select, textarea {
 }
 
 .preview-wrap {
-  flex: 1 1 auto;
-  min-height: 160px;
+  flex: 1 1 0;
+  min-height: 100px;
   background: #111;
   border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: 12px;
-  overflow: auto;
+  overflow: hidden;
 }
 
-.preview-wrap img { max-width: 100%; max-height: 100%; border-radius: 4px; }
 .preview-frame {
   position: relative;
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   max-width: 100%;
+  max-height: 100%;
   width: 100%;
+  height: 100%;
+  min-height: 0;
 }
+
 .preview-frame img {
   display: block;
   max-width: 100%;
-  width: 100%;
+  max-height: 100%;
+  width: auto;
   height: auto;
+  object-fit: contain;
   border-radius: 4px;
 }
 .preview-meta-overlay {
@@ -387,7 +408,35 @@ input, select, textarea {
 
 .preview-lightbox.hidden { display: none; }
 
-.preview-lightbox img {
+.preview-lightbox-viewport {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  max-width: min(100%, 1600px);
+  max-height: calc(100vh - 96px);
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preview-lightbox-zoom-target,
+.editor-compare-grid {
+  transform-origin: center center;
+  will-change: transform;
+}
+
+.preview-lightbox-viewport .preview-lightbox-zoom-target {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6);
+}
+
+.preview-lightbox > img {
   max-width: min(100%, 1600px);
   max-height: calc(100vh - 96px);
   width: auto;
@@ -440,8 +489,6 @@ body.lightbox-open { overflow: hidden; }
   gap: 20px;
   width: min(100%, 1920px);
   align-items: start;
-  transform-origin: center center;
-  will-change: transform;
 }
 
 .editor-compare-pane {

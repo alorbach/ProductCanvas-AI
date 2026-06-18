@@ -1,6 +1,6 @@
 # Einstellungen
 
-ProductCanvas AI unterscheidet **Anwendungseinstellungen** (Sprache, Bridge-URL) von **Projekteinstellungen** (Auflösung, Markenfelder im Tab Bild erstellen). Dieses Kapitel behandelt beides sowie Profile und Speicherorte.
+ProductCanvas AI unterscheidet **Anwendungseinstellungen** (Sprache, Bridge-URL) von **Projekteinstellungen** (Auflösung, Werbezeilen im Tab Bild erstellen). Dieses Kapitel behandelt beides sowie Profile und Speicherorte.
 
 ## Einstellungsfenster öffnen
 
@@ -49,7 +49,7 @@ Diese Werte gehören zur **Sitzung** bzw. zum **Profil**, nicht zum Einstellungs
 | Vorlagenauswahl | Ja |
 | Referenzbilder | Ja (Pfade; beim Profil-Speichern kopiert) |
 | Bildauflösung / Qualität | Ja |
-| Kategorie, Marke, Serie, Tagline | Ja |
+| Headline, ad lines, extra prompt | Yes |
 | Zusatz-Prompt, Bild-Prompt, Analysefelder | Ja |
 
 Autosave nach `%APPDATA%\productcanvas-ai\session.json` während der Arbeit.

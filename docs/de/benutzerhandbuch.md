@@ -24,7 +24,7 @@ Typischer Ablauf:
 
 1. Vorlage wählen oder importieren.
 2. Ein oder mehrere Referenz-Produktbilder hinzufügen.
-3. Projektfelder ausfüllen (Marke, Serie, Tagline).
+3. Projektfelder ausfüllen (Hauptzeile, Werbezeile 1, Werbezeile 2).
 4. **Prompt generieren** – KI analysiert das Produkt und erstellt einen Bild-Prompt.
 5. **Bild generieren** und Vorschau prüfen.
 6. Optional **Vorschau mit KI verfeinern** (übernehmen oder verwerfen).

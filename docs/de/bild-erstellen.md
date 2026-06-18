@@ -49,10 +49,9 @@ Formate: **PNG, JPG, WebP**.
 |------|--------------|
 | **Bildauflösung** | Ausgabegröße für Codex. **Vorlage (B×H)** entspricht der Vorlage; **Vorlage ×2** verdoppelt die Maße. Feste Presets (z. B. 1536×1024) verfügbar. |
 | **Qualität** | Niedrig, Mittel oder Hoch – wie AI Gateway / PMS. **Hoch** für finale Exporte empfohlen. |
-| **Produktkategorie** | Hebt das passende Icon in der Vorlagen-Fußzeile hervor. **Anzeigenamen** folgen der UI-Sprache (DE/EN); **Werte** für die KI bleiben stabil (z. B. `LAUTSPRECHER`, `TV`). |
-| **Markenname** | Primäre Markenzeile im Layout. |
-| **Serie** | Produktlinie oder Modellfamilie. |
-| **Werbetext (Tagline)** | Kurzer Werbesatz (möglichst eine Zeile). **KI-Vorschlag** (Funkeln-Symbol) für automatischen Entwurf. |
+| **Hauptzeile** | Primäre Textzeile im Layout (z. B. Marke oder Händler). **KI-Vorschlag** (Funkeln-Symbol) erfordert Referenzbilder. |
+| **Werbezeile 1** | Zweite Textzeile (z. B. Serie oder Modellfamilie). **KI-Vorschlag** erfordert Referenzbilder. |
+| **Werbezeile 2** | Dritte Textzeile – kurzer Werbesatz. **KI-Vorschlag** erfordert Referenzbilder. |
 | **Zusatz-Prompt** | Optionale Hinweise, z. B. „Produkt exakt wie Referenz, keine Formänderung“. |
 
 Auflösung und Qualität beeinflussen Generierungsdauer und Codex-Kosten. Vorlagenmaße behalten das Seitenverhältnis Ihres Layouts.
@@ -66,7 +65,7 @@ Die App:
 1. Sendet Referenzbilder über die [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge) an Codex
 2. Analysiert jedes Referenzbild (Fortschritt: „Produktbild X von Y wird analysiert…“)
 3. Erstellt einen strukturierten **Bild-Prompt** mit Regeln für Layout- und Produkttreue
-4. Füllt **Markenname**, **Serie** und **Tagline**, wenn die Analyse Vorschläge liefert (editierbar)
+4. Füllt **Hauptzeile**, **Werbezeile 1** und **Werbezeile 2**, wenn die Analyse Vorschläge liefert (editierbar)
 
 Ergebnis im aufklappbaren Bereich **Bild-Prompt**. Vor dem Generieren prüfen. Nach größeren Änderungen erneut **Prompt generieren**.
 
@@ -127,7 +126,7 @@ Benannte Projekte: **Datei → Speichern unter…** als `.pcprofile.json`. Siehe
 |------|-----------|
 | Schärfere Produktdetails | Mehr Referenzwinkel; Qualität Hoch |
 | Schnellere Iteration | Niedrigere Qualität oder kleinere Auflösung für Entwürfe |
-| Bessere Taglines | Kurz, eine Zeile; KI-Vorschlag dann manuell feinschleifen |
+| Bessere Werbezeilen | Kurz und prägnant; KI-Vorschlag pro Zeile (mit Referenzbild), dann manuell feinschleifen |
 | Nur Layout testen | Vorlage wechseln ohne Prompt-Neubau, wenn Produkt gleich bleibt |
 | Wiederholbare Kampagnen | Profil pro Produktlinie speichern |
 

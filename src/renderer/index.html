@@ -54,17 +54,26 @@
           </label>
         </div>
         <p id="image-settings-hint" class="muted compositing-hint image-settings-hint"></p>
-        <label><span id="lbl-category">Product category</span>
-          <select id="setting-category"></select>
+        <label><span id="lbl-brand">Headline</span>
+          <div class="input-with-action">
+            <input type="text" id="setting-brand">
+            <button type="button" class="btn-icon" id="btn-suggest-brand" title="AI headline suggestion">
+              <svg class="ai-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2l1.2 4.2L17.5 7.5 13.2 8.7 12 13l-1.2-4.3L6.5 7.5l4.3-1.3L12 2zm7 9l.8 2.8L22.5 15l-2.7.8L19 18.5l-.8-2.7L15.5 15l2.7-.8L19 11zm-14 1l.6 2.1L7.5 15l-2.1.6L5 17.7l-.6-2.1L2.3 15l2.1-.6L5 12.3z"/></svg>
+            </button>
+          </div>
         </label>
-        <div class="settings-row-2col">
-          <label><span id="lbl-brand">Brand name</span><input type="text" id="setting-brand"></label>
-          <label><span id="lbl-series">Series</span><input type="text" id="setting-series"></label>
-        </div>
-        <label><span id="lbl-tagline">Tagline</span>
+        <label><span id="lbl-series">Ad line 1</span>
+          <div class="input-with-action">
+            <input type="text" id="setting-series">
+            <button type="button" class="btn-icon" id="btn-suggest-series" title="AI ad line 1 suggestion">
+              <svg class="ai-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2l1.2 4.2L17.5 7.5 13.2 8.7 12 13l-1.2-4.3L6.5 7.5l4.3-1.3L12 2zm7 9l.8 2.8L22.5 15l-2.7.8L19 18.5l-.8-2.7L15.5 15l2.7-.8L19 11zm-14 1l.6 2.1L7.5 15l-2.1.6L5 17.7l-.6-2.1L2.3 15l2.1-.6L5 12.3z"/></svg>
+            </button>
+          </div>
+        </label>
+        <label><span id="lbl-tagline">Ad line 2</span>
           <div class="input-with-action">
             <input type="text" id="setting-tagline">
-            <button type="button" class="btn-icon" id="btn-suggest-tagline" title="AI tagline suggestion">
+            <button type="button" class="btn-icon" id="btn-suggest-tagline" title="AI ad line 2 suggestion">
               <svg class="ai-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2l1.2 4.2L17.5 7.5 13.2 8.7 12 13l-1.2-4.3L6.5 7.5l4.3-1.3L12 2zm7 9l.8 2.8L22.5 15l-2.7.8L19 18.5l-.8-2.7L15.5 15l2.7-.8L19 11zm-14 1l.6 2.1L7.5 15l-2.1.6L5 17.7l-.6-2.1L2.3 15l2.1-.6L5 12.3z"/></svg>
             </button>
           </div>
@@ -199,7 +208,9 @@
 
   <div id="preview-lightbox" class="preview-lightbox hidden" role="dialog" aria-modal="true" aria-labelledby="preview-lightbox-hint">
     <button type="button" class="preview-lightbox-close" id="preview-lightbox-close" aria-label="Close">×</button>
-    <img id="preview-lightbox-image" alt="Preview fullscreen" />
+    <div class="preview-lightbox-viewport">
+      <img id="preview-lightbox-image" class="preview-lightbox-zoom-target" alt="Preview fullscreen" />
+    </div>
     <p id="preview-lightbox-hint" class="preview-lightbox-hint">Click or press Esc to close</p>
   </div>
 

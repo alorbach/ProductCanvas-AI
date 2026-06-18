@@ -84,7 +84,7 @@ Templates are **not bundled** with the app—you import your own layout masters 
 1. Open the **Create image** tab.
 2. **Select a template** in the left panel (the last used template is pre-selected when available).
 3. **Add reference images** – one or more photos of your product (button or drag-and-drop).
-4. Optionally adjust **Image resolution**, **Quality**, and project fields (**Brand name**, **Series**, **Tagline**).
+4. Optionally adjust **Image resolution**, **Quality**, and project fields (**Headline**, **Ad line 1**, **Ad line 2**).
 5. Click **Build prompt**. Wait while AI analyzes your reference photos and creates a structured image prompt. Progress appears in the wait dialog.
 6. Review the generated **Image prompt** (expand the details section if collapsed).
 7. Click **Generate image**. Generation can take several minutes depending on size, quality, and queue load.

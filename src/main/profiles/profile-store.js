@@ -11,7 +11,6 @@ const DEFAULTS = {
   quality: 'high',
   bridgeUrl: 'http://127.0.0.1:8765',
   uiLocale: 'auto',
-  productCategory: 'LAUTSPRECHER',
   brandName: '',
   seriesName: '',
   tagline: '',

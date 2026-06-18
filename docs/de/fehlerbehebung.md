@@ -103,7 +103,7 @@ Sehr große Referenzen werden ggf. automatisch verkleinert. Meldung „body too 
 ### Layout oder Text falsch
 
 - Richtige **Vorlage** gewählt?
-- Nach Änderung von Marke/Serie/Tagline Prompt neu erzeugen und erneut generieren.
+- Nach Änderung von Hauptzeile/Werbezeilen Prompt neu erzeugen und erneut generieren.
 
 ### Referenzen nicht weitergeleitet
 

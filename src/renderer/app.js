@@ -51,14 +51,28 @@ function isInternalSortDrag(dataTransfer) {
   return Boolean(dataTransfer?.types && [...dataTransfer.types].includes(WM_SORT_MIME));
 }
 
-const CATEGORIES = [
-  { value: 'TV', labelKey: 'category.tv' },
-  { value: 'BEAMER', labelKey: 'category.beamer' },
-  { value: 'LEINWÄNDE', labelKey: 'category.screens' },
-  { value: 'LAUTSPRECHER', labelKey: 'category.speakers' },
-  { value: 'AV-RECEIVER', labelKey: 'category.avReceiver' },
-  { value: 'SUBWOOFER', labelKey: 'category.subwoofer' },
-  { value: 'KINOSESSEL', labelKey: 'category.homeCinemaSeats' },
+const AD_LINES = [
+  {
+    line: 'brandName',
+    inputId: 'setting-brand',
+    buttonId: 'btn-suggest-brand',
+    suggestKey: 'adLine.suggest.main',
+    suggestingKey: 'adLine.suggesting.main',
+  },
+  {
+    line: 'seriesName',
+    inputId: 'setting-series',
+    buttonId: 'btn-suggest-series',
+    suggestKey: 'adLine.suggest.line1',
+    suggestingKey: 'adLine.suggesting.line1',
+  },
+  {
+    line: 'tagline',
+    inputId: 'setting-tagline',
+    buttonId: 'btn-suggest-tagline',
+    suggestKey: 'adLine.suggest.line2',
+    suggestingKey: 'adLine.suggesting.line2',
+  },
 ];
 const IMAGE_EXT = /\.(png|jpe?g|webp)$/i;
 
@@ -581,17 +595,21 @@ function setupPreviewLightbox() {
   function closeLightbox() {
     overlay.classList.add('hidden');
     document.body.classList.remove('lightbox-open');
+    resetLightboxZoom(overlay);
     lightboxImg.removeAttribute('src');
   }
 
   function openLightboxView(src) {
     if (!src) return;
+    resetLightboxZoom(overlay);
     lightboxImg.src = src;
     overlay.classList.remove('hidden');
     document.body.classList.add('lightbox-open');
   }
 
   openLightbox = openLightboxView;
+
+  bindLightboxZoom(overlay);
 
   preview.addEventListener('click', () => {
     if (!preview.classList.contains('hidden') && preview.src) {
@@ -644,59 +662,69 @@ function editorCompareAvailable() {
   return Boolean(original?.src && !preview.classList.contains('hidden') && preview.src);
 }
 
-const COMPARE_ZOOM_MIN = 1;
-const COMPARE_ZOOM_MAX = 6;
+const LIGHTBOX_ZOOM_MIN = 1;
+const LIGHTBOX_ZOOM_MAX = 6;
 
-function resetCompareLightboxZoom(overlay) {
+function getLightboxZoomTarget(overlay) {
+  return overlay.querySelector('.editor-compare-grid')
+    || overlay.querySelector('.preview-lightbox-zoom-target');
+}
+
+function getLightboxZoomViewport(overlay) {
+  return overlay.querySelector('.editor-compare-viewport')
+    || overlay.querySelector('.preview-lightbox-viewport');
+}
+
+function resetLightboxZoom(overlay) {
   if (!overlay) return;
-  const grid = overlay.querySelector('.editor-compare-grid');
-  if (grid) {
-    grid.style.transform = '';
-    grid.style.transformOrigin = 'center center';
+  const target = getLightboxZoomTarget(overlay);
+  if (target) {
+    target.style.transform = '';
+    target.style.transformOrigin = 'center center';
   }
-  overlay.dataset.compareZoom = '1';
-  const viewport = overlay.querySelector('.editor-compare-viewport');
+  overlay.dataset.lightboxZoom = '1';
+  const viewport = getLightboxZoomViewport(overlay);
   if (viewport) {
     viewport.scrollLeft = 0;
     viewport.scrollTop = 0;
   }
 }
 
-function applyCompareLightboxZoom(overlay, scale, originX, originY) {
-  const grid = overlay.querySelector('.editor-compare-grid');
-  if (!grid) return;
-  const clamped = Math.min(COMPARE_ZOOM_MAX, Math.max(COMPARE_ZOOM_MIN, scale));
-  grid.style.transformOrigin = `${originX}% ${originY}%`;
-  grid.style.transform = clamped === 1 ? '' : `scale(${clamped})`;
-  overlay.dataset.compareZoom = String(clamped);
+function applyLightboxZoom(overlay, scale, originX, originY) {
+  const target = getLightboxZoomTarget(overlay);
+  if (!target) return;
+  const clamped = Math.min(LIGHTBOX_ZOOM_MAX, Math.max(LIGHTBOX_ZOOM_MIN, scale));
+  target.style.transformOrigin = `${originX}% ${originY}%`;
+  target.style.transform = clamped === 1 ? '' : `scale(${clamped})`;
+  overlay.dataset.lightboxZoom = String(clamped);
 }
 
-function onCompareLightboxWheel(e) {
+function onLightboxWheel(e) {
   const overlay = e.currentTarget;
   if (overlay.classList.contains('hidden')) return;
-  const viewport = overlay.querySelector('.editor-compare-viewport');
+  const viewport = getLightboxZoomViewport(overlay);
   if (!viewport) return;
   e.preventDefault();
-  const current = Number(overlay.dataset.compareZoom) || 1;
+  const current = Number(overlay.dataset.lightboxZoom) || 1;
   const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
   const rect = viewport.getBoundingClientRect();
   const originX = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
   const originY = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
-  applyCompareLightboxZoom(overlay, current * factor, originX, originY);
+  applyLightboxZoom(overlay, current * factor, originX, originY);
 }
 
-function bindCompareLightboxZoom(overlay) {
+function bindLightboxZoom(overlay) {
   if (!overlay || overlay.dataset.zoomBound === '1') return;
   overlay.dataset.zoomBound = '1';
-  overlay.dataset.compareZoom = '1';
-  overlay.addEventListener('wheel', onCompareLightboxWheel, { passive: false });
+  overlay.dataset.lightboxZoom = '1';
+  overlay.addEventListener('wheel', onLightboxWheel, { passive: false });
 }
 
 function closeEditorCompareLightbox() {
   const overlay = $('editor-compare-lightbox');
   overlay.classList.add('hidden');
   document.body.classList.remove('lightbox-open');
-  resetCompareLightboxZoom(overlay);
+  resetLightboxZoom(overlay);
   $('editor-compare-original').removeAttribute('src');
   $('editor-compare-preview').removeAttribute('src');
 }
@@ -704,7 +732,7 @@ function closeEditorCompareLightbox() {
 function openEditorCompareLightbox() {
   if (!editorCompareAvailable()) return;
   const overlay = $('editor-compare-lightbox');
-  resetCompareLightboxZoom(overlay);
+  resetLightboxZoom(overlay);
   $('editor-compare-original').src = $('editor-original').src;
   $('editor-compare-preview').src = $('editor-preview').src;
   overlay.classList.remove('hidden');
@@ -736,7 +764,7 @@ function setupEditorCompareLightbox() {
     if (e.target === overlay) closeEditorCompareLightbox();
   });
   $('editor-compare-close').addEventListener('click', closeEditorCompareLightbox);
-  bindCompareLightboxZoom(overlay);
+  bindLightboxZoom(overlay);
 }
 
 function setupPreviewCompareLightbox() {
@@ -747,7 +775,7 @@ function setupPreviewCompareLightbox() {
     if (e.target === overlay) closePreviewCompareLightbox();
   });
   $('preview-compare-close')?.addEventListener('click', closePreviewCompareLightbox);
-  bindCompareLightboxZoom(overlay);
+  bindLightboxZoom(overlay);
 }
 
 function setupDebugPanel() {
@@ -780,20 +808,6 @@ function showView(name) {
   }
 }
 
-function populateCategories() {
-  const catSelect = $('setting-category');
-  if (!catSelect) return;
-  const selected = catSelect.value || session.productCategory || 'LAUTSPRECHER';
-  catSelect.replaceChildren();
-  CATEGORIES.forEach((category) => {
-    const opt = document.createElement('option');
-    opt.value = category.value;
-    opt.textContent = t(category.labelKey);
-    catSelect.appendChild(opt);
-  });
-  catSelect.value = selected;
-}
-
 function applyLabels() {
   $('app-title').textContent = t('app.title');
   $('app-subtitle').textContent = t('app.subtitle');
@@ -813,7 +827,6 @@ function applyLabels() {
   $('lbl-size').textContent = t('settings.size');
   $('lbl-quality').textContent = t('settings.quality');
   $('image-settings-hint').textContent = t('settings.imageOptionsHint');
-  $('lbl-category').textContent = t('settings.category');
   $('lbl-brand').textContent = t('settings.brandName');
   $('lbl-series').textContent = t('settings.seriesName');
   $('lbl-tagline').textContent = t('settings.tagline');
@@ -880,7 +893,10 @@ function applyLabels() {
   if ($('setup-message')) $('setup-message').textContent = t('bridge.setup.message');
   $('refs-drop-hint').textContent = t('refs.dropHint');
   $('refs-usage-hint').textContent = `${t('refs.usageHint')} ${t('refs.reorderHint')}`;
-  $('btn-suggest-tagline').title = t('tagline.suggest');
+  AD_LINES.forEach((cfg) => {
+    const btn = $(cfg.buttonId);
+    if (btn) btn.title = t(cfg.suggestKey);
+  });
   $('debug-toggle').textContent = t('debug.title');
   $('btn-debug-copy').textContent = t('debug.copy');
   $('btn-debug-clear').textContent = t('debug.clear');
@@ -893,7 +909,6 @@ function applyLabels() {
   if ($('bridge-dialog-close')) $('bridge-dialog-close').textContent = t('bridge.dialog.close');
   if ($('bridge-dialog-connect')) $('bridge-dialog-connect').textContent = t('bridge.setup.connect');
   if ($('bridge-status')) $('bridge-status').title = t('bridge.status.title');
-  populateCategories();
 }
 
 async function connectBridgeFromUi() {
@@ -1484,7 +1499,7 @@ function closePreviewCompareLightbox() {
   if (!overlay) return;
   overlay.classList.add('hidden');
   document.body.classList.remove('lightbox-open');
-  resetCompareLightboxZoom(overlay);
+  resetLightboxZoom(overlay);
   $('preview-compare-original')?.removeAttribute('src');
   $('preview-compare-edited')?.removeAttribute('src');
 }
@@ -1492,7 +1507,7 @@ function closePreviewCompareLightbox() {
 function openPreviewCompareLightbox() {
   if (!previewCompareAvailable()) return;
   const overlay = $('preview-compare-lightbox');
-  resetCompareLightboxZoom(overlay);
+  resetLightboxZoom(overlay);
   const preview = $('preview-image');
   $('preview-compare-original').src = previewOriginalB64
     ? `data:image/png;base64,${previewOriginalB64}`
@@ -1614,7 +1629,6 @@ function readSettingsFromUi() {
     templateId: session.templateId,
     size: $('setting-size').value,
     quality: $('setting-quality').value,
-    productCategory: $('setting-category').value,
     brandName: $('setting-brand').value,
     seriesName: $('setting-series').value,
     tagline: $('setting-tagline').value,
@@ -1630,7 +1644,6 @@ function readSettingsFromUi() {
 function promptInputsFromSettings(settings) {
   return {
     templateId: settings.templateId || '',
-    productCategory: settings.productCategory || '',
     brandName: settings.brandName || '',
     seriesName: settings.seriesName || '',
     tagline: settings.tagline || '',
@@ -1656,7 +1669,6 @@ function promptDataFromSession() {
     brandName: session.brandName || '',
     seriesName: session.seriesName || '',
     tagline: session.tagline || '',
-    productCategory: session.productCategory || '',
     productDescription: session.productDescription || '',
     placementInstructions: session.placementInstructions || '',
     productAnalysis: session.productAnalysis || '',
@@ -1700,14 +1712,10 @@ async function applyBuiltPrompt(data, fingerprint) {
   $('setting-brand').value = data.brandName || '';
   $('setting-series').value = data.seriesName || '';
   $('setting-tagline').value = data.tagline || '';
-  if (data.productCategory) {
-    $('setting-category').value = data.productCategory;
-  }
   session = await api.sessionUpdate({
     brandName: data.brandName || '',
     seriesName: data.seriesName || '',
     tagline: data.tagline || '',
-    productCategory: data.productCategory || session.productCategory,
     imagePrompt: data.imagePrompt || '',
     productDescription: data.productDescription || '',
     placementInstructions: data.placementInstructions || '',
@@ -1745,7 +1753,6 @@ function promptDataForGenerate(settings) {
     brandName: settings.brandName || '',
     seriesName: settings.seriesName || '',
     tagline: settings.tagline || '',
-    productCategory: settings.productCategory || '',
     imagePrompt: session.imagePrompt || '',
     productDescription: session.productDescription || '',
     placementInstructions: session.placementInstructions || '',
@@ -1758,7 +1765,6 @@ function writeSettingsToUi() {
   let quality = session.quality || imageSettingsCatalog?.defaultQuality || 'high';
   if (quality === 'standard') quality = 'medium';
   $('setting-quality').value = quality;
-  $('setting-category').value = session.productCategory || 'LAUTSPRECHER';
   $('setting-brand').value = session.brandName || '';
   $('setting-series').value = session.seriesName || '';
   $('setting-tagline').value = session.tagline || '';
@@ -2064,9 +2070,9 @@ function waitContextForGeneration(settings, kind, pdata) {
   return {
     kind,
     template: tmpl?.name || tmpl?.id || '',
-    brand: settings.brandName || '',
-    series: settings.seriesName || '',
-    category: settings.productCategory || '',
+    mainLine: settings.brandName || '',
+    adLine1: settings.seriesName || '',
+    adLine2: settings.tagline || '',
     size: settings.size || '',
     quality: settings.quality || '',
     refs: (settings.referenceImages || []).length,
@@ -2096,12 +2102,12 @@ function waitContextForPreviewEdit({ templateId, changeRequest, size, quality })
   };
 }
 
-function waitContextForTagline(settings) {
+function waitContextForAdLine(settings) {
   return {
-    kind: 'tagline',
-    brand: settings.brandName || '',
-    series: settings.seriesName || '',
-    category: settings.productCategory || '',
+    kind: 'adLine',
+    mainLine: settings.brandName || '',
+    adLine1: settings.seriesName || '',
+    adLine2: settings.tagline || '',
   };
 }
 
@@ -2133,9 +2139,9 @@ function renderWaitContext(ctx) {
 
   if (ctx.kind === 'image' || ctx.kind === 'prompt') {
     add('wait.context.template', ctx.template);
-    add('wait.context.brand', ctx.brand);
-    add('wait.context.series', ctx.series);
-    add('wait.context.category', ctx.category);
+    add('wait.context.mainLine', ctx.mainLine);
+    add('wait.context.adLine1', ctx.adLine1);
+    add('wait.context.adLine2', ctx.adLine2);
     const sizeTmpl = getSelectedTemplate();
     if (ctx.size) add('wait.context.size', formatGatewaySizeLabel(ctx.size, sizeTmpl));
     if (ctx.quality) add('wait.context.quality', qualityLabel(ctx.quality));
@@ -2152,10 +2158,10 @@ function renderWaitContext(ctx) {
     if (ctx.size) add('wait.context.size', formatGatewaySizeLabel(ctx.size, sizeTmpl));
     if (ctx.quality) add('wait.context.quality', qualityLabel(ctx.quality));
     add('wait.context.change', ctx.change);
-  } else if (ctx.kind === 'tagline') {
-    add('wait.context.brand', ctx.brand);
-    add('wait.context.series', ctx.series);
-    add('wait.context.category', ctx.category);
+  } else if (ctx.kind === 'adLine') {
+    add('wait.context.mainLine', ctx.mainLine);
+    add('wait.context.adLine1', ctx.adLine1);
+    add('wait.context.adLine2', ctx.adLine2);
   } else if (ctx.kind === 'bridge') {
     add('wait.context.detail', ctx.detail);
   }
@@ -2378,7 +2384,7 @@ function setupInteractionHandlers() {
     btn.addEventListener('click', () => showView(btn.dataset.mode));
   });
 
-  ['setting-size', 'setting-quality', 'setting-category', 'setting-brand', 'setting-series', 'setting-tagline', 'setting-extra', 'setting-internal-comment'].forEach((id) => {
+  ['setting-size', 'setting-quality', 'setting-brand', 'setting-series', 'setting-tagline', 'setting-extra', 'setting-internal-comment'].forEach((id) => {
     const el = $(id);
     if (!el) {
       console.error(`Missing control #${id}`);
@@ -2394,22 +2400,38 @@ function setupInteractionHandlers() {
 
   bindClick('btn-add-refs', () => addReferenceImagesDialog(), t('refs.add'));
 
-  $('btn-suggest-tagline').addEventListener('click', async () => {
+  async function suggestAdLine(lineKey, cfg) {
     if (!(await ensureBridgeReady())) return;
+    const refs = session.referenceImages || [];
+    if (!refs.length) {
+      showStatus(t('adLine.needRefs'), { level: 'warn' });
+      return;
+    }
+    const btn = $(cfg.buttonId);
     try {
-      $('btn-suggest-tagline').disabled = true;
+      if (btn) btn.disabled = true;
       const settings = readSettingsFromUi();
-      showWait(t('tagline.suggesting'), waitContextForTagline(settings));
-      const result = await api.generateSuggestTagline(withPairing(settings));
-      $('setting-tagline').value = result.tagline || '';
-      await updateSession({ tagline: result.tagline });
+      showWait(t(cfg.suggestingKey), waitContextForAdLine(settings));
+      const result = await api.generateSuggestAdLine(withPairing({ ...settings, line: lineKey }));
+      const value = result[lineKey] || '';
+      $(cfg.inputId).value = value;
+      await updateSession({ [lineKey]: value });
       hideWait();
     } catch (err) {
       hideWait();
-      showError(err, t('tagline.suggest'));
+      showError(err, t(cfg.suggestKey));
     } finally {
-      $('btn-suggest-tagline').disabled = false;
+      if (btn) btn.disabled = false;
     }
+  }
+
+  AD_LINES.forEach((cfg) => {
+    const btn = $(cfg.buttonId);
+    if (!btn) {
+      console.error(`Missing button #${cfg.buttonId}`);
+      return;
+    }
+    btn.addEventListener('click', () => suggestAdLine(cfg.line, cfg));
   });
 
   $('btn-build-prompt').addEventListener('click', async () => {

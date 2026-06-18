@@ -51,10 +51,9 @@ The settings panel controls output options and text that appears on the layout.
 |-------|-------------|
 | **Image resolution** | Output size sent to Codex. **Template (WxH)** matches the selected template dimensions; **Template ×2** doubles them. Fixed presets (e.g. 1536×1024) are also available. |
 | **Quality** | Low, Medium, or High – passed to the bridge like AI Gateway / PMS image settings. **High** is recommended for final exports. |
-| **Product category** | Highlights the matching icon in the template footer. **Labels** follow your UI language (EN/DE); **values** sent to the AI stay stable (e.g. `LAUTSPRECHER`, `TV`). |
-| **Brand name** | Primary brand line on the layout. |
-| **Series** | Product line or model family. |
-| **Tagline** | Short promotional line (keep to one line when possible). Use the **AI suggestion** button (sparkle icon) for an automatic draft. |
+| **Headline** | Primary text line on the layout (e.g. brand or retailer). **AI suggestion** (sparkle icon) requires reference images. |
+| **Ad line 1** | Second text line (e.g. series or model family). **AI suggestion** requires reference images. |
+| **Ad line 2** | Third text line – short promotional phrase. **AI suggestion** requires reference images. |
 | **Extra prompt** | Optional free-text hints for the AI, e.g. “keep product exactly as in reference, no shape changes”. |
 
 Size and quality affect generation time and token cost on the Codex side. Template-based sizes keep the aspect ratio of your layout.
@@ -68,7 +67,7 @@ The app:
 1. Sends your reference images to Codex via [Codex Local Bridge](https://github.com/alorbach/codex-local-bridge)
 2. Runs product analysis on each reference (progress: “Analyzing product image X of Y…”)
 3. Builds a structured **image prompt** with rules for layout fidelity and product accuracy
-4. Fills **Brand name**, **Series**, and **Tagline** when the analysis suggests values (you can edit them afterward)
+4. Fills **Headline**, **Ad line 1**, and **Ad line 2** when the analysis suggests values (you can edit them afterward)
 
 The result appears in the collapsible **Image prompt** section. You can inspect it before generating. Re-run **Build prompt** after changing references or major project fields.
 

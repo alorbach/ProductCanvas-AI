@@ -26,8 +26,8 @@ assert.strictEqual(de['app.title'], 'ProductCanvas AI', 'German app title');
 assert.strictEqual(en['app.title'], 'ProductCanvas AI', 'English app title');
 assert(de['settings.projectTitle'], 'project panel title');
 assert(en['settings.language'], 'settings language label');
-assert(en['category.speakers'], 'category speakers label');
-assert.strictEqual(de['category.speakers'], 'LAUTSPRECHER');
+assert(de['adLine.suggest.main'], 'ad line suggest main');
+assert(de['adLine.needRefs'], 'ad line need refs');
 
 const docChapters = [
   'en/user-guide.md', 'en/getting-started.md', 'en/create-image.md',
@@ -79,7 +79,7 @@ assert(!hint.includes('#FFD700'));
 const { buildReferencePromptFromForm } = require(path.join(root, 'src', 'main', 'generate', 'prompt-builder'));
 const stubRegistry = { resolveTemplatePath: () => 'C:\\tpl.png' };
 const stub = buildReferencePromptFromForm(
-  { brandName: 'acme', seriesName: 'Motion', tagline: 'Test', templateId: 't1', productCategory: 'LAUTSPRECHER' },
+  { brandName: 'acme', seriesName: 'Motion', tagline: 'Test', templateId: 't1' },
   { id: 't1' },
   stubRegistry,
   '',
