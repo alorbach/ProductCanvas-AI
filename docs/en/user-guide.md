@@ -27,7 +27,8 @@ Typical workflow:
 3. Fill in project fields (brand, series, tagline).
 4. **Build prompt** to let AI analyze your product and draft an image prompt.
 5. **Generate image** and review the preview.
-6. **Save as PNG** to export the result.
+6. Optionally **refine the preview with AI** (accept or reject changes).
+7. **Save as PNG** to export the result.
 
 ## Main areas of the app
 

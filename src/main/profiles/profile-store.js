@@ -20,6 +20,7 @@ const DEFAULTS = {
   referenceImages: [],
   editorReferenceImagePath: '',
   lastPreviewPath: '',
+  previewPendingEdit: null,
   imagePrompt: '',
   productDescription: '',
   placementInstructions: '',

@@ -58,7 +58,7 @@ class ImagePipeline {
     };
   }
 
-  async generateViaBridge(promptData, settings, onProgress, signalKey) {
+  async generateViaBridge(promptData, settings, onProgress, signalKey, options = {}) {
     let template = null;
     let templatePath = '';
     if (settings.templateId && this.registry) {
@@ -90,6 +90,14 @@ class ImagePipeline {
       onProgress,
       signalKey,
     });
+
+    const ranPreflight = attachments.hasProductReference || attachments.hasTemplateReference;
+    if (ranPreflight && finalPrompt) {
+      options.onPreflightComplete?.({
+        preflightPrompt: finalPrompt,
+        preflightFingerprint,
+      });
+    }
 
     if (!finalPrompt) {
       throw new Error('Kein Bild-Prompt für die KI-Generierung vorhanden.');
@@ -201,7 +209,7 @@ class ImagePipeline {
     }
   }
 
-  async generateImage(promptData, settings, onProgress, signalKey) {
+  async generateImage(promptData, settings, onProgress, signalKey, options = {}) {
     const productPaths = collectReferencePaths(settings.referenceImages);
     const hasPrompt = Boolean(
       promptData?.finalPrompt
@@ -214,7 +222,7 @@ class ImagePipeline {
       throw new Error('Kein Bild-Prompt vorhanden.');
     }
 
-    return this.generateViaBridge(promptData, settings, onProgress, signalKey);
+    return this.generateViaBridge(promptData, settings, onProgress, signalKey, options);
   }
 }
 

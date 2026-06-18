@@ -26,6 +26,9 @@ let editorSizeFieldSync = false;
 let editorReferenceImage = null;
 let mainPreviewMetaContext = {};
 let editorPreviewMetaContext = {};
+let previewEditLocked = false;
+let previewEditGenerating = false;
+let previewOriginalB64 = '';
 let waitStart = 0;
 let waitTimer = null;
 let activeAbortKey = '';
@@ -621,6 +624,10 @@ function setupPreviewLightbox() {
 
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
+    if (!$('preview-compare-lightbox')?.classList.contains('hidden')) {
+      closePreviewCompareLightbox();
+      return;
+    }
     if (!$('editor-compare-lightbox').classList.contains('hidden')) {
       closeEditorCompareLightbox();
       return;
@@ -637,19 +644,70 @@ function editorCompareAvailable() {
   return Boolean(original?.src && !preview.classList.contains('hidden') && preview.src);
 }
 
+const COMPARE_ZOOM_MIN = 1;
+const COMPARE_ZOOM_MAX = 6;
+
+function resetCompareLightboxZoom(overlay) {
+  if (!overlay) return;
+  const grid = overlay.querySelector('.editor-compare-grid');
+  if (grid) {
+    grid.style.transform = '';
+    grid.style.transformOrigin = 'center center';
+  }
+  overlay.dataset.compareZoom = '1';
+  const viewport = overlay.querySelector('.editor-compare-viewport');
+  if (viewport) {
+    viewport.scrollLeft = 0;
+    viewport.scrollTop = 0;
+  }
+}
+
+function applyCompareLightboxZoom(overlay, scale, originX, originY) {
+  const grid = overlay.querySelector('.editor-compare-grid');
+  if (!grid) return;
+  const clamped = Math.min(COMPARE_ZOOM_MAX, Math.max(COMPARE_ZOOM_MIN, scale));
+  grid.style.transformOrigin = `${originX}% ${originY}%`;
+  grid.style.transform = clamped === 1 ? '' : `scale(${clamped})`;
+  overlay.dataset.compareZoom = String(clamped);
+}
+
+function onCompareLightboxWheel(e) {
+  const overlay = e.currentTarget;
+  if (overlay.classList.contains('hidden')) return;
+  const viewport = overlay.querySelector('.editor-compare-viewport');
+  if (!viewport) return;
+  e.preventDefault();
+  const current = Number(overlay.dataset.compareZoom) || 1;
+  const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
+  const rect = viewport.getBoundingClientRect();
+  const originX = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+  const originY = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+  applyCompareLightboxZoom(overlay, current * factor, originX, originY);
+}
+
+function bindCompareLightboxZoom(overlay) {
+  if (!overlay || overlay.dataset.zoomBound === '1') return;
+  overlay.dataset.zoomBound = '1';
+  overlay.dataset.compareZoom = '1';
+  overlay.addEventListener('wheel', onCompareLightboxWheel, { passive: false });
+}
+
 function closeEditorCompareLightbox() {
   const overlay = $('editor-compare-lightbox');
   overlay.classList.add('hidden');
   document.body.classList.remove('lightbox-open');
+  resetCompareLightboxZoom(overlay);
   $('editor-compare-original').removeAttribute('src');
   $('editor-compare-preview').removeAttribute('src');
 }
 
 function openEditorCompareLightbox() {
   if (!editorCompareAvailable()) return;
+  const overlay = $('editor-compare-lightbox');
+  resetCompareLightboxZoom(overlay);
   $('editor-compare-original').src = $('editor-original').src;
   $('editor-compare-preview').src = $('editor-preview').src;
-  $('editor-compare-lightbox').classList.remove('hidden');
+  overlay.classList.remove('hidden');
   document.body.classList.add('lightbox-open');
 }
 
@@ -678,6 +736,18 @@ function setupEditorCompareLightbox() {
     if (e.target === overlay) closeEditorCompareLightbox();
   });
   $('editor-compare-close').addEventListener('click', closeEditorCompareLightbox);
+  bindCompareLightboxZoom(overlay);
+}
+
+function setupPreviewCompareLightbox() {
+  const overlay = $('preview-compare-lightbox');
+  if (!overlay) return;
+  $('btn-preview-compare')?.addEventListener('click', () => openPreviewCompareLightbox());
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closePreviewCompareLightbox();
+  });
+  $('preview-compare-close')?.addEventListener('click', closePreviewCompareLightbox);
+  bindCompareLightboxZoom(overlay);
 }
 
 function setupDebugPanel() {
@@ -760,6 +830,20 @@ function applyLabels() {
   $('preview-lightbox-close').setAttribute('aria-label', t('help.close'));
   $('preview-image').title = t('preview.fullscreen');
   $('btn-export').textContent = t('generate.export');
+  if ($('lbl-preview-change')) $('lbl-preview-change').textContent = t('preview.changeRequest');
+  if ($('preview-change-request')) {
+    $('preview-change-request').placeholder = t('preview.changeRequest.placeholder');
+  }
+  if ($('btn-preview-edit')) $('btn-preview-edit').textContent = t('preview.editButton');
+  if ($('btn-preview-accept')) $('btn-preview-accept').textContent = t('preview.accept');
+  if ($('btn-preview-reject')) $('btn-preview-reject').textContent = t('preview.reject');
+  if ($('btn-preview-compare')) $('btn-preview-compare').textContent = t('preview.compare');
+  if ($('lbl-preview-opt-prompt')) $('lbl-preview-opt-prompt').textContent = t('prompt.optimized');
+  if ($('preview-compare-lbl-original')) $('preview-compare-lbl-original').textContent = t('preview.compareOriginal');
+  if ($('preview-compare-lbl-edited')) $('preview-compare-lbl-edited').textContent = t('preview.compareEdited');
+  if ($('preview-compare-hint')) $('preview-compare-hint').textContent = t('preview.compareHint');
+  if ($('preview-compare-close')) $('preview-compare-close').setAttribute('aria-label', t('help.close'));
+  updatePreviewEditLockUi();
   $('lbl-original').textContent = t('template.original');
   $('lbl-ki-preview').textContent = t('template.preview');
   $('lbl-change').textContent = t('template.changeRequest');
@@ -1314,6 +1398,110 @@ function setupEditorReference() {
   });
 }
 
+function setPreviewReviewBarVisible(visible) {
+  const bar = $('preview-review-bar');
+  if (bar) bar.classList.toggle('hidden', !visible);
+}
+
+function updatePreviewEditLockUi() {
+  const locked = previewEditLocked || previewEditGenerating;
+  const hint = $('preview-locked-hint');
+  if (hint) hint.classList.toggle('hidden', !previewEditLocked);
+  if (hint && previewEditLocked) hint.textContent = t('preview.lockedHint');
+  if ($('preview-change-request')) $('preview-change-request').disabled = locked;
+  if ($('btn-preview-edit')) $('btn-preview-edit').disabled = locked || !lastPreviewPath;
+  if ($('btn-generate')) $('btn-generate').disabled = locked;
+  if ($('btn-build-prompt')) $('btn-build-prompt').disabled = locked;
+}
+
+function buildPreviewMetaFromSession(s = session) {
+  return {
+    format: 'PNG',
+    requestedLabel: formatGatewaySizeLabel(s.size, getSelectedTemplate()),
+    quality: s.quality || 'high',
+  };
+}
+
+function applyPreviewPendingEditUi(pending) {
+  if (!pending) return;
+  previewEditLocked = true;
+  previewOriginalB64 = pending.originalPreviewB64 || '';
+  $('preview-change-request').value = pending.changeRequest || '';
+  $('preview-optimized-prompt').value = pending.optimizedEditPrompt || '';
+  $('preview-change-summary').textContent = pending.changeSummary || '';
+  const editedB64 = pending.editedPreviewB64 || '';
+  if (editedB64) {
+    mainPreviewMetaContext = {
+      format: 'PNG',
+      fileSizeBytes: estimateBytesFromB64(editedB64),
+      requestedLabel: formatGatewaySizeLabel(pending.imageSize || session.size, getSelectedTemplate()),
+      quality: pending.quality || session.quality || 'high',
+    };
+    showPreview(pending.editedPreviewPath || lastPreviewPath, editedB64, mainPreviewMetaContext);
+  }
+  setPreviewReviewBarVisible(true);
+  const details = $('preview-prompt-details');
+  if (details && pending.optimizedEditPrompt) details.open = true;
+  updatePreviewEditLockUi();
+}
+
+async function restorePreviewFromSession(s = session) {
+  const resolved = await api.previewResolveStored();
+  if (resolved.session) {
+    session = resolved.session;
+  }
+  if (!resolved.valid) {
+    previewEditLocked = false;
+    previewOriginalB64 = '';
+    setPreviewReviewBarVisible(false);
+    if ($('preview-edit-block')) $('preview-edit-block').classList.add('hidden');
+    updatePreviewEditLockUi();
+    return;
+  }
+  if (resolved.pendingEdit) {
+    lastPreviewPath = resolved.pendingEdit.originalPreviewPath || resolved.path || '';
+    applyPreviewPendingEditUi(resolved.pendingEdit);
+    if ($('preview-edit-block')) $('preview-edit-block').classList.remove('hidden');
+    return;
+  }
+  if (resolved.path) {
+    previewEditLocked = false;
+    previewOriginalB64 = '';
+    setPreviewReviewBarVisible(false);
+    showPreview(resolved.path, '', buildPreviewMetaFromSession(s));
+    if ($('preview-edit-block')) $('preview-edit-block').classList.remove('hidden');
+    updatePreviewEditLockUi();
+  }
+}
+
+function previewCompareAvailable() {
+  const preview = $('preview-image');
+  return Boolean(previewOriginalB64 && !preview.classList.contains('hidden') && preview.src);
+}
+
+function closePreviewCompareLightbox() {
+  const overlay = $('preview-compare-lightbox');
+  if (!overlay) return;
+  overlay.classList.add('hidden');
+  document.body.classList.remove('lightbox-open');
+  resetCompareLightboxZoom(overlay);
+  $('preview-compare-original')?.removeAttribute('src');
+  $('preview-compare-edited')?.removeAttribute('src');
+}
+
+function openPreviewCompareLightbox() {
+  if (!previewCompareAvailable()) return;
+  const overlay = $('preview-compare-lightbox');
+  resetCompareLightboxZoom(overlay);
+  const preview = $('preview-image');
+  $('preview-compare-original').src = previewOriginalB64
+    ? `data:image/png;base64,${previewOriginalB64}`
+    : '';
+  $('preview-compare-edited').src = preview.src;
+  overlay.classList.remove('hidden');
+  document.body.classList.add('lightbox-open');
+}
+
 function setEditorReviewBarVisible(visible) {
   const bar = $('editor-review-bar');
   if (bar) bar.classList.toggle('hidden', !visible);
@@ -1530,12 +1718,12 @@ async function applyBuiltPrompt(data, fingerprint) {
   });
 }
 
-async function buildAndPersistPrompt(settings, waitMessage) {
+async function buildAndPersistPrompt(settings, waitMessage, { runPreflight = false } = {}) {
   showWait(
     waitMessage || t('wait.status.buildingPrompt'),
     waitContextForGeneration(settings, 'prompt'),
   );
-  const data = await api.generateBuildPrompt(withPairing(settings));
+  const data = await api.generateBuildPrompt(withPairing({ ...settings, runPreflight }));
   const fingerprint = computePromptFingerprint(settings);
   await applyBuiltPrompt(data, fingerprint);
   hideWait();
@@ -1897,6 +2085,17 @@ function waitContextForTemplateEdit({ templateId, changeRequest, size, quality }
   };
 }
 
+function waitContextForPreviewEdit({ templateId, changeRequest, size, quality }) {
+  const tmpl = templates.find((item) => item.id === templateId) || getSelectedTemplate();
+  return {
+    kind: 'previewEdit',
+    template: tmpl?.name || tmpl?.id || '',
+    size: size || '',
+    quality: quality || '',
+    change: waitContextExcerpt(changeRequest, 240),
+  };
+}
+
 function waitContextForTagline(settings) {
   return {
     kind: 'tagline',
@@ -1944,6 +2143,12 @@ function renderWaitContext(ctx) {
   } else if (ctx.kind === 'templateEdit') {
     add('wait.context.template', ctx.template);
     const sizeTmpl = getEditorTemplate();
+    if (ctx.size) add('wait.context.size', formatGatewaySizeLabel(ctx.size, sizeTmpl));
+    if (ctx.quality) add('wait.context.quality', qualityLabel(ctx.quality));
+    add('wait.context.change', ctx.change);
+  } else if (ctx.kind === 'previewEdit') {
+    add('wait.context.template', ctx.template);
+    const sizeTmpl = getSelectedTemplate();
     if (ctx.size) add('wait.context.size', formatGatewaySizeLabel(ctx.size, sizeTmpl));
     if (ctx.quality) add('wait.context.quality', qualityLabel(ctx.quality));
     add('wait.context.change', ctx.change);
@@ -2025,11 +2230,13 @@ function showPreview(path, b64, meta = {}) {
   img.classList.remove('hidden');
   $('preview-empty').classList.add('hidden');
   $('btn-export').classList.remove('hidden');
+  if ($('preview-edit-block')) $('preview-edit-block').classList.remove('hidden');
   lastPreviewPath = path;
   lastPreviewB64 = b64 || '';
   if (b64) {
     refreshPreviewMetaOverlay('preview-image', 'preview-image-meta', mainPreviewMetaContext);
   }
+  updatePreviewEditLockUi();
 }
 
 async function refreshBridgeStatus(options = {}) {
@@ -2158,6 +2365,7 @@ function setupInteractionHandlers() {
   setupDragDrop();
   setupPreviewLightbox();
   setupEditorCompareLightbox();
+  setupPreviewCompareLightbox();
   setupEditorSizeControls();
   attachPreviewMetaListeners('preview-image', 'preview-image-meta', () => mainPreviewMetaContext);
   attachPreviewMetaListeners('editor-preview', 'editor-preview-meta', () => editorPreviewMetaContext);
@@ -2211,7 +2419,7 @@ function setupInteractionHandlers() {
     }
     if (!(await ensureBridgeReady())) return;
     try {
-      await buildAndPersistPrompt(readSettingsFromUi());
+      await buildAndPersistPrompt(readSettingsFromUi(), undefined, { runPreflight: true });
     } catch (err) {
       hideWait();
       showError(err, t('error.promptFailed'));
@@ -2222,6 +2430,18 @@ function setupInteractionHandlers() {
     if (!session.templateId) {
       showStatus(t('template.empty'), { level: 'warn' });
       return;
+    }
+    if (previewEditLocked) {
+      const discard = await askConfirm(t('generate.button'), t('preview.pendingGenerateConfirm'));
+      if (!discard) return;
+      await api.previewRejectEdit();
+      previewEditLocked = false;
+      previewOriginalB64 = '';
+      setPreviewReviewBarVisible(false);
+      updatePreviewEditLockUi();
+      if (lastPreviewPath) {
+        showPreview(lastPreviewPath, lastPreviewB64, buildPreviewMetaFromSession());
+      }
     }
     const settings = readSettingsFromUi();
     if (!(await ensureBridgeReady())) return;
@@ -2281,7 +2501,13 @@ function setupInteractionHandlers() {
         requestedLabel: formatGatewaySizeLabel(settings.size, getSelectedTemplate()),
         quality: settings.quality,
       });
-      await updateSession({ lastPreviewPath: result.path });
+      previewEditLocked = false;
+      previewOriginalB64 = '';
+      setPreviewReviewBarVisible(false);
+      $('preview-change-summary').textContent = '';
+      $('preview-optimized-prompt').value = '';
+      await updateSession({ lastPreviewPath: result.path, previewPendingEdit: null });
+      updatePreviewEditLockUi();
       hideWait();
     } catch (err) {
       hideWait();
@@ -2292,6 +2518,107 @@ function setupInteractionHandlers() {
   $('btn-export').addEventListener('click', async () => {
     if (lastPreviewPath) await api.exportSavePng(lastPreviewPath);
     else if (lastPreviewB64) await api.exportSavePngFromB64(lastPreviewB64);
+  });
+
+  $('btn-preview-edit')?.addEventListener('click', async () => {
+    if (!(await ensureBridgeReady())) return;
+    if (!lastPreviewPath) return;
+    const changeRequest = $('preview-change-request').value.trim();
+    if (!changeRequest) {
+      showStatus(t('preview.needChange'), { level: 'warn' });
+      return;
+    }
+    const settings = readSettingsFromUi();
+    try {
+      previewEditGenerating = true;
+      updatePreviewEditLockUi();
+      previewOriginalB64 = lastPreviewB64 || '';
+      if (!previewOriginalB64 && lastPreviewPath) {
+        const url = await api.filesReadDataUrl(lastPreviewPath);
+        if (url?.startsWith('data:')) {
+          previewOriginalB64 = url.split(',')[1] || '';
+        }
+      }
+      showWait(
+        t('preview.editButton'),
+        waitContextForPreviewEdit({
+          templateId: settings.templateId || session.templateId,
+          changeRequest,
+          size: settings.size,
+          quality: settings.quality,
+        }),
+      );
+      const result = await api.previewRunEdit({
+        previewPath: lastPreviewPath,
+        templateId: settings.templateId || session.templateId,
+        changeRequest,
+        quality: settings.quality,
+        size: settings.size,
+        pairingCode: getPairingCode(),
+      });
+      $('preview-optimized-prompt').value = result.optimizedEditPrompt || '';
+      $('preview-change-summary').textContent = result.changeSummary || '';
+      if (result.editedPreviewB64) {
+        mainPreviewMetaContext = {
+          format: 'PNG',
+          fileSizeBytes: estimateBytesFromB64(result.editedPreviewB64),
+          requestedLabel: formatGatewaySizeLabel(settings.size, getSelectedTemplate()),
+          quality: settings.quality,
+        };
+        showPreview(result.editedPreviewPath, result.editedPreviewB64, mainPreviewMetaContext);
+        setPreviewReviewBarVisible(true);
+        const details = $('preview-prompt-details');
+        if (details) details.open = true;
+      }
+      previewEditLocked = true;
+      hideWait();
+    } catch (err) {
+      hideWait();
+      showError(err);
+    } finally {
+      previewEditGenerating = false;
+      updatePreviewEditLockUi();
+    }
+  });
+
+  $('btn-preview-accept')?.addEventListener('click', async () => {
+    try {
+      const result = await api.previewAcceptEdit();
+      previewEditLocked = false;
+      previewOriginalB64 = '';
+      setPreviewReviewBarVisible(false);
+      $('preview-change-summary').textContent = '';
+      $('preview-optimized-prompt').value = '';
+      if (result.path) {
+        lastPreviewB64 = '';
+        showPreview(result.path, '', buildPreviewMetaFromSession());
+        await updateSession({ lastPreviewPath: result.path });
+      }
+      updatePreviewEditLockUi();
+    } catch (err) {
+      showError(err);
+    }
+  });
+
+  $('btn-preview-reject')?.addEventListener('click', async () => {
+    try {
+      const result = await api.previewRejectEdit();
+      previewEditLocked = false;
+      setPreviewReviewBarVisible(false);
+      $('preview-change-summary').textContent = '';
+      $('preview-optimized-prompt').value = '';
+      if (result.path) {
+        if (previewOriginalB64) {
+          showPreview(result.path, previewOriginalB64, buildPreviewMetaFromSession());
+        } else {
+          showPreview(result.path, '', buildPreviewMetaFromSession());
+        }
+      }
+      previewOriginalB64 = '';
+      updatePreviewEditLockUi();
+    } catch (err) {
+      showError(err);
+    }
   });
 
   $('editor-template-select').addEventListener('change', async () => {
@@ -2410,6 +2737,13 @@ function setupInteractionHandlers() {
       clearEditorReference();
     }
     await loadTemplates();
+    await restorePreviewFromSession(s);
+  });
+  api.on('session:saved', (s) => {
+    session = s;
+    restorePromptFromSession();
+    const details = document.querySelector('.prompt-details');
+    if (details && (s.preflightPrompt || s.imagePrompt)) details.open = true;
   });
   api.on('help:open', (id) => {
     showView('help');
@@ -2476,6 +2810,7 @@ async function init() {
   restorePromptFromSession();
   await loadTemplates();
   renderRefs();
+  await restorePreviewFromSession(session);
   await refreshBridgeStatus({ autoOpen: true });
   await renderHelp($('help-sidebar'), $('help-content'));
 

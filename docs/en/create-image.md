@@ -88,7 +88,20 @@ Generation may take **from one minute to 30 minutes** depending on resolution, q
 
 When complete, the preview panel shows the result. Click the preview for fullscreen view (Esc to close).
 
-### 6. Export
+### 6. Refine preview with AI
+
+After generation, use **Edit with AI** below the preview:
+
+1. Describe what should change in **Change request** (e.g. “change neon frame from blue to red”).
+2. Click **Edit with AI**. The app optimizes the prompt and generates an edited preview via the bridge.
+3. Use **Compare fullscreen** to view the original and edited result side by side.
+4. **Accept change** keeps the edited preview as your working result, or **Reject change** restores the previous preview.
+
+While a preview edit is pending, **Generate image** is locked until you accept or reject.
+
+The last preview is **restored when you reopen the app**, as long as the temp file still exists under `temp-previews`. Pending accept/reject edits are restored as well.
+
+### 7. Export
 
 Click **Save as PNG** to export the preview to a location you choose. The export dialog suggests a filename; you can rename freely.
 

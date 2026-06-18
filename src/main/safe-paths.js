@@ -52,6 +52,18 @@ function collectKnownPaths(context = {}) {
     known.add(path.resolve(pendingEdit.referenceImagePath));
   }
 
+  const previewPending = context.previewEditor?.getPendingEdit?.()
+    || context.session?.previewPendingEdit;
+  if (previewPending?.originalPreviewPath) {
+    known.add(path.resolve(previewPending.originalPreviewPath));
+  }
+  if (previewPending?.editedPreviewPath) {
+    known.add(path.resolve(previewPending.editedPreviewPath));
+  }
+  if (context.session?.lastPreviewPath) {
+    known.add(path.resolve(context.session.lastPreviewPath));
+  }
+
   return known;
 }
 

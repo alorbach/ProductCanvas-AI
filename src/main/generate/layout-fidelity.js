@@ -106,6 +106,32 @@ function buildTemplateEditFrozenRules(changeRequest, imageSettings = {}, options
   return lines.join('\n\n');
 }
 
+function buildPreviewEditFrozenRules(changeRequest, imageSettings = {}, options = {}) {
+  const sizeLine = imageSettings.size
+    ? `Target output size: ${imageSettings.size}. Do not change aspect ratio or canvas size.`
+    : 'Keep exact canvas dimensions of IMAGE 1.';
+  const lines = [
+    'Edit the attached generated advertisement preview (IMAGE 1).',
+    sizeLine,
+    'TWO ATTACHED IMAGES:',
+    '- IMAGE 1 = current generated ad preview to edit (base image — apply the user change here).',
+    '- IMAGE 2 = layout template (authoritative reference for frozen header, footer, contact bar, branding, neon accents).',
+    LAYOUT_FROZEN_RULES,
+    'Preserve all layout zones from IMAGE 2 unless the user explicitly names a frozen element to change.',
+    'Only apply the user change in allowed zones (typically the central product stage) or as explicitly requested.',
+    `User change request: ${changeRequest}`,
+  ];
+  if (!options.hasTemplateReference) {
+    lines.splice(4, 3,
+      'ONE ATTACHED IMAGE:',
+      '- IMAGE 1 = current generated ad preview to edit.',
+      'Preserve header, footer, contact bar, branding, and neon accents unless the user explicitly requests a change.',
+    );
+  }
+  lines.push('Return ONLY JSON: {"optimizedEditPrompt":"english image edit prompt","changeSummary":"short german summary","preservedElements":["..."]}');
+  return lines.join('\n\n');
+}
+
 function buildResizeOnlyPrompt(template, imageSettings, sourceDims = {}) {
   const fromSize = sourceDims.width && sourceDims.height
     ? `${sourceDims.width}x${sourceDims.height}`
@@ -127,6 +153,7 @@ module.exports = {
   LAYOUT_FROZEN_RULES,
   appendLayoutLockBlock,
   buildProductStageHint,
+  buildPreviewEditFrozenRules,
   buildResizeOnlyPrompt,
   buildTemplateEditFrozenRules,
   buildTemplateLayoutHint,

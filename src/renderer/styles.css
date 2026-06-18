@@ -148,6 +148,22 @@ body {
   flex-direction: column;
 }
 
+.preview-edit-block {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.preview-edit-block textarea {
+  width: 100%;
+  resize: vertical;
+}
+
+.preview-prompt-details {
+  margin-top: 4px;
+}
+
 .settings-panel {
   overflow-y: auto;
 }
@@ -410,13 +426,22 @@ body.lightbox-open { overflow: hidden; }
   padding: 48px 20px 20px;
 }
 
+.editor-compare-viewport {
+  width: min(100%, 1920px);
+  max-height: calc(100vh - 100px);
+  overflow: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .editor-compare-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 20px;
   width: min(100%, 1920px);
-  max-height: calc(100vh - 100px);
   align-items: start;
+  transform-origin: center center;
+  will-change: transform;
 }
 
 .editor-compare-pane {
@@ -445,10 +470,11 @@ body.lightbox-open { overflow: hidden; }
 }
 
 @media (max-width: 960px) {
+  .editor-compare-viewport {
+    max-height: calc(100vh - 120px);
+  }
   .editor-compare-grid {
     grid-template-columns: 1fr;
-    max-height: none;
-    overflow-y: auto;
   }
   .editor-compare-pane img {
     max-height: 45vh;

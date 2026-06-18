@@ -27,7 +27,8 @@ Typischer Ablauf:
 3. Projektfelder ausfüllen (Marke, Serie, Tagline).
 4. **Prompt generieren** – KI analysiert das Produkt und erstellt einen Bild-Prompt.
 5. **Bild generieren** und Vorschau prüfen.
-6. **Als PNG speichern** – Ergebnis exportieren.
+6. Optional **Vorschau mit KI verfeinern** (übernehmen oder verwerfen).
+7. **Als PNG speichern** – Ergebnis exportieren.
 
 ## Bereiche der Anwendung
 

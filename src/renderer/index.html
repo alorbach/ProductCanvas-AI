@@ -93,6 +93,25 @@
         <p id="preview-empty" class="muted">Generate an image to see the preview.</p>
       </div>
       <button type="button" class="btn secondary hidden" id="btn-export">Save as PNG</button>
+      <div id="preview-edit-block" class="preview-edit-block hidden">
+        <p id="preview-locked-hint" class="editor-locked-hint hidden muted"></p>
+        <label><span id="lbl-preview-change">Change request</span>
+          <textarea id="preview-change-request" rows="3" placeholder="e.g. change neon frame from blue to red…"></textarea>
+        </label>
+        <button type="button" class="btn primary" id="btn-preview-edit">Edit with AI</button>
+        <div id="preview-review-bar" class="editor-review-bar hidden">
+          <p id="preview-change-summary" class="muted editor-review-summary"></p>
+          <div class="accept-row">
+            <button type="button" class="btn secondary" id="btn-preview-compare">Compare fullscreen</button>
+            <button type="button" class="btn primary" id="btn-preview-accept">Accept change</button>
+            <button type="button" class="btn danger" id="btn-preview-reject">Reject change</button>
+          </div>
+        </div>
+        <details class="prompt-details preview-prompt-details" id="preview-prompt-details">
+          <summary id="lbl-preview-opt-prompt">Optimized prompt</summary>
+          <textarea id="preview-optimized-prompt" rows="4" readonly></textarea>
+        </details>
+      </div>
     </section>
   </main>
 
@@ -186,17 +205,36 @@
 
   <div id="editor-compare-lightbox" class="preview-lightbox editor-compare-lightbox hidden" role="dialog" aria-modal="true" aria-labelledby="editor-compare-hint">
     <button type="button" class="preview-lightbox-close" id="editor-compare-close" aria-label="Close">×</button>
-    <div class="editor-compare-grid">
-      <figure class="editor-compare-pane">
-        <figcaption id="editor-compare-lbl-original">Original</figcaption>
-        <img id="editor-compare-original" alt="Original" />
-      </figure>
-      <figure class="editor-compare-pane">
-        <figcaption id="editor-compare-lbl-preview">AI preview</figcaption>
-        <img id="editor-compare-preview" alt="AI preview" />
-      </figure>
+    <div class="editor-compare-viewport">
+      <div class="editor-compare-grid">
+        <figure class="editor-compare-pane">
+          <figcaption id="editor-compare-lbl-original">Original</figcaption>
+          <img id="editor-compare-original" alt="Original" />
+        </figure>
+        <figure class="editor-compare-pane">
+          <figcaption id="editor-compare-lbl-preview">AI preview</figcaption>
+          <img id="editor-compare-preview" alt="AI preview" />
+        </figure>
+      </div>
     </div>
     <p id="editor-compare-hint" class="preview-lightbox-hint">Click or press Esc to close</p>
+  </div>
+
+  <div id="preview-compare-lightbox" class="preview-lightbox editor-compare-lightbox hidden" role="dialog" aria-modal="true" aria-labelledby="preview-compare-hint">
+    <button type="button" class="preview-lightbox-close" id="preview-compare-close" aria-label="Close">×</button>
+    <div class="editor-compare-viewport">
+      <div class="editor-compare-grid">
+        <figure class="editor-compare-pane">
+          <figcaption id="preview-compare-lbl-original">Original</figcaption>
+          <img id="preview-compare-original" alt="Original" />
+        </figure>
+        <figure class="editor-compare-pane">
+          <figcaption id="preview-compare-lbl-edited">AI preview</figcaption>
+          <img id="preview-compare-edited" alt="AI preview" />
+        </figure>
+      </div>
+    </div>
+    <p id="preview-compare-hint" class="preview-lightbox-hint">Click or press Esc to close</p>
   </div>
 
   <dialog id="prompt-dialog">

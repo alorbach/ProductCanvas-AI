@@ -86,7 +86,20 @@ Die Generierung kann **1 bis 30 Minuten** dauern. **Abbrechen** bricht den aktiv
 
 Nach Abschluss erscheint die Vorschau. Klick für Vollbild (Esc zum Schließen).
 
-### 6. Export
+### 6. Vorschau mit KI verfeinern
+
+Nach der Generierung steht unter der Vorschau **Mit KI bearbeiten** zur Verfügung:
+
+1. **Änderungswunsch** beschreiben (z. B. „Neon-Rahmen von blau auf rot“).
+2. **Mit KI bearbeiten** – Prompt-Optimierung und bearbeitete Vorschau über die Bridge.
+3. **Vollbild-Vergleich** – Original und Ergebnis nebeneinander.
+4. **Änderung übernehmen** behält die bearbeitete Vorschau, **Änderung verwerfen** stellt die vorherige wieder her.
+
+Bei ausstehender Bearbeitung ist **Bild generieren** gesperrt, bis Sie übernehmen oder verwerfen.
+
+Die letzte Vorschau wird beim **erneuten Öffnen der App wiederhergestellt**, solange die Datei unter `temp-previews` noch existiert. Ausstehende Übernehmen/Verwerfen-Edits ebenfalls.
+
+### 7. Export
 
 **Als PNG speichern** – Speicherort frei wählen.
 

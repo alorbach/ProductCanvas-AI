@@ -9,6 +9,8 @@ const { CodexManager } = require('./bridge/codex-manager');
 const { TemplateRegistry } = require('./templates/template-registry');
 const { TemplateEditorService } = require('./templates/template-editor-service');
 const { TemplateEditPipeline } = require('./generate/template-edit-pipeline');
+const { PreviewEditPipeline } = require('./generate/preview-edit-pipeline');
+const { PreviewEditService } = require('./generate/preview-edit-service');
 const { ProfileStore } = require('./profiles/profile-store');
 const { PromptBuilder } = require('./generate/prompt-builder');
 const { getImageSettingsCatalog } = require('./generate/image-settings');
@@ -41,6 +43,8 @@ let promptBuilder;
 let imagePipeline;
 let templateEditor;
 let templateEditPipeline;
+let previewEditor;
+let previewEditPipeline;
 let docLoader;
 let session = null;
 let autosaveTimer = null;
@@ -463,6 +467,88 @@ function registerIpc() {
   ipcMain.handle('templates:acceptEdit', () => templateEditor.acceptEdit());
   ipcMain.handle('templates:rejectEdit', () => templateEditor.rejectEdit());
 
+  ipcMain.handle('preview:runEdit', async (_, { previewPath, templateId, changeRequest, quality, size, pairingCode }) => {
+    if (!isAllowedExportSource(previewPath)) {
+      throw new Error('PREVIEW_SOURCE_NOT_ALLOWED');
+    }
+    const signalKey = `preview-edit-${Date.now()}`;
+    send('job:progress', { status: 'running', signalKey, messageKey: 'wait.status.previewEditPrompt' });
+    const onProgress = (p) => send('job:progress', { ...p, signalKey });
+    await bridgeManager.requirePaired(pairingCode);
+    const unsubscribe = subscribeBridgeJobProgress(bridgeManager.getClient(), onProgress);
+    try {
+      return await previewEditor.runEdit(
+        { previewPath, templateId, changeRequest, quality, size },
+        onProgress,
+        signalKey,
+      );
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  ipcMain.handle('preview:getPendingEdit', () => previewEditor.getPendingEdit());
+
+  ipcMain.handle('preview:acceptEdit', () => {
+    const result = previewEditor.acceptEdit();
+    if (session) {
+      session.lastPreviewPath = result.path;
+      session.previewPendingEdit = null;
+      scheduleAutosave();
+      send('session:saved', session);
+    }
+    return result;
+  });
+
+  ipcMain.handle('preview:rejectEdit', () => {
+    const result = previewEditor.rejectEdit();
+    if (session) {
+      session.lastPreviewPath = result.path;
+      session.previewPendingEdit = null;
+      scheduleAutosave();
+      send('session:saved', session);
+    }
+    return result;
+  });
+
+  ipcMain.handle('preview:resolveStored', () => {
+    if (!session) {
+      session = profileStore.loadSession();
+    }
+    const resolved = previewEditor.resolveStored(session);
+    if (resolved.sessionPatch) {
+      session = { ...session, ...resolved.sessionPatch };
+      scheduleAutosave();
+      send('session:saved', session);
+    }
+    let originalPreviewB64 = '';
+    let editedPreviewB64 = '';
+    if (resolved.pendingEdit?.originalPreviewPath && fs.existsSync(resolved.pendingEdit.originalPreviewPath)) {
+      try {
+        originalPreviewB64 = fs.readFileSync(resolved.pendingEdit.originalPreviewPath).toString('base64');
+      } catch { /* ignore */ }
+    }
+    if (resolved.valid && resolved.path && fs.existsSync(resolved.path)) {
+      try {
+        editedPreviewB64 = fs.readFileSync(resolved.path).toString('base64');
+      } catch { /* ignore */ }
+    } else if (resolved.valid && resolved.path) {
+      editedPreviewB64 = '';
+    }
+    return {
+      valid: resolved.valid,
+      path: resolved.path,
+      pendingEdit: resolved.pendingEdit
+        ? {
+          ...resolved.pendingEdit,
+          originalPreviewB64,
+          editedPreviewB64,
+        }
+        : null,
+      session: session || null,
+    };
+  });
+
   ipcMain.handle('generate:buildPrompt', async (_, options = {}) => {
     const { pairingCode, ...promptOpts } = options;
     const signalKey = `prompt-${Date.now()}`;
@@ -500,7 +586,27 @@ function registerIpc() {
     send('job:progress', { status: 'running', signalKey, messageKey: 'wait.status.running' });
     const onProgress = (p) => send('job:progress', { ...p, signalKey });
     await bridgeManager.requirePaired(pairingCode);
-    return imagePipeline.generateImage(promptData, settings, onProgress, signalKey);
+    const onPreflightComplete = (preflight) => {
+      if (!preflight?.preflightPrompt) return;
+      if (!session) {
+        session = profileStore.loadSession();
+      }
+      session = {
+        ...session,
+        preflightPrompt: preflight.preflightPrompt,
+        imagePrompt: preflight.preflightPrompt,
+        preflightFingerprint: preflight.preflightFingerprint || session.preflightFingerprint || '',
+      };
+      scheduleAutosave();
+      send('session:saved', session);
+    };
+    return imagePipeline.generateImage(
+      promptData,
+      settings,
+      onProgress,
+      signalKey,
+      { onPreflightComplete },
+    );
   });
 
   ipcMain.handle('generate:abort', (_, signalKey) => {
@@ -537,7 +643,7 @@ function registerIpc() {
 
   ipcMain.handle('files:readDataUrl', (_, filePath) => {
     if (!filePath || !fs.existsSync(filePath)) return null;
-    if (!isAllowedReadPath(filePath, { session, templateRegistry, templateEditor }) || !isImagePath(filePath)) {
+    if (!isAllowedReadPath(filePath, { session, templateRegistry, templateEditor, previewEditor }) || !isImagePath(filePath)) {
       return null;
     }
     const stat = fs.statSync(filePath);
@@ -626,6 +732,18 @@ app.whenReady().then(() => {
   imagePipeline = new ImagePipeline(client, templateRegistry);
   templateEditPipeline = new TemplateEditPipeline(client, templateRegistry);
   templateEditor = new TemplateEditorService(templateEditPipeline, templateRegistry);
+  previewEditPipeline = new PreviewEditPipeline(client, templateRegistry);
+  previewEditor = new PreviewEditService(previewEditPipeline, {
+    getSession: () => session || profileStore.loadSession(),
+    patchSession: (patch) => {
+      if (!session) {
+        session = profileStore.loadSession();
+      }
+      session = { ...session, ...patch };
+      scheduleAutosave();
+      send('session:saved', session);
+    },
+  });
   docLoader = new DocLoader();
   session = profileStore.loadSession();
   const prefs = getPreferences(systemLocale());

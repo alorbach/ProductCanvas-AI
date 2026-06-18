@@ -5,7 +5,12 @@ const path = require('path');
 const paths = require('../paths');
 const debugLog = require('../debug/logger');
 const { collectReferencePaths } = require('./image-request');
-const { computePreflightFingerprint } = require('./image-preflight');
+const {
+  buildReferenceImageEntries,
+  computePreflightFingerprint,
+  runImagePreflight,
+} = require('./image-preflight');
+const { resolveImageGenerationSettings } = require('./image-settings');
 
 function buildReferencePromptFromForm(options, template, templateRegistry, productAnalysis, imagePaths) {
   const templatePath = templateRegistry.resolveTemplatePath(template);
@@ -54,8 +59,9 @@ class PromptBuilder {
 
     const imagePaths = collectReferencePaths(options.referenceImages);
     const hasReferences = imagePaths.length > 0;
+    const templatePath = this.registry.resolveTemplatePath(template);
 
-    if (hasReferences) {
+    if (hasReferences && !options.runPreflight) {
       debugLog.info('prompt-builder', 'JSON-Builder und Preflight übersprungen (Preflight nur bei Generierung)');
       return buildReferencePromptFromForm(
         options,
@@ -64,6 +70,42 @@ class PromptBuilder {
         options.productAnalysis || '',
         imagePaths,
       );
+    }
+
+    if (hasReferences && options.runPreflight) {
+      debugLog.info('prompt-builder', 'Preflight für manuelle Prompt-Generierung');
+      const stub = buildReferencePromptFromForm(
+        options,
+        template,
+        this.registry,
+        options.productAnalysis || '',
+        imagePaths,
+      );
+      const templateDims = await this.registry.getDimensions(template);
+      const imageSettings = resolveImageGenerationSettings(options, templateDims);
+      const productPath = imagePaths[0] || '';
+      const referenceImages = await buildReferenceImageEntries({
+        productPath,
+        layoutPath: templatePath,
+      });
+      const preflight = await runImagePreflight(this.client, {
+        settings: imageSettings,
+        promptData: stub,
+        template,
+        productPath,
+        layoutPath: templatePath,
+        referenceImages,
+        signalKey,
+        onProgress,
+      });
+      const fingerprint = computePreflightFingerprint(imageSettings, templatePath, imagePaths);
+      return {
+        ...stub,
+        imagePrompt: preflight.finalPrompt,
+        finalPrompt: preflight.finalPrompt,
+        preflightPrompt: preflight.finalPrompt,
+        preflightFingerprint: fingerprint,
+      };
     }
 
     const examplePath = path.join(paths.examplesDir(), template.exampleReference || 'Beispiel-Martin-Logan.png');
