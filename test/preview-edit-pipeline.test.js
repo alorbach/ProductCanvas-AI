@@ -15,13 +15,10 @@ const {
 const paths = require(path.join(root, 'src', 'main', 'paths'));
 
 const changeRequest = 'Neon-Rahmen von blau auf rot ändern';
-const editRules = buildPreviewEditFrozenRules(changeRequest, { size: '1536x1024' }, { hasTemplateReference: true });
+const editRules = buildPreviewEditFrozenRules(changeRequest, { size: '1536x1024' });
 assert(editRules.includes(changeRequest), 'preview edit rules include change request');
-assert(editRules.includes('IMAGE 1'), 'preview edit rules mention IMAGE 1');
-assert(editRules.includes('IMAGE 2'), 'preview edit rules mention IMAGE 2');
-
-const editRulesNoTpl = buildPreviewEditFrozenRules(changeRequest, { size: '1536x1024' }, { hasTemplateReference: false });
-assert(editRulesNoTpl.includes('ONE ATTACHED IMAGE'), 'no template uses single image rules');
+assert(editRules.includes('ONE ATTACHED IMAGE'), 'preview edit uses single image rules');
+assert(!editRules.includes('IMAGE 2'), 'preview edit must not reference template image');
 
 class MockRegistry {
   constructor(templatePath) {
@@ -67,11 +64,8 @@ class MockRegistry {
     const resolvedMissing = resolveStoredPreview({ lastPreviewPath: path.join(previewDir, 'missing.png') });
     assert(!resolvedMissing.valid && resolvedMissing.sessionPatch, 'missing preview clears session');
 
-    const refs = await buildPreviewEditReferences(previewPath, templatePath);
-    assert.strictEqual(refs.length, 2, 'preview + template references');
-
-    const refsOnly = await buildPreviewEditReferences(previewPath, '');
-    assert.strictEqual(refsOnly.length, 1, 'preview only when no template');
+    const refs = await buildPreviewEditReferences(previewPath);
+    assert.strictEqual(refs.length, 1, 'preview only reference');
 
     let chatCalled = false;
     let imagesCalled = false;
@@ -81,7 +75,7 @@ class MockRegistry {
       },
       async chat(payload) {
         chatCalled = true;
-        assert(payload.referenced_image_paths?.length >= 1, 'chat forwards reference paths');
+        assert.strictEqual(payload.referenced_image_paths?.length, 1, 'chat forwards preview path only');
         return {
           response: {
             choices: [{
@@ -99,11 +93,12 @@ class MockRegistry {
       async images(payload) {
         imagesCalled = true;
         assert(payload.requireReferences === true, 'preview edit requires references');
-        assert(payload.referenced_image_paths?.length >= 1, 'images forwards paths');
+        assert.strictEqual(payload.referenced_image_paths?.length, 1, 'images forwards preview path only');
+        assert(!payload.prompt.includes('IMAGE 2'), 'final prompt must not reference template image');
         return {
           response: {
             data: [{ b64_json: png.toString('base64') }],
-            provider_details: { refs_forwarded_to_codex: true, reference_attachment_count: 2 },
+            provider_details: { refs_forwarded_to_codex: true, reference_attachment_count: 1 },
           },
           _attachmentMode: 'referenced_image_paths',
         };
@@ -124,6 +119,7 @@ class MockRegistry {
     assert(fs.existsSync(result.editedPreviewPath), 'edited preview file exists');
     assert(result.changeSummary.includes('Neon'), 'change summary preserved');
     assert(result.editedPreviewB64, 'returns b64');
+    assert(!result.optimizedEditPrompt.includes('IMAGE 2'), 'optimized prompt preview-only');
 
     console.log('preview-edit-pipeline.test.js: all assertions passed');
   } finally {

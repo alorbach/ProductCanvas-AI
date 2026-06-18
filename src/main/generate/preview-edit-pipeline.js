@@ -4,20 +4,17 @@ const fs = require('fs');
 const path = require('path');
 const paths = require('../paths');
 const debugLog = require('../debug/logger');
-const { isImagePath } = require('./image-prep');
 const {
   buildReferencePathEntry,
   buildPreflightMessages,
   gatewayErrorNeedsResponsesContentParts,
 } = require('./image-preflight');
 const {
-  appendLayoutLockBlock,
+  appendPreviewEditLockBlock,
   buildPreviewEditFrozenRules,
   sanitizePreflightPrompt,
 } = require('./layout-fidelity');
 const { resolveImageGenerationSettings } = require('./image-settings');
-
-const PREVIEW_REFERENCE_HINT = 'Image 1 = generated ad preview to edit; Image 2 = layout template for frozen header/footer/neon zones.';
 
 function extractJson(text) {
   const match = String(text || '').match(/\{[\s\S]*\}/);
@@ -33,18 +30,12 @@ function getChoiceContent(result) {
   return result?.response?.choices?.[0]?.message?.content || '';
 }
 
-async function buildPreviewEditReferences(previewPath, templatePath) {
+async function buildPreviewEditReferences(previewPath) {
   const preview = await buildReferencePathEntry(previewPath, 'preview');
   if (!preview) {
     throw new Error('Vorschaubild konnte nicht gelesen werden.');
   }
-  const refs = [preview];
-  const tplPath = String(templatePath || '').trim();
-  if (tplPath && fs.existsSync(tplPath) && isImagePath(tplPath)) {
-    const layout = await buildReferencePathEntry(tplPath, 'layout');
-    if (layout) refs.push(layout);
-  }
-  return refs;
+  return [preview];
 }
 
 function collectReferencePaths(referenceImages) {
@@ -57,14 +48,13 @@ class PreviewEditPipeline {
     this.registry = templateRegistry;
   }
 
-  async optimizeEditPrompt(template, previewPath, templatePath, changeRequest, imageSettings, signalKey, onProgress) {
+  async optimizeEditPrompt(previewPath, changeRequest, imageSettings, signalKey, onProgress) {
     onProgress?.({ status: 'running', messageKey: 'wait.status.previewEditPrompt' });
 
-    const referenceImages = await buildPreviewEditReferences(previewPath, templatePath);
-    const hasTemplateReference = referenceImages.length > 1;
+    const referenceImages = await buildPreviewEditReferences(previewPath);
     const refPaths = collectReferencePaths(referenceImages);
 
-    const taskPrompt = buildPreviewEditFrozenRules(changeRequest, imageSettings, { hasTemplateReference });
+    const taskPrompt = buildPreviewEditFrozenRules(changeRequest, imageSettings);
     const model = 'codex-local:auto';
     let messages = buildPreflightMessages(taskPrompt, referenceImages, { model });
 
@@ -98,24 +88,20 @@ class PreviewEditPipeline {
       throw new Error('Prompt-Optimierung für Vorschau-Edit fehlgeschlagen.');
     }
 
-    optimizedEditPrompt = appendLayoutLockBlock(optimizedEditPrompt, template, imageSettings);
-    if (hasTemplateReference) {
-      optimizedEditPrompt = `${optimizedEditPrompt}\n\n${PREVIEW_REFERENCE_HINT}`;
-    }
+    optimizedEditPrompt = appendPreviewEditLockBlock(optimizedEditPrompt, imageSettings);
 
     return {
       optimizedEditPrompt,
       changeSummary: String(parsed?.changeSummary || '').trim(),
       preservedElements: parsed?.preservedElements || [],
       referenceImages,
-      hasTemplateReference,
     };
   }
 
-  async generatePreviewImage(template, previewPath, templatePath, optimizedEditPrompt, imageSettings, hasTemplateReference, signalKey, onProgress) {
+  async generatePreviewImage(previewPath, optimizedEditPrompt, imageSettings, signalKey, onProgress) {
     onProgress?.({ status: 'running', messageKey: 'wait.status.previewEditImage' });
 
-    const referenceImages = await buildPreviewEditReferences(previewPath, templatePath);
+    const referenceImages = await buildPreviewEditReferences(previewPath);
     const refPaths = collectReferencePaths(referenceImages);
 
     let bridgeCapabilities = null;
@@ -125,10 +111,7 @@ class PreviewEditPipeline {
       debugLog.warn('preview-edit-pipeline', 'Bridge-Capabilities nicht abrufbar', { message: err.message });
     }
 
-    let prompt = appendLayoutLockBlock(optimizedEditPrompt, template, imageSettings);
-    if (hasTemplateReference) {
-      prompt = `${prompt}\n\n${PREVIEW_REFERENCE_HINT}`;
-    }
+    const prompt = appendPreviewEditLockBlock(optimizedEditPrompt, imageSettings);
 
     const encodedRefs = referenceImages.filter((r) => r.b64_json);
     const apiPayload = {
@@ -144,11 +127,9 @@ class PreviewEditPipeline {
     }
 
     debugLog.info('preview-edit-pipeline', 'Vorschau-Edit Bildgenerierung', {
-      templateId: template?.id || '',
       imageSize: imageSettings.size,
       imageQuality: imageSettings.quality,
       referenceCount: referenceImages.length,
-      hasTemplateReference,
       bridgeSupportsRefs: bridgeCapabilities?.features?.image_reference_attachments === true,
     });
 
@@ -183,7 +164,6 @@ class PreviewEditPipeline {
     }
 
     const template = templateId ? this.registry.getById(templateId) : null;
-    const templatePath = template ? this.registry.resolveTemplatePath(template) : '';
     const dims = template ? await this.registry.getDimensions(template) : null;
     const imageSettings = resolveImageGenerationSettings(
       { size: size || 'template', quality },
@@ -191,9 +171,7 @@ class PreviewEditPipeline {
     );
 
     const optimized = await this.optimizeEditPrompt(
-      template,
       preview,
-      templatePath,
       changeRequest,
       imageSettings,
       signalKey,
@@ -201,12 +179,9 @@ class PreviewEditPipeline {
     );
 
     const image = await this.generatePreviewImage(
-      template,
       preview,
-      templatePath,
       optimized.optimizedEditPrompt,
       imageSettings,
-      optimized.hasTemplateReference,
       signalKey,
       onProgress,
     );
@@ -231,5 +206,4 @@ class PreviewEditPipeline {
 module.exports = {
   PreviewEditPipeline,
   buildPreviewEditReferences,
-  PREVIEW_REFERENCE_HINT,
 };

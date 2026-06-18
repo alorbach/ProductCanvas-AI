@@ -106,30 +106,37 @@ function buildTemplateEditFrozenRules(changeRequest, imageSettings = {}, options
   return lines.join('\n\n');
 }
 
-function buildPreviewEditFrozenRules(changeRequest, imageSettings = {}, options = {}) {
+function buildPreviewEditFrozenRules(changeRequest, imageSettings = {}) {
   const sizeLine = imageSettings.size
     ? `Target output size: ${imageSettings.size}. Do not change aspect ratio or canvas size.`
-    : 'Keep exact canvas dimensions of IMAGE 1.';
+    : 'Keep exact canvas dimensions of the attached preview.';
   const lines = [
-    'Edit the attached generated advertisement preview (IMAGE 1).',
+    'Edit the attached advertisement preview image.',
     sizeLine,
-    'TWO ATTACHED IMAGES:',
-    '- IMAGE 1 = current generated ad preview to edit (base image — apply the user change here).',
-    '- IMAGE 2 = layout template (authoritative reference for frozen header, footer, contact bar, branding, neon accents).',
-    LAYOUT_FROZEN_RULES,
-    'Preserve all layout zones from IMAGE 2 unless the user explicitly names a frozen element to change.',
-    'Only apply the user change in allowed zones (typically the central product stage) or as explicitly requested.',
+    'ONE ATTACHED IMAGE:',
+    '- The preview image is the only reference — apply the user change to this image.',
+    'Preserve header, footer, contact bar, branding, neon accents, and typography unless the user explicitly requests a change.',
+    'Apply the user change precisely; do not redesign the ad or invent a new layout.',
     `User change request: ${changeRequest}`,
+    'Return ONLY JSON: {"optimizedEditPrompt":"english image edit prompt","changeSummary":"short german summary","preservedElements":["..."]}',
   ];
-  if (!options.hasTemplateReference) {
-    lines.splice(4, 3,
-      'ONE ATTACHED IMAGE:',
-      '- IMAGE 1 = current generated ad preview to edit.',
-      'Preserve header, footer, contact bar, branding, and neon accents unless the user explicitly requests a change.',
-    );
-  }
-  lines.push('Return ONLY JSON: {"optimizedEditPrompt":"english image edit prompt","changeSummary":"short german summary","preservedElements":["..."]}');
   return lines.join('\n\n');
+}
+
+function appendPreviewEditLockBlock(prompt, imageSettings = {}) {
+  const parts = [String(prompt || '').trim()];
+  parts.push([
+    'PREVIEW EDIT RULES:',
+    '- Edit only the attached preview image.',
+    '- Keep canvas size and aspect ratio exactly as in the preview.',
+    '- Preserve existing header, footer, contact bar, branding, and neon accents unless the user explicitly requests a change.',
+    '- Apply the user change request precisely; do not redesign the advertisement.',
+  ].join('\n'));
+  const size = String(imageSettings.size || '').trim();
+  if (size) {
+    parts.push(`MANDATORY output size: ${size}. Do not use any other resolution.`);
+  }
+  return parts.filter(Boolean).join('\n\n');
 }
 
 function buildResizeOnlyPrompt(template, imageSettings, sourceDims = {}) {
@@ -152,6 +159,7 @@ module.exports = {
   LAYOUT_EDITABLE_RULES,
   LAYOUT_FROZEN_RULES,
   appendLayoutLockBlock,
+  appendPreviewEditLockBlock,
   buildProductStageHint,
   buildPreviewEditFrozenRules,
   buildResizeOnlyPrompt,

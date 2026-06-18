@@ -92,7 +92,7 @@ When complete, the preview panel shows the result. Click the preview for fullscr
 After generation, use **Edit with AI** below the preview. You can also **replace the preview manually**: drag PNG, JPG, or WebP onto the preview area (the file is copied into the temporary preview store).
 
 1. Describe what should change in **Change request** (e.g. “change neon frame from blue to red”).
-2. Click **Edit with AI**. The app optimizes the prompt and generates an edited preview via the bridge.
+2. Click **Edit with AI**. Only the current preview image is sent to the AI (not the layout template).
 3. Use **Compare fullscreen** to view the original and edited result side by side.
 4. **Accept change** keeps the edited preview as your working result, or **Reject change** restores the previous preview.
 

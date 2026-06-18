@@ -90,7 +90,7 @@ Nach Abschluss erscheint die Vorschau. Klick für Vollbild (Esc zum Schließen).
 Nach der Generierung steht unter der Vorschau **Mit KI bearbeiten** zur Verfügung. Sie können die Vorschau auch **manuell ersetzen**: PNG, JPG oder WebP per **Drag & Drop** auf den Vorschau-Bereich ziehen (das Bild wird in den temporären Vorschau-Speicher kopiert).
 
 1. **Änderungswunsch** beschreiben (z. B. „Neon-Rahmen von blau auf rot“).
-2. **Mit KI bearbeiten** – Prompt-Optimierung und bearbeitete Vorschau über die Bridge.
+2. **Mit KI bearbeiten** – nur das aktuelle Vorschau-Bild wird an die KI übergeben (keine Layout-Vorlage).
 3. **Vollbild-Vergleich** – Original und Ergebnis nebeneinander.
 4. **Änderung übernehmen** behält die bearbeitete Vorschau, **Änderung verwerfen** stellt die vorherige wieder her.
 
