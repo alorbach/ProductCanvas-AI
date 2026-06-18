@@ -208,6 +208,7 @@
   "error.needsPairing": "Diese App ist noch nicht mit der Codex Local Bridge verbunden. Pairing-Code aus dem Bridge-Tray eingeben und auf „Verbinden“ klicken.",
   "error.needsCodexLogin": "Codex CLI ist nicht angemeldet. „Codex anmelden“ klicken oder codex login im Terminal ausführen.",
   "error.generic": "Ein Fehler ist aufgetreten",
+  "error.startupFailed": "Start fehlgeschlagen",
   "error.bodyTooLarge": "Die Referenzbilder sind zu groß für die Bridge. Bitte kleinere Quelldateien verwenden – die App skaliert Referenzen nicht automatisch. Details im Debug-Log.",
   "error.promptFailed": "Prompt konnte nicht erstellt werden",
   "error.generateFailed": "Bild konnte nicht generiert werden",

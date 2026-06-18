@@ -87,7 +87,7 @@ contextBridge.exposeInMainWorld('productCanvas', {
       'session:loaded', 'session:saved', 'bridge:progress', 'job:progress',
       'help:open', 'nav:template-editor', 'action:template-clone', 'action:template-delete',
       'action:save-as', 'templates:updated', 'template:selected', 'action:template-import',
-      'action:bridge-setup', 'action:bridge-status',
+      'action:bridge-setup', 'action:bridge-status', 'action:codex-setup', 'action:codex-install',
       'debug:entry', 'debug:show', 'preferences:changed',
     ];
     if (allowed.includes(channel)) {

@@ -170,6 +170,39 @@ async function importTemplateFiles(filePaths, name) {
   return imported;
 }
 
+function buildCodexSubmenu() {
+  const backend = getPreferences(systemLocale()).codexBackend || 'direct';
+  if (backend === 'bridge') {
+    return [
+      { label: mt('menu.bridge.status'), click: () => send('action:bridge-status', {}) },
+      { label: mt('menu.bridge.connect'), click: () => send('action:bridge-setup', {}) },
+      { type: 'separator' },
+      { label: mt('menu.codex.login'), click: () => codexManager.startLogin() },
+      {
+        label: mt('menu.bridge.openStatus'),
+        click: () => {
+          const url = `${bridgeManager.getClient().bridgeUrl.replace(/\/$/, '')}/status`;
+          shell.openExternal(url);
+        },
+      },
+      {
+        label: mt('menu.bridge.resetPairing'),
+        click: async () => {
+          bridgeManager.getClient().clearToken();
+          send('action:bridge-setup', {});
+        },
+      },
+    ];
+  }
+  return [
+    { label: mt('menu.codex.status'), click: () => send('action:bridge-status', {}) },
+    { label: mt('menu.codex.setup'), click: () => send('action:codex-setup', {}) },
+    { type: 'separator' },
+    { label: mt('menu.codex.login'), click: () => codexManager.startLogin() },
+    { label: mt('menu.codex.install'), click: () => send('action:codex-install', {}) },
+  ];
+}
+
 function buildMenu() {
   const recent = profileStore.listRecent();
   const recentSubmenu = recent.length
@@ -213,27 +246,8 @@ function buildMenu() {
       ],
     },
     {
-      label: mt('menu.bridge'),
-      submenu: [
-        { label: mt('menu.bridge.status'), click: () => send('action:bridge-status', {}) },
-        { label: mt('menu.bridge.connect'), click: () => send('action:bridge-setup', {}) },
-        { type: 'separator' },
-        { label: mt('menu.bridge.codexLogin'), click: () => codexManager.startLogin() },
-        {
-          label: mt('menu.bridge.openStatus'),
-          click: () => {
-            const url = `${bridgeManager.getClient().bridgeUrl.replace(/\/$/, '')}/status`;
-            shell.openExternal(url);
-          },
-        },
-        {
-          label: mt('menu.bridge.resetPairing'),
-          click: async () => {
-            bridgeManager.getClient().clearToken();
-            send('action:bridge-setup', {});
-          },
-        },
-      ],
+      label: mt('menu.codex'),
+      submenu: buildCodexSubmenu(),
     },
     {
       label: mt('menu.help'),

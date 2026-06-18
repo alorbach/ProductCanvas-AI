@@ -20,15 +20,6 @@ function showFatalError(title, message, detail = '') {
   panel.classList.remove('hidden');
 }
 
-function formatGlobalError(event) {
-  const parts = [];
-  if (event?.message) parts.push(event.message);
-  if (event?.filename) {
-    parts.push(`${event.filename}:${event.lineno || 0}:${event.colno || 0}`);
-  }
-  return parts.join('\n');
-}
-
 function installFatalErrorHandlers() {
   window.addEventListener('error', (event) => {
     showFatalError(

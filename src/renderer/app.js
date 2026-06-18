@@ -2991,7 +2991,27 @@ function setupInteractionHandlers() {
     await loadTemplates();
   });
   api.on('action:template-import', () => importTemplatesDialog());
-  api.on('action:bridge-setup', () => showBridgeSetup(t('bridge.status.needsPairing'), { focusPairing: true }));
+  api.on('action:bridge-setup', async () => {
+    const status = await api.bridgeGetStatus();
+    if (isDirectBackend(status)) {
+      const message = !status.codexInstalled
+        ? t('bridge.status.needsInstall')
+        : (status.status?.message || t('bridge.status.needsLogin'));
+      showBridgeSetup(message, { focusPairing: false });
+      return;
+    }
+    showBridgeSetup(t('bridge.status.needsPairing'), { focusPairing: true });
+  });
+  api.on('action:codex-setup', async () => {
+    const status = await api.bridgeGetStatus();
+    const message = !status.codexInstalled
+      ? t('bridge.status.needsInstall')
+      : (status.status?.message || t('bridge.status.needsLogin'));
+    showBridgeSetup(message, { focusPairing: false });
+  });
+  api.on('action:codex-install', () => {
+    ensureCodexInstallWithPrompt().catch((err) => showError(err));
+  });
   api.on('action:bridge-status', () => openBridgeSetupDialog({ focusPairing: false }));
   api.on('template:selected', async (id) => {
     editorTemplateId = id;
