@@ -160,6 +160,62 @@ function appendPreviewEditLockBlock(prompt, imageSettings = {}, template = null)
   return parts.filter(Boolean).join('\n\n');
 }
 
+const EFFECT_EDIT_RULES = [
+  'EFFECT IMAGE RULES:',
+  '- Edit only background, atmosphere, texture, lighting, color, and intensity.',
+  '- No products, no text, no logos, no UI chrome, no watermarks.',
+  '- Preserve seamless/tileable background character unless the user explicitly requests otherwise.',
+].join('\n');
+
+function buildEffectEditRules(changeRequest, imageSettings = {}, options = {}) {
+  const sizeLine = imageSettings.size
+    ? `Target output size: ${imageSettings.size}. Do not change aspect ratio or canvas size.`
+    : 'Keep exact effect image canvas dimensions.';
+  const lines = [
+    'Edit the attached effect/background image.',
+    sizeLine,
+    EFFECT_EDIT_RULES,
+    `User change request: ${changeRequest}`,
+  ];
+  if (options.hasStyleReference) {
+    lines.push(
+      'TWO ATTACHED IMAGES:',
+      '- IMAGE 1 = effect/background image to edit (authoritative base).',
+      '- IMAGE 2 = style/visual reference only — use for mood, texture, lighting, or colors as described in the user request.',
+      '- Do NOT replace IMAGE 1 with IMAGE 2; merge the requested visual style into IMAGE 1.',
+      'The optimizedEditPrompt must link the user request to IMAGE 2 when relevant.',
+    );
+  }
+  lines.push('Return ONLY JSON: {"optimizedEditPrompt":"english image edit prompt","changeSummary":"short german summary","preservedElements":["..."]}');
+  return lines.join('\n\n');
+}
+
+function appendEffectEditLockBlock(prompt, imageSettings = {}) {
+  const parts = [String(prompt || '').trim(), EFFECT_EDIT_RULES];
+  const size = String(imageSettings.size || '').trim();
+  if (size) {
+    parts.push(`MANDATORY output size: ${size}. Do not use any other resolution.`);
+  }
+  parts.push('Apply only the explicit user edit request. Do not add products or text.');
+  return parts.filter(Boolean).join('\n\n');
+}
+
+function buildEffectResizeOnlyPrompt(imageSettings, sourceDims = {}) {
+  const fromSize = sourceDims.width && sourceDims.height
+    ? `${sourceDims.width}x${sourceDims.height}`
+    : 'source effect';
+  const toSize = imageSettings.size === 'auto'
+    ? 'auto (best fit)'
+    : imageSettings.size;
+  const base = [
+    `Resize the attached effect/background image from ${fromSize} to output size ${toSize}.`,
+    'Preserve atmosphere, texture, and seamless background character.',
+    'Scale proportionally — do not redesign or add content.',
+    'No content changes — format / canvas size only.',
+  ].join(' ');
+  return appendEffectEditLockBlock(base, imageSettings);
+}
+
 function buildResizeOnlyPrompt(template, imageSettings, sourceDims = {}) {
   const fromSize = sourceDims.width && sourceDims.height
     ? `${sourceDims.width}x${sourceDims.height}`
@@ -179,8 +235,12 @@ function buildResizeOnlyPrompt(template, imageSettings, sourceDims = {}) {
 module.exports = {
   LAYOUT_EDITABLE_RULES,
   LAYOUT_FROZEN_RULES,
+  EFFECT_EDIT_RULES,
+  appendEffectEditLockBlock,
   appendLayoutLockBlock,
   appendPreviewEditLockBlock,
+  buildEffectEditRules,
+  buildEffectResizeOnlyPrompt,
   buildProductStageHint,
   buildPreviewEditFrozenRules,
   buildResizeOnlyPrompt,

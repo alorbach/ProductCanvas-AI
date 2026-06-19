@@ -26,6 +26,11 @@ const DOC_ENTRIES = [
     title: { en: 'Edit Templates', de: 'Vorlagen bearbeiten' },
   },
   {
+    id: 'edit-effects',
+    file: { en: 'en/edit-effects.md', de: 'de/effektbilder-bearbeiten.md' },
+    title: { en: 'Edit Effects', de: 'Effektbilder bearbeiten' },
+  },
+  {
     id: 'settings',
     file: { en: 'en/settings.md', de: 'de/einstellungen.md' },
     title: { en: 'Settings', de: 'Einstellungen' },

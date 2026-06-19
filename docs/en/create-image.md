@@ -28,6 +28,7 @@ The **Effect images** column holds background/effect assets (e.g. fire on black)
 
 - **Generate effect** – describe the effect in text; accept the AI preview to save it to your library under `%APPDATA%\productcanvas-ai\effects\`.
 - **Import effect image** – drag PNG/JPG/WebP or use the import button (same formats as templates).
+- **Edit…** (context menu) or the **Edit effects** tab – adapt an existing effect with AI (change request, preview, accept/reject). See [Edit Effects](edit-effects.md).
 
 Select an effect in the **Effect images** column (or **None** to disable). By default, the app merges the effect into the **product photo background** before the main generation step. Override this behaviour with **Extra prompt** (e.g. when you want a different product/background treatment).
 

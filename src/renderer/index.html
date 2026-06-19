@@ -24,6 +24,7 @@
     <nav class="main-nav">
       <button type="button" class="nav-btn active" data-mode="werbung" id="nav-werbung">Create image</button>
       <button type="button" class="nav-btn" data-mode="templates" id="nav-templates">Edit templates</button>
+      <button type="button" class="nav-btn" data-mode="effects" id="nav-effects">Edit effects</button>
       <button type="button" class="nav-btn" data-mode="help" id="nav-help">Help</button>
     </nav>
     <div class="bridge-status" id="bridge-status" title="Bridge status">●</div>
@@ -217,6 +218,83 @@
             <div id="editor-preview-meta" class="preview-meta-overlay hidden" aria-hidden="true"></div>
           </div>
           <p id="editor-preview-empty" class="muted">Generate an AI preview to compare.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <main id="view-effects" class="view">
+    <section class="panel full">
+      <h2 id="lbl-effect-editor-title">Effect editor</h2>
+      <div id="effect-editor-current-bar" class="editor-current-bar">
+        <img id="effect-editor-current-thumb" class="editor-current-thumb" alt="" />
+        <div class="editor-current-meta">
+          <label class="editor-current-select-row">
+            <span id="lbl-effect-editor-effect">Current effect</span>
+            <select id="effect-editor-select"></select>
+          </label>
+        </div>
+      </div>
+      <p id="effect-editor-locked-hint" class="editor-locked-hint hidden muted"></p>
+      <div id="effect-editor-review-bar" class="editor-review-bar hidden">
+        <p id="effect-change-summary" class="muted editor-review-summary"></p>
+        <div class="accept-row" id="effect-accept-row">
+          <button type="button" class="btn secondary" id="btn-effect-editor-compare">Compare fullscreen</button>
+          <button type="button" class="btn primary" id="btn-effect-accept">Accept change</button>
+          <button type="button" class="btn danger" id="btn-effect-reject">Reject change</button>
+        </div>
+      </div>
+      <div class="editor-workspace">
+        <div class="editor-col">
+          <h3 id="lbl-effect-original">Original</h3>
+          <img id="effect-editor-original" alt="Original" />
+        </div>
+        <div class="editor-controls">
+          <div class="editor-settings-row">
+            <label class="editor-size-preset-label"><span id="lbl-effect-editor-size">Output format</span>
+              <select id="effect-editor-size-preset"></select>
+            </label>
+            <div class="editor-size-custom">
+              <label><span id="lbl-effect-editor-width">Width (px)</span>
+                <input type="number" id="effect-editor-size-width" min="64" max="8192" step="1" inputmode="numeric" />
+              </label>
+              <span class="editor-size-times" aria-hidden="true">×</span>
+              <label><span id="lbl-effect-editor-height">Height (px)</span>
+                <input type="number" id="effect-editor-size-height" min="64" max="8192" step="1" inputmode="numeric" />
+              </label>
+            </div>
+            <label><span id="lbl-effect-editor-quality">Quality</span>
+              <select id="effect-editor-quality"></select>
+            </label>
+          </div>
+          <label><span id="lbl-effect-change">Change request</span>
+            <textarea id="effect-change-request" rows="4" placeholder="e.g. intensify flames, shift glow from orange to blue…"></textarea>
+          </label>
+          <p id="effect-editor-change-hint" class="muted compositing-hint"></p>
+          <div class="editor-ref-block">
+            <div class="editor-ref-header">
+              <span id="lbl-effect-editor-ref">Reference image (optional)</span>
+              <button type="button" class="btn secondary btn-sm" id="btn-effect-editor-ref-add">Add reference image</button>
+            </div>
+            <p id="effect-editor-ref-hint" class="muted compositing-hint"></p>
+            <div id="effect-editor-ref-drop" class="editor-ref-drop">
+              <div id="effect-editor-ref-preview" class="editor-ref-preview hidden"></div>
+              <p id="effect-editor-ref-empty" class="muted">No reference image yet. Drag here or use the button.</p>
+            </div>
+          </div>
+          <button type="button" class="btn primary" id="btn-effect-generate-edit">Generate AI preview</button>
+          <details class="prompt-details editor-prompt-details" id="effect-editor-prompt-details">
+            <summary id="lbl-effect-opt-prompt">Optimized prompt</summary>
+            <textarea id="effect-optimized-prompt" rows="6" readonly></textarea>
+          </details>
+        </div>
+        <div class="editor-col">
+          <h3 id="lbl-effect-ki-preview">AI preview</h3>
+          <div class="preview-frame editor-preview-frame">
+            <img id="effect-editor-preview" alt="AI preview" class="hidden" />
+            <div id="effect-editor-preview-meta" class="preview-meta-overlay hidden" aria-hidden="true"></div>
+          </div>
+          <p id="effect-editor-preview-empty" class="muted">Generate an AI preview to compare.</p>
         </div>
       </div>
     </section>

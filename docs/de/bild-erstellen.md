@@ -28,6 +28,7 @@ Die Spalte **Effektbilder** enthält Hintergrund-/Effekt-Assets (z. B. Feuer auf
 
 - **Effektbild erzeugen** – Effekt in Text beschreiben; KI-Vorschau akzeptieren, um das Bild unter `%APPDATA%\productcanvas-ai\effects\` zu speichern.
 - **Effektbild importieren** – PNG/JPG/WebP ziehen oder Import-Button (gleiche Formate wie Vorlagen).
+- **Bearbeiten…** (Kontextmenü) oder Reiter **Effektbilder bearbeiten** – bestehendes Effektbild per KI anpassen (Änderungswunsch, Vorschau, Übernehmen/Verwerfen). Siehe [Effektbilder bearbeiten](effektbilder-bearbeiten.md).
 
 Effekt in der Spalte **Effektbilder** auswählen (oder **Keins**). Standard: Der Effekt wird vor dem Hauptgenerierungsschritt in den **Produkthintergrund** des Referenzfotos eingefügt. Über **Zusatz-Prompt** übersteuerbar (z. B. andere Produkt-/Hintergrund-Behandlung).
 

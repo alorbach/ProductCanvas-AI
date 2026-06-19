@@ -48,6 +48,7 @@ paths.recentPath = () => path.join(paths.userDataRoot(), 'recent.json');
 paths.defaultsPath = () => path.join(paths.userDataRoot(), 'defaults.json');
 paths.userTemplatesRegistryPath = () => path.join(paths.userDataRoot(), 'user-templates.json');
 paths.userEffectsDir = () => ensureDir(path.join(paths.userDataRoot(), 'effects'));
+paths.userEffectsHistoryDir = (id) => ensureDir(path.join(paths.userDataRoot(), 'effects', 'history', id));
 paths.userEffectsRegistryPath = () => path.join(paths.userDataRoot(), 'user-effects.json');
 paths.bridgeStatePath = () => path.join(paths.userDataRoot(), 'bridge-state.json');
 paths.tempPreviewDir = () => ensureDir(path.join(paths.userDataRoot(), 'temp-previews'));

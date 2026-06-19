@@ -3,6 +3,16 @@
 import { loadI18n, getLocale, t } from './i18n/i18n.js';
 import { renderHelp, openHelpDoc } from './help/help-viewer.js';
 import { showContextMenu, menuItem } from './context-menu.js';
+import {
+  applyEffectEditorLabels,
+  onShowEffectsView,
+  openEffectEditorForEffect,
+  refreshEffectEditorUi,
+  renderEffectEditWaitContext,
+  restoreEffectEditorPending,
+  restoreEffectEditorReferenceFromSession,
+  setupEffectEditorHandlers,
+} from './effect-editor-ui.js';
 
 import { api } from './bridge-api.js';
 import { pathsFromDataTransfer, isFileDrag } from './image-paths.js';
@@ -1008,6 +1018,9 @@ function showView(name) {
     editorTemplateId = session.templateId;
     selectEditorTemplate(session.templateId).catch(() => {});
   }
+  if (name === 'effects') {
+    void onShowEffectsView();
+  }
 }
 
 function applyLabels() {
@@ -1015,6 +1028,7 @@ function applyLabels() {
   $('app-subtitle').textContent = t('app.subtitle');
   $('nav-werbung').textContent = t('nav.werbung');
   $('nav-templates').textContent = t('nav.templates');
+  if ($('nav-effects')) $('nav-effects').textContent = t('nav.effects');
   $('nav-help').textContent = t('nav.help');
   $('lbl-template').textContent = t('template.select');
   $('templates-import-hint').textContent = `${t('template.importHint')} ${t('template.reorderHint')}`;
@@ -1095,6 +1109,7 @@ function applyLabels() {
   $('confirm-ok').textContent = t('dialog.ok');
   updateEditorLockUi();
   renderEditorReference();
+  applyEffectEditorLabels();
   $('wait-title').textContent = t('wait.title');
   $('btn-wait-cancel').textContent = t('wait.cancel');
   $('btn-bridge-connect').textContent = t('bridge.setup.connect');
@@ -2154,6 +2169,7 @@ async function loadEffects() {
   renderEffectList('effect-list', session.effectId, async (id) => {
     await selectEffect(id);
   });
+  await refreshEffectEditorUi();
 }
 
 async function selectEffect(id) {
@@ -2233,6 +2249,7 @@ function effectContextItems(effect) {
     items.push(menuItem('deselect', 'effect.none'));
   }
   items.push(
+    menuItem('edit', 'context.edit'),
     menuItem('rename', 'context.rename'),
     menuItem('regenerate', 'effect.regenerate'),
     menuItem('delete', 'context.delete'),
@@ -2252,6 +2269,9 @@ async function handleEffectContextAction(actionId, effect, onSelect) {
       break;
     case 'rename':
       await renameEffect(effect.id);
+      break;
+    case 'edit':
+      await openEffectEditorForEffect(effect.id);
       break;
     case 'regenerate':
       openEffectGenerateDialog(effect.sourcePrompt || effect.name);
@@ -2792,6 +2812,8 @@ function renderWaitContext(ctx) {
     if (ctx.size) add('wait.context.size', formatGatewaySizeLabel(ctx.size, sizeTmpl));
     if (ctx.quality) add('wait.context.quality', qualityLabel(ctx.quality));
     add('wait.context.change', ctx.change);
+  } else if (ctx.kind === 'effectEdit') {
+    renderEffectEditWaitContext(ctx, add);
   } else if (ctx.kind === 'adLine') {
     add('wait.context.mainLine', ctx.mainLine);
     add('wait.context.adLine1', ctx.adLine1);
@@ -3032,6 +3054,28 @@ function setupInteractionHandlers() {
   attachPreviewMetaListeners('preview-image', 'preview-image-meta', () => mainPreviewMetaContext);
   attachPreviewMetaListeners('editor-preview', 'editor-preview-meta', () => editorPreviewMetaContext);
   setupEditorReference();
+  setupEffectEditorHandlers({
+    $,
+    getEffects: () => effects,
+    getSession: () => session,
+    updateSession,
+    getImageSettingsCatalog: () => imageSettingsCatalog,
+    setImageSettingsCatalog: (catalog) => { imageSettingsCatalog = catalog; },
+    showStatus,
+    showError,
+    showWait,
+    hideWait,
+    ensureBridgeReady,
+    getPairingCode,
+    loadEffects,
+    showView,
+    isInternalSortDrag,
+    imagePathsFromDataTransfer,
+    qualityLabel,
+    parseSizeWxH,
+    refreshPreviewMetaOverlay,
+    attachPreviewMetaListeners,
+  });
   setupEditorImageContextMenus();
   setupPanelContextMenus();
   setupDebugPanel();
@@ -3433,6 +3477,7 @@ function setupInteractionHandlers() {
     await refreshBridgeStatus();
   });
   api.on('nav:template-editor', () => showView('templates'));
+  api.on('nav:effect-editor', () => showView('effects'));
   api.on('action:save-as', async () => {
     const name = session.profileName || 'Profil';
     const saved = await api.profileSaveDialog(name);
@@ -3508,6 +3553,7 @@ async function init() {
         name: session.editorReferenceImagePath.split(/[/\\]/).pop() || '',
       }, { persist: false });
     }
+    await restoreEffectEditorReferenceFromSession(session);
     await refreshImageSettingsUi();
     writeSettingsToUi();
     restorePromptFromSession();
@@ -3553,6 +3599,8 @@ async function init() {
       editorTemplateId = session.templateId;
       if (editorTemplateId) await selectEditorTemplate(editorTemplateId);
     }
+
+    await restoreEffectEditorPending();
 
     await loadDebugLog();
     void refreshBridgeStatus({ autoOpen: true }).catch((err) => console.error(err));

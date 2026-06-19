@@ -12,7 +12,9 @@ const { TemplateRegistry } = require('./templates/template-registry');
 const { EffectRegistry } = require('./effects/effect-registry');
 const { TemplateEditorService } = require('./templates/template-editor-service');
 const { EffectGenerateService } = require('./effects/effect-generate-service');
+const { EffectEditorService } = require('./effects/effect-editor-service');
 const { TemplateEditPipeline } = require('./generate/template-edit-pipeline');
+const { EffectEditPipeline } = require('./generate/effect-edit-pipeline');
 const { EffectGeneratePipeline } = require('./generate/effect-generate-pipeline');
 const { PreviewEditPipeline } = require('./generate/preview-edit-pipeline');
 const { PreviewEditService } = require('./generate/preview-edit-service');
@@ -52,8 +54,10 @@ let profileStore;
 let promptBuilder;
 let imagePipeline;
 let templateEditor;
+let effectEditor;
 let effectGenerator;
 let templateEditPipeline;
+let effectEditPipeline;
 let effectGeneratePipeline;
 let previewEditor;
 let previewEditPipeline;
@@ -266,6 +270,12 @@ function buildMenu() {
       ],
     },
     {
+      label: mt('menu.effects'),
+      submenu: [
+        { label: mt('menu.effects.edit'), click: () => send('nav:effect-editor', {}) },
+      ],
+    },
+    {
       label: mt('menu.codex'),
       submenu: buildCodexSubmenu(),
     },
@@ -275,6 +285,7 @@ function buildMenu() {
         { label: mt('menu.help.gettingStarted'), click: () => send('help:open', 'getting-started') },
         { label: mt('menu.help.handbook'), click: () => send('help:open', 'user-guide') },
         { label: mt('menu.help.editTemplates'), click: () => send('help:open', 'edit-templates') },
+        { label: mt('menu.help.editEffects'), click: () => send('help:open', 'edit-effects') },
         { type: 'separator' },
         { label: mt('menu.help.debug'), click: () => send('debug:show', {}) },
         { type: 'separator' },
@@ -567,6 +578,12 @@ function registerIpc() {
     return result.dataUrl;
   });
 
+  ipcMain.handle('effects:getDimensions', async (_, id) => {
+    const effect = effectRegistry.getById(id);
+    if (!effect) return null;
+    return effectRegistry.getDimensions(effect);
+  });
+
   ipcMain.handle('effects:generate', async (_, { prompt, quality, size, pairingCode }) => {
     const signalKey = `effect-gen-${Date.now()}`;
     send('job:progress', { status: 'running', signalKey, messageKey: 'wait.status.effectGenerate' });
@@ -594,6 +611,31 @@ function registerIpc() {
   });
 
   ipcMain.handle('effects:rejectGenerate', () => effectGenerator.rejectGenerate());
+
+  ipcMain.handle('effects:runEdit', async (_, { effectId, changeRequest, quality, size, referenceImagePath, pairingCode }) => {
+    const signalKey = `effect-edit-${Date.now()}`;
+    send('job:progress', { status: 'running', signalKey, messageKey: 'wait.status.effectEditPrompt' });
+    const onProgress = (p) => send('job:progress', { ...p, signalKey });
+    await requireCodexReady(pairingCode);
+    const unsubscribe = subscribeCodexJobProgress(onProgress);
+    try {
+      return await effectEditor.runEdit(
+        { effectId, changeRequest, quality, size, referenceImagePath },
+        onProgress,
+        signalKey,
+      );
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  ipcMain.handle('effects:getPendingEdit', () => effectEditor.getPendingEdit());
+  ipcMain.handle('effects:acceptEdit', async () => {
+    const accepted = await effectEditor.acceptEdit();
+    send('effects:updated', effectRegistry.listAll());
+    return accepted;
+  });
+  ipcMain.handle('effects:rejectEdit', () => effectEditor.rejectEdit());
 
   ipcMain.handle('templates:runEdit', async (_, { templateId, changeRequest, quality, size, referenceImagePath, pairingCode }) => {
     const signalKey = `edit-${Date.now()}`;
@@ -890,8 +932,10 @@ app.whenReady().then(() => {
   promptBuilder = new PromptBuilder(codexProvider, templateRegistry);
   imagePipeline = new ImagePipeline(codexProvider, templateRegistry, effectRegistry);
   templateEditPipeline = new TemplateEditPipeline(codexProvider, templateRegistry);
+  effectEditPipeline = new EffectEditPipeline(codexProvider, effectRegistry);
   effectGeneratePipeline = new EffectGeneratePipeline(codexProvider);
   templateEditor = new TemplateEditorService(templateEditPipeline, templateRegistry);
+  effectEditor = new EffectEditorService(effectEditPipeline, effectRegistry);
   effectGenerator = new EffectGenerateService(effectGeneratePipeline, effectRegistry);
   previewEditPipeline = new PreviewEditPipeline(codexProvider, templateRegistry);
   previewEditor = new PreviewEditService(previewEditPipeline, {

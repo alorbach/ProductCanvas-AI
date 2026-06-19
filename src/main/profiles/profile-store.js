@@ -19,6 +19,7 @@ const DEFAULTS = {
   internalComment: '',
   referenceImages: [],
   editorReferenceImagePath: '',
+  effectEditorReferenceImagePath: '',
   lastPreviewPath: '',
   previewPendingEdit: null,
   imagePrompt: '',
