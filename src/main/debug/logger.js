@@ -52,6 +52,10 @@ function error(source, message, details) {
   return log('error', source, message, details);
 }
 
+function debug(source, message, details) {
+  return log('debug', source, message, details);
+}
+
 function getLog() {
   return [...entries];
 }
@@ -67,4 +71,4 @@ function setBroadcast(fn) {
   global.__productCanvasOnDebugEntry = fn;
 }
 
-module.exports = { log, info, warn, error, getLog, clear, setBroadcast };
+module.exports = { log, info, warn, error, debug, getLog, clear, setBroadcast };

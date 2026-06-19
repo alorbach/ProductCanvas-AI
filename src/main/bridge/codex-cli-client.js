@@ -6,13 +6,60 @@ const path = require('path');
 const { spawn, spawnSync } = require('child_process');
 const debugLog = require('../debug/logger');
 
-const codexBinaryEnv = process.env.ALORBACH_CODEX_BINARY || 'codex';
+const envBinaryOverride = process.env.ALORBACH_CODEX_BINARY || '';
+const defaultBinaryName = 'codex';
 const codexHome = process.env.CODEX_HOME || path.join(os.homedir(), '.codex');
 const authPath = path.join(codexHome, 'auth.json');
 const generatedImagesDir = path.join(codexHome, 'generated_images');
 const LOG_TEXT_MAX = 8000;
 let resolvedBinaryCache = null;
 let binaryResolutionLogged = false;
+let resolvedBinaryMeta = {
+  source: 'default',
+  preference_path: '',
+  configured_path: '',
+};
+
+function getPreferenceCodexCliPath() {
+  try {
+    const { readDefaults } = require('../app-preferences');
+    return String(readDefaults().codexCliPath || '').trim();
+  } catch {
+    return '';
+  }
+}
+
+function invalidateCodexBinaryCache() {
+  resolvedBinaryCache = null;
+  binaryResolutionLogged = false;
+  resolvedBinaryMeta = {
+    source: 'default',
+    preference_path: '',
+    configured_path: '',
+  };
+}
+
+function binaryLooksLikePath(binary) {
+  return /[\\/]/.test(String(binary || ''));
+}
+
+function binaryExistsOnSystem(binary) {
+  const value = String(binary || '').trim();
+  if (!value) return false;
+  if (binaryLooksLikePath(value)) {
+    try {
+      return fs.existsSync(value);
+    } catch {
+      return false;
+    }
+  }
+  if (process.platform === 'win32') {
+    const lookup = spawnSync('where.exe', [value], { encoding: 'utf8', shell: false });
+    return lookup.status === 0;
+  }
+  const lookup = spawnSync('which', [value], { encoding: 'utf8', shell: false });
+  return lookup.status === 0;
+}
 
 function truncateLogText(text, max = LOG_TEXT_MAX) {
   const raw = String(text || '');
@@ -30,11 +77,73 @@ function codexCommandLabel(args) {
   return `${resolveCodexBinary()} ${(Array.isArray(args) ? args : []).map(formatArgForLog).join(' ')}`;
 }
 
-function pathLookupMatches() {
+function pathLookupMatches(binaryName = defaultBinaryName) {
   if (process.platform !== 'win32') return [];
-  const lookup = spawnSync('where.exe', [codexBinaryEnv], { encoding: 'utf8', shell: false });
+  const lookup = spawnSync('where.exe', [binaryName], { encoding: 'utf8', shell: false });
   if (lookup.status !== 0) return [];
   return (lookup.stdout || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+}
+
+function resolveBinaryFromWindowsLookup(binaryName = defaultBinaryName) {
+  const lookup = spawnSync('where.exe', [binaryName], { encoding: 'utf8', shell: false });
+  if (lookup.status !== 0) return '';
+  const matches = (lookup.stdout || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  return matches.find((line) => /\.exe$/i.test(line))
+    || matches.find((line) => /\.(cmd|bat)$/i.test(line))
+    || matches[0]
+    || '';
+}
+
+function resolveBinaryInternal() {
+  const preferencePath = getPreferenceCodexCliPath();
+  resolvedBinaryMeta = {
+    source: 'default',
+    preference_path: preferencePath,
+    configured_path: '',
+  };
+
+  if (envBinaryOverride) {
+    resolvedBinaryMeta.source = 'env';
+    if (process.platform !== 'win32' || binaryLooksLikePath(envBinaryOverride)) {
+      return envBinaryOverride;
+    }
+    const extensionBinary = findWindowsCodexExtensionBinary();
+    if (extensionBinary) {
+      resolvedBinaryMeta.source = 'env_extension';
+      return extensionBinary;
+    }
+    const fromPath = resolveBinaryFromWindowsLookup(envBinaryOverride);
+    return fromPath || envBinaryOverride;
+  }
+
+  if (preferencePath) {
+    resolvedBinaryMeta.configured_path = preferencePath;
+    if (fs.existsSync(preferencePath)) {
+      resolvedBinaryMeta.source = 'settings';
+      return preferencePath;
+    }
+    debugLog.warn('codex-cli-client', 'Konfigurierter Codex-CLI-Pfad nicht gefunden, Auto-Erkennung', {
+      configured_path: preferencePath,
+    });
+  }
+
+  if (process.platform !== 'win32') {
+    return defaultBinaryName;
+  }
+
+  const extensionBinary = findWindowsCodexExtensionBinary();
+  if (extensionBinary) {
+    resolvedBinaryMeta.source = 'extension';
+    return extensionBinary;
+  }
+
+  const fromPath = resolveBinaryFromWindowsLookup(defaultBinaryName);
+  if (fromPath) {
+    resolvedBinaryMeta.source = 'path';
+    return fromPath;
+  }
+
+  return defaultBinaryName;
 }
 
 function logBinaryResolution() {
@@ -43,11 +152,16 @@ function logBinaryResolution() {
   const binary = resolveCodexBinary();
   const details = {
     codex_binary: binary,
+    resolution_source: resolvedBinaryMeta.source,
+    preference_path: resolvedBinaryMeta.preference_path || undefined,
+    configured_path: resolvedBinaryMeta.configured_path || undefined,
+    binary_exists: binaryExistsOnSystem(binary),
+    env_override: envBinaryOverride || undefined,
     codex_home: codexHome,
     auth_path: authPath,
-    env_override: codexBinaryEnv,
+    auth_exists: fs.existsSync(authPath),
   };
-  if (process.platform === 'win32' && !/[\\/]/.test(codexBinaryEnv)) {
+  if (process.platform === 'win32' && !envBinaryOverride && !resolvedBinaryMeta.configured_path) {
     const pathMatches = pathLookupMatches();
     if (pathMatches.length) details.path_lookup = pathMatches;
     const extensionBinary = findWindowsCodexExtensionBinary();
@@ -121,36 +235,58 @@ function findWindowsCodexExtensionBinary() {
 }
 
 function resolveCodexBinary() {
-  if (resolvedBinaryCache) return resolvedBinaryCache;
-  if (process.platform !== 'win32' || /[\\/]/.test(codexBinaryEnv)) {
-    resolvedBinaryCache = codexBinaryEnv;
-    return resolvedBinaryCache;
+  if (!resolvedBinaryCache) {
+    resolvedBinaryCache = resolveBinaryInternal();
   }
-  const extensionBinary = findWindowsCodexExtensionBinary();
-  if (extensionBinary) {
-    resolvedBinaryCache = extensionBinary;
-    return resolvedBinaryCache;
-  }
-  const lookup = spawnSync('where.exe', [codexBinaryEnv], { encoding: 'utf8', shell: false });
-  if (lookup.status === 0) {
-    const matches = (lookup.stdout || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-    resolvedBinaryCache = matches.find((line) => /\.exe$/i.test(line))
-      || matches.find((line) => /\.(cmd|bat)$/i.test(line))
-      || matches[0]
-      || codexBinaryEnv;
-    return resolvedBinaryCache;
-  }
-  resolvedBinaryCache = codexBinaryEnv;
   return resolvedBinaryCache;
 }
 
-function runCodex(args, options = {}) {
-  return spawnSync(resolveCodexBinary(), args, {
+function getCodexCliInfo() {
+  logBinaryResolution();
+  const binary = resolveCodexBinary();
+  return {
+    configuredPath: getPreferenceCodexCliPath(),
+    resolvedBinary: binary,
+    resolutionSource: resolvedBinaryMeta.source,
+    envOverride: Boolean(envBinaryOverride),
+    binaryExists: binaryExistsOnSystem(binary),
+    codexHome,
+    authPath,
+    authExists: fs.existsSync(authPath),
+  };
+}
+
+function runCodex(args, options = {}, meta = {}) {
+  logBinaryResolution();
+  const command = codexCommandLabel(args);
+  debugLog.debug('codex-cli-client', 'Codex sync spawn', {
+    kind: meta.kind || 'sync',
+    phase: meta.phase || meta.kind || 'sync',
+    command,
+    cwd: options.cwd || process.cwd(),
+  });
+  const result = spawnSync(resolveCodexBinary(), args, {
     encoding: 'utf8',
     shell: false,
     env: { ...process.env, CODEX_HOME: codexHome },
     ...options,
   });
+  if (result.error || result.status !== 0) {
+    logCliFailure(meta.kind || 'sync', {
+      ...result,
+      used_json: null,
+    }, { command, phase: meta.phase || meta.kind || 'sync' });
+  } else if (meta.kind) {
+    debugLog.debug('codex-cli-client', 'Codex sync ok', {
+      kind: meta.kind,
+      phase: meta.phase || meta.kind,
+      command,
+      exit_status: result.status,
+      stdout_bytes: Buffer.byteLength(String(result.stdout || ''), 'utf8'),
+      stderr_bytes: Buffer.byteLength(String(result.stderr || ''), 'utf8'),
+    });
+  }
+  return result;
 }
 
 function runCodexAsync(args, options = {}) {
@@ -182,6 +318,11 @@ function runCodexAsync(args, options = {}) {
         ...spawnOptions,
       });
     } catch (error) {
+      debugLog.error('codex-cli-client', 'Codex async spawn fehlgeschlagen', {
+        command: codexCommandLabel(args),
+        codex_binary: resolveCodexBinary(),
+        error: error.message || String(error),
+      });
       resolve({ stdout, stderr, status: null, signal: null, error });
       return;
     }
@@ -204,7 +345,14 @@ function runCodexAsync(args, options = {}) {
       stderr += text;
       emitOutput('stderr', text);
     });
-    child.once('error', (error) => { spawnError = error; });
+    child.once('error', (error) => {
+      spawnError = error;
+      debugLog.error('codex-cli-client', 'Codex async Prozessfehler', {
+        command: codexCommandLabel(args),
+        codex_binary: resolveCodexBinary(),
+        error: error.message || String(error),
+      });
+    });
     child.once('close', (status, signal) => {
       if (timer) clearTimeout(timer);
       if (abortSignal) abortSignal.removeEventListener('abort', onAbort);
@@ -310,8 +458,14 @@ async function runCodexExec(args, options = {}, meta = {}) {
 }
 
 function checkStatus() {
-  const version = runCodex(['--version']);
+  logBinaryResolution();
+  const version = runCodex(['--version'], {}, { kind: 'status', phase: 'version' });
   if (version.error) {
+    debugLog.warn('codex-cli-client', 'Codex CLI Status: Binary nicht ausführbar', {
+      codex_binary: resolveCodexBinary(),
+      resolution_source: resolvedBinaryMeta.source,
+      error: version.error.message || String(version.error),
+    });
     return {
       success: false,
       message: 'Codex CLI is not installed or not on PATH.',
@@ -319,15 +473,27 @@ function checkStatus() {
     };
   }
   if (version.status !== 0) {
+    debugLog.warn('codex-cli-client', 'Codex CLI Status: --version fehlgeschlagen', {
+      codex_binary: resolveCodexBinary(),
+      exit_status: version.status,
+      stderr: truncateLogText(version.stderr, 500),
+    });
     return {
       success: false,
       message: 'Codex CLI was found, but `codex --version` failed.',
       details: { codex_binary: resolveCodexBinary(), stderr: (version.stderr || '').trim() },
     };
   }
-  const login = runCodex(['login', 'status']);
+  const login = runCodex(['login', 'status'], {}, { kind: 'status', phase: 'login' });
   const loginText = `${login.stdout || ''}\n${login.stderr || ''}`;
   const loggedIn = !login.error && login.status === 0 && /logged in/i.test(loginText) && fs.existsSync(authPath);
+  debugLog.info('codex-cli-client', 'Codex CLI Status geprüft', {
+    codex_binary: resolveCodexBinary(),
+    resolution_source: resolvedBinaryMeta.source,
+    version: (version.stdout || version.stderr || '').trim(),
+    logged_in: loggedIn,
+    auth_exists: fs.existsSync(authPath),
+  });
   return {
     success: loggedIn,
     message: loggedIn ? 'Local Codex CLI is installed and logged in.' : 'Codex CLI is installed, but this user is not logged in.',
@@ -527,24 +693,32 @@ function codexImageFailureFromOutput(stdout, stderr, structured = null) {
 }
 
 function probeCapabilities() {
-  const version = runCodex(['--version']);
-  const help = runCodex(['exec', '--help']);
+  logBinaryResolution();
+  const version = runCodex(['--version'], {}, { kind: 'capabilities', phase: 'version' });
+  const help = runCodex(['exec', '--help'], {}, { kind: 'capabilities', phase: 'exec-help' });
   const helpText = `${help.stdout || ''}\n${help.stderr || ''}`;
+  const features = {
+    chat: true,
+    images: true,
+    media_analysis: true,
+    structured_exec_json: /--json/.test(helpText),
+    image_attachments: /--image/.test(helpText),
+    image_reference_attachments: /--image/.test(helpText),
+    image_masks: /--mask/.test(helpText),
+  };
+  debugLog.info('codex-cli-client', 'Codex CLI Fähigkeiten ermittelt', {
+    codex_binary: resolveCodexBinary(),
+    resolution_source: resolvedBinaryMeta.source,
+    version: (version.stdout || version.stderr || '').trim(),
+    features,
+  });
   return {
     success: !version.error && version.status === 0,
     codex: {
       binary: resolveCodexBinary(),
       version: (version.stdout || version.stderr || '').trim(),
     },
-    features: {
-      chat: true,
-      images: true,
-      media_analysis: true,
-      structured_exec_json: /--json/.test(helpText),
-      image_attachments: /--image/.test(helpText),
-      image_reference_attachments: /--image/.test(helpText),
-      image_masks: /--mask/.test(helpText),
-    },
+    features,
   };
 }
 
@@ -766,6 +940,8 @@ module.exports = {
   checkStatus,
   probeCapabilities,
   resolveCodexBinary,
+  invalidateCodexBinaryCache,
+  getCodexCliInfo,
   collectImageAttachments,
   imagePrompt,
 };

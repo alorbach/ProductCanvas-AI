@@ -32,6 +32,8 @@ contextBridge.exposeInMainWorld('productCanvas', {
   ),
   getPreferences: () => ipcRenderer.invoke('app:getPreferences'),
   setPreferences: (patch) => ipcRenderer.invoke('app:setPreferences', patch),
+  getCodexCliInfo: () => ipcRenderer.invoke('app:getCodexCliInfo'),
+  pickCodexCliPath: () => ipcRenderer.invoke('app:pickCodexCliPath'),
   openSettings: () => ipcRenderer.invoke('app:openSettings'),
   bridgeGetStatus: () => ipcRenderer.invoke('bridge:getStatus'),
   bridgeEnsureReady: (code) => ipcRenderer.invoke('bridge:ensureReady', code),

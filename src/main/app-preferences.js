@@ -11,7 +11,14 @@ const SUPPORTED_CODEX_BACKENDS = ['direct', 'bridge'];
 
 function readDefaults() {
   try {
-    return JSON.parse(fs.readFileSync(paths.defaultsPath(), 'utf8'));
+    const defaults = JSON.parse(fs.readFileSync(paths.defaultsPath(), 'utf8'));
+    const cleanedCliPath = sanitizeCodexCliPath(defaults.codexCliPath);
+    if (defaults.codexCliPath && cleanedCliPath !== normalizeCodexCliPath(defaults.codexCliPath)) {
+      const next = { ...defaults, codexCliPath: '' };
+      fs.writeFileSync(paths.defaultsPath(), JSON.stringify(next, null, 2));
+      return next;
+    }
+    return defaults;
   } catch {
     return {};
   }
@@ -33,6 +40,19 @@ function resolveLocale(preference, systemLocale) {
   return lang === 'de' ? 'de' : 'en';
 }
 
+function normalizeCodexCliPath(value) {
+  return String(value || '').trim();
+}
+
+function sanitizeCodexCliPath(value) {
+  const normalized = normalizeCodexCliPath(value);
+  if (!normalized) return '';
+  if (/[\\/]pcai-cli-resolve-/i.test(normalized) && !fs.existsSync(normalized)) {
+    return '';
+  }
+  return normalized;
+}
+
 function getPreferences(systemLocale) {
   const defaults = readDefaults();
   const uiLocale = defaults.uiLocale || DEFAULT_UI_LOCALE;
@@ -45,6 +65,7 @@ function getPreferences(systemLocale) {
     systemLocale: systemLocale || 'en',
     bridgeUrl: normalizeBridgeUrl(defaults.bridgeUrl),
     codexBackend,
+    codexCliPath: sanitizeCodexCliPath(defaults.codexCliPath),
   };
 }
 
@@ -61,6 +82,9 @@ function setPreferences(patch, systemLocale) {
     const value = String(patch.codexBackend);
     allowed.codexBackend = SUPPORTED_CODEX_BACKENDS.includes(value) ? value : DEFAULT_CODEX_BACKEND;
   }
+  if (patch.codexCliPath !== undefined) {
+    allowed.codexCliPath = normalizeCodexCliPath(patch.codexCliPath);
+  }
   writeDefaults(allowed);
   return getPreferences(systemLocale);
 }
@@ -74,4 +98,6 @@ module.exports = {
   getPreferences,
   setPreferences,
   normalizeBridgeUrl,
+  normalizeCodexCliPath,
+  readDefaults,
 };

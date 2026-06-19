@@ -8,13 +8,14 @@
 
 body {
   margin: 0;
+  overflow-y: auto;
 }
 
 .settings-window {
   padding: 20px 24px;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  min-height: 100%;
   box-sizing: border-box;
 }
 
@@ -105,4 +106,26 @@ input, select {
 
 .btn.primary:hover {
   background: #3a7af0;
+}
+
+.btn.secondary {
+  background: #252525;
+  color: inherit;
+  border: 1px solid #333;
+  white-space: nowrap;
+}
+
+.btn.secondary:hover {
+  background: #2f2f2f;
+}
+
+.field-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.field-row input {
+  flex: 1;
+  min-width: 0;
 }

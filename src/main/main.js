@@ -26,6 +26,7 @@ const paths = require('./paths');
 const debugLog = require('./debug/logger');
 const { isImagePath } = require('./generate/image-prep');
 const { getPreferences, setPreferences } = require('./app-preferences');
+const { invalidateCodexBinaryCache, getCodexCliInfo } = require('./bridge/codex-cli-client');
 const {
   MAX_DATA_URL_BYTES,
   isAllowedReadPath,
@@ -143,11 +144,13 @@ function createSettingsWindow() {
     return;
   }
   settingsWindow = new BrowserWindow({
-    width: 520,
-    height: 420,
-    resizable: false,
-    minimizable: false,
-    maximizable: false,
+    width: 800,
+    height: 600,
+    minWidth: 520,
+    minHeight: 420,
+    resizable: true,
+    minimizable: true,
+    maximizable: true,
     parent: mainWindow || undefined,
     modal: !!mainWindow,
     title: mt('menu.preferences'),
@@ -383,8 +386,26 @@ function registerIpc() {
         scheduleAutosave();
       }
     }
+    if (patch.codexCliPath !== undefined) {
+      invalidateCodexBinaryCache();
+    }
     broadcastPreferences();
     return prefs;
+  });
+  ipcMain.handle('app:getCodexCliInfo', () => getCodexCliInfo());
+  ipcMain.handle('app:pickCodexCliPath', async () => {
+    const parent = settingsWindow && !settingsWindow.isDestroyed()
+      ? settingsWindow
+      : (mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined);
+    const filters = process.platform === 'win32'
+      ? [{ name: 'Executable', extensions: ['exe'] }]
+      : [{ name: 'Executable', extensions: [''] }];
+    const r = await dialog.showOpenDialog(parent, {
+      title: mt('settings.codexCliPath.pickTitle'),
+      filters,
+      properties: ['openFile'],
+    });
+    return r.canceled || !r.filePaths?.length ? '' : r.filePaths[0];
   });
   ipcMain.handle('app:openSettings', () => {
     createSettingsWindow();

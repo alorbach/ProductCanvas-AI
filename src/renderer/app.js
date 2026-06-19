@@ -204,7 +204,9 @@ function syncPairingCodeInputs(code) {
 function bridgeDialogHint(status) {
   if (!status?.codexInstalled) return t('bridge.dialog.hintInstallCodex');
   if (isDirectBackend(status)) {
-    return status?.ready ? t('bridge.status.directReady') : t('bridge.dialog.hintDirect');
+    if (status?.ready) return t('bridge.status.directReady');
+    if (status?.codexCli?.binaryExists && !status.codexCli?.loggedIn) return t('bridge.dialog.hintLogin');
+    return t('bridge.dialog.hintDirect');
   }
   if (!status?.running) return t('bridge.dialog.hintNotRunning');
   if (!status?.ready) return t('bridge.dialog.hintLogin');
@@ -212,14 +214,49 @@ function bridgeDialogHint(status) {
   return t('bridge.status.paired');
 }
 
+function codexCliSourceLabel(source) {
+  const key = `settings.codexCliPath.source.${source || 'default'}`;
+  const label = t(key);
+  return label === key ? String(source || 'default') : label;
+}
+
 function renderBridgeDialogStatus(status) {
   const grid = $('bridge-dialog-status');
   if (!grid) return;
   const rows = isDirectBackend(status)
-    ? [
-      [t('bridge.dialog.lblBackend'), t('bridge.dialog.valDirect')],
-      [t('bridge.dialog.lblReady'), status?.ready ? t('bridge.dialog.valReady') : t('bridge.dialog.valNotReady')],
-    ]
+    ? (() => {
+      const cli = status?.codexCli || {};
+      const directRows = [
+        [t('bridge.dialog.lblBackend'), t('bridge.dialog.valDirect')],
+        [t('bridge.dialog.lblCliFound'), cli.binaryExists ? t('bridge.dialog.valYes') : t('bridge.dialog.valNo')],
+        [t('bridge.dialog.lblCliPath'), cli.resolvedBinary || '—'],
+        [t('bridge.dialog.lblCliSource'), codexCliSourceLabel(cli.resolutionSource)],
+      ];
+      if (cli.configuredPath) {
+        const configuredValue = cli.resolutionSource === 'settings'
+          ? cli.configuredPath
+          : `${cli.configuredPath} (${t('bridge.dialog.valNotFound')})`;
+        directRows.push([t('bridge.dialog.lblCliConfigured'), configuredValue]);
+      }
+      if (cli.envOverride) {
+        directRows.push([t('bridge.dialog.lblCliEnvOverride'), t('settings.codexCliPath.envOverride')]);
+      }
+      if (cli.version || status?.codexVersion) {
+        directRows.push([t('bridge.dialog.lblCliVersion'), cli.version || status?.codexVersion]);
+      }
+      directRows.push([
+        t('bridge.dialog.lblCliLogin'),
+        cli.loggedIn ? t('bridge.dialog.valLoggedIn') : t('bridge.dialog.valNotLoggedIn'),
+      ]);
+      if (cli.loginStatus) {
+        directRows.push([t('bridge.dialog.lblCliLoginDetail'), cli.loginStatus]);
+      }
+      directRows.push([
+        t('bridge.dialog.lblReady'),
+        status?.ready ? t('bridge.dialog.valReady') : t('bridge.dialog.valNotReady'),
+      ]);
+      return directRows;
+    })()
     : [
       [t('bridge.dialog.lblRunning'), status?.running ? t('bridge.dialog.valYes') : t('bridge.dialog.valNo')],
       [t('bridge.dialog.lblReady'), status?.ready ? t('bridge.dialog.valReady') : t('bridge.dialog.valNotReady')],

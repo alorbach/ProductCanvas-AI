@@ -17,6 +17,43 @@ function selectTab(tabId) {
     panel.classList.toggle('active', isActive);
     panel.hidden = !isActive;
   });
+  if (tabId === 'codex') {
+    refreshCodexCliInfo();
+  }
+}
+
+function resolutionSourceLabel(source) {
+  const key = `settings.codexCliPath.source.${source || 'default'}`;
+  const label = t(key);
+  return label === key ? String(source || 'default') : label;
+}
+
+async function refreshCodexCliInfo() {
+  const resolvedHint = $('codex-cli-resolved-hint');
+  if (!resolvedHint || ($('setting-codex-backend').value || 'direct') !== 'direct') {
+    if (resolvedHint) resolvedHint.textContent = '';
+    return;
+  }
+  try {
+    const info = await api.getCodexCliInfo();
+    const configured = $('setting-codex-cli-path').value.trim();
+    const parts = [];
+    if (info.envOverride) {
+      parts.push(t('settings.codexCliPath.envOverride'));
+    }
+    if (configured && info.configuredPath && info.resolutionSource !== 'settings') {
+      parts.push(t('settings.codexCliPath.missing'));
+    }
+    if (info.resolvedBinary) {
+      parts.push(t('settings.codexCliPath.resolvedHint', {
+        path: info.resolvedBinary,
+        source: resolutionSourceLabel(info.resolutionSource),
+      }));
+    }
+    resolvedHint.textContent = parts.join(' ');
+  } catch {
+    resolvedHint.textContent = '';
+  }
 }
 
 async function applyLabels() {
@@ -34,6 +71,10 @@ async function applyLabels() {
   $('codex-backend-hint').textContent = t('settings.codexBackendHint');
   $('codex-subscription-hint').textContent = t('codex.subscription.hint');
   $('lbl-bridge-url').textContent = t('settings.bridgeUrl');
+  $('lbl-codex-cli-path').textContent = t('settings.codexCliPath');
+  $('codex-cli-path-hint').textContent = t('settings.codexCliPathHint');
+  $('btn-codex-cli-browse').textContent = t('settings.codexCliPath.browse');
+  $('btn-codex-cli-clear').textContent = t('settings.codexCliPath.clear');
   $('btn-save-settings').textContent = t('settings.save');
   document.querySelector('.settings-tabs')?.setAttribute('aria-label', t('settings.tabsLabel'));
 }
@@ -42,10 +83,23 @@ function updateSystemHint(prefs) {
   $('system-locale-hint').textContent = t('settings.language.systemHint', { locale: prefs.systemLocale || 'en' });
 }
 
-function updateBridgeUrlVisibility() {
+function updateCodexFieldVisibility() {
   const backend = $('setting-codex-backend').value || 'direct';
-  const field = $('bridge-url-field');
-  if (field) field.hidden = backend !== 'bridge';
+  const isDirect = backend === 'direct';
+  const isBridge = backend === 'bridge';
+  const bridgeField = $('bridge-url-field');
+  const cliField = $('codex-cli-path-field');
+  const cliHint = $('codex-cli-path-hint');
+  const resolvedHint = $('codex-cli-resolved-hint');
+  if (bridgeField) bridgeField.hidden = !isBridge;
+  if (cliField) cliField.hidden = !isDirect;
+  if (cliHint) cliHint.hidden = !isDirect;
+  if (resolvedHint) resolvedHint.hidden = !isDirect;
+  if (isDirect) {
+    refreshCodexCliInfo();
+  } else if (resolvedHint) {
+    resolvedHint.textContent = '';
+  }
 }
 
 async function loadForm() {
@@ -53,10 +107,11 @@ async function loadForm() {
   $('setting-locale').value = prefs.uiLocale || 'auto';
   $('setting-codex-backend').value = prefs.codexBackend || 'direct';
   $('setting-bridge-url').value = prefs.bridgeUrl || 'http://127.0.0.1:8765';
+  $('setting-codex-cli-path').value = prefs.codexCliPath || '';
   await loadI18n(prefs.resolvedLocale || 'en');
   await applyLabels();
   updateSystemHint(prefs);
-  updateBridgeUrlVisibility();
+  updateCodexFieldVisibility();
   selectTab(activeTab);
 }
 
@@ -65,12 +120,13 @@ async function saveSettings() {
     uiLocale: $('setting-locale').value,
     codexBackend: $('setting-codex-backend').value,
     bridgeUrl: $('setting-bridge-url').value.trim(),
+    codexCliPath: $('setting-codex-cli-path').value.trim(),
   };
   const prefs = await api.setPreferences(patch);
   await loadI18n(prefs.resolvedLocale);
   await applyLabels();
   updateSystemHint(prefs);
-  updateBridgeUrlVisibility();
+  updateCodexFieldVisibility();
   const status = $('settings-status');
   status.hidden = false;
   status.textContent = t('settings.saved');
@@ -80,8 +136,20 @@ document.querySelectorAll('.settings-tab').forEach((btn) => {
   btn.addEventListener('click', () => selectTab(btn.dataset.tab));
 });
 
-$('setting-codex-backend').addEventListener('change', updateBridgeUrlVisibility);
+$('setting-codex-backend').addEventListener('change', updateCodexFieldVisibility);
 $('btn-save-settings').addEventListener('click', () => saveSettings());
+$('btn-codex-cli-browse').addEventListener('click', async () => {
+  const picked = await api.pickCodexCliPath();
+  if (picked) {
+    $('setting-codex-cli-path').value = picked;
+    await refreshCodexCliInfo();
+  }
+});
+$('btn-codex-cli-clear').addEventListener('click', async () => {
+  $('setting-codex-cli-path').value = '';
+  await refreshCodexCliInfo();
+});
+$('setting-codex-cli-path').addEventListener('change', () => refreshCodexCliInfo());
 
 api.on('preferences:changed', async (prefs) => {
   await loadI18n(prefs.resolvedLocale);
@@ -90,7 +158,10 @@ api.on('preferences:changed', async (prefs) => {
   if ($('setting-codex-backend')) {
     $('setting-codex-backend').value = prefs.codexBackend || 'direct';
   }
-  updateBridgeUrlVisibility();
+  if ($('setting-codex-cli-path') && prefs.codexCliPath !== undefined) {
+    $('setting-codex-cli-path').value = prefs.codexCliPath || '';
+  }
+  updateCodexFieldVisibility();
 });
 
 loadForm();

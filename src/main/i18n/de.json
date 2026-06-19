@@ -38,5 +38,6 @@
   "about.message": "ProductCanvas AI",
   "about.detail": "Version {version} (Build {build})\nKI-Bildstudio aus Vorlagen\n\n© Andre Lorbach\nhttps://github.com/alorbach\n\nGPL-2.0-or-later",
   "export.defaultName": "Bild-{timestamp}.png",
-  "export.png": "PNG"
+  "export.png": "PNG",
+  "settings.codexCliPath.pickTitle": "Codex-CLI-Programm auswählen"
 }

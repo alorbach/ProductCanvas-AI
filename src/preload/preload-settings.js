@@ -5,6 +5,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('productCanvas', {
   getPreferences: () => ipcRenderer.invoke('app:getPreferences'),
   setPreferences: (patch) => ipcRenderer.invoke('app:setPreferences', patch),
+  getCodexCliInfo: () => ipcRenderer.invoke('app:getCodexCliInfo'),
+  pickCodexCliPath: () => ipcRenderer.invoke('app:pickCodexCliPath'),
   on: (channel, cb) => {
     const allowed = ['preferences:loaded', 'preferences:changed'];
     if (allowed.includes(channel)) {

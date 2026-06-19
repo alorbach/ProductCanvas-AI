@@ -2,6 +2,7 @@
 
 const { spawn, execFile } = require('child_process');
 const { promisify } = require('util');
+const { resolveCodexBinary } = require('./codex-cli-client');
 
 const execFileAsync = promisify(execFile);
 
@@ -11,10 +12,11 @@ const CODEX_INSTALL_SCRIPT = 'https://chatgpt.com/codex/install.ps1';
 class CodexManager {
   async isInstalled() {
     try {
-      const { stdout } = await execFileAsync('codex', ['--version'], { windowsHide: true });
-      return { installed: true, version: stdout.trim() };
+      const binary = resolveCodexBinary();
+      const { stdout } = await execFileAsync(binary, ['--version'], { windowsHide: true });
+      return { installed: true, version: stdout.trim(), binary };
     } catch {
-      return { installed: false, version: '' };
+      return { installed: false, version: '', binary: resolveCodexBinary() };
     }
   }
 
@@ -115,10 +117,10 @@ class CodexManager {
   }
 
   startLogin() {
-    const child = spawn('codex', ['login'], {
+    const child = spawn(resolveCodexBinary(), ['login'], {
       detached: true,
       stdio: 'inherit',
-      shell: true,
+      shell: false,
     });
     child.unref();
     return { started: true };

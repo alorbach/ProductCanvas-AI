@@ -867,7 +867,7 @@ body.lightbox-open { overflow: hidden; }
   min-width: 360px;
 }
 
-#bridge-setup-dialog { min-width: 480px; max-width: 92vw; }
+#bridge-setup-dialog { min-width: 520px; max-width: 92vw; }
 
 #prompt-dialog::backdrop,
 #confirm-dialog::backdrop,

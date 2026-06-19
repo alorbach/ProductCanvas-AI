@@ -1,6 +1,7 @@
 'use strict';
 
 const { getPreferences } = require('../app-preferences');
+const { getCodexCliInfo } = require('./codex-cli-client');
 
 class CodexService {
   constructor(bridgeManager, codexManager, codexProvider, systemLocaleFn) {
@@ -35,7 +36,11 @@ class CodexService {
     } catch {
       cliStatus = { success: false, message: 'Codex CLI status unavailable.' };
     }
-    const ready = installCheck.installed && !!cliStatus.success;
+    const cliInfo = getCodexCliInfo();
+    const loginStatus = String(cliStatus.details?.login_status || '').trim();
+    const loggedIn = !!cliStatus.success;
+    const codexInstalled = installCheck.installed || cliInfo.binaryExists;
+    const ready = codexInstalled && loggedIn;
     return {
       running: true,
       ready,
@@ -44,8 +49,20 @@ class CodexService {
       backend: 'direct',
       origin: null,
       bridgeUrl: null,
-      codexInstalled: installCheck.installed,
-      codexVersion: installCheck.version,
+      codexInstalled,
+      codexVersion: cliStatus.details?.version || installCheck.version,
+      codexCli: {
+        configuredPath: cliInfo.configuredPath,
+        resolvedBinary: cliInfo.resolvedBinary,
+        resolutionSource: cliInfo.resolutionSource,
+        binaryExists: cliInfo.binaryExists,
+        envOverride: cliInfo.envOverride,
+        authExists: cliInfo.authExists,
+        loggedIn,
+        loginStatus: loginStatus || cliStatus.message,
+        version: cliStatus.details?.version || installCheck.version,
+        codexHome: cliInfo.codexHome,
+      },
       status: cliStatus,
     };
   }
