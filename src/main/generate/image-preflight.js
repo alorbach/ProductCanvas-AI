@@ -4,7 +4,15 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const sharp = require('sharp');
-const { isImagePath, MAX_BRIDGE_FRAME_BYTES } = require('./image-prep');
+const paths = require('../paths');
+const debugLog = require('../debug/logger');
+const {
+  isImagePath,
+  MAX_BRIDGE_FRAME_BYTES,
+  EFFECT_REFERENCE_MAX_EDGE,
+  EFFECT_REFERENCE_JPEG_QUALITY,
+  EFFECT_REFERENCE_MAX_BYTES,
+} = require('./image-prep');
 const {
   LAYOUT_EDITABLE_RULES,
   LAYOUT_FROZEN_RULES,
@@ -99,6 +107,57 @@ async function buildReferenceImageEntry(filePath, label) {
     }
     throw err;
   }
+}
+
+async function prepareEffectReferencePath(effectPath) {
+  if (!effectPath || !fs.existsSync(effectPath) || !isImagePath(effectPath)) {
+    return effectPath;
+  }
+
+  const resolved = path.resolve(effectPath);
+  const stat = fs.statSync(resolved);
+  const meta = await sharp(resolved).rotate().metadata();
+  const width = meta.width || 0;
+  const height = meta.height || 0;
+  const maxEdge = Math.max(width, height);
+  const needsScale = maxEdge > EFFECT_REFERENCE_MAX_EDGE || stat.size > EFFECT_REFERENCE_MAX_BYTES;
+  if (!needsScale) {
+    return resolved;
+  }
+
+  const cacheKey = crypto.createHash('sha256').update(JSON.stringify({
+    path: resolved,
+    mtimeMs: stat.mtimeMs,
+    size: stat.size,
+    maxEdge: EFFECT_REFERENCE_MAX_EDGE,
+    quality: EFFECT_REFERENCE_JPEG_QUALITY,
+    maxBytes: EFFECT_REFERENCE_MAX_BYTES,
+  })).digest('hex').slice(0, 16);
+  const outPath = path.join(paths.tempPreviewDir(), `effect-ref-${cacheKey}.jpg`);
+  if (fs.existsSync(outPath)) {
+    return outPath;
+  }
+
+  const buffer = await sharp(resolved)
+    .rotate()
+    .resize(EFFECT_REFERENCE_MAX_EDGE, EFFECT_REFERENCE_MAX_EDGE, {
+      fit: 'inside',
+      withoutEnlargement: true,
+    })
+    .jpeg({ quality: EFFECT_REFERENCE_JPEG_QUALITY, mozjpeg: true })
+    .toBuffer();
+
+  fs.writeFileSync(outPath, buffer);
+  const outMeta = await sharp(buffer).metadata();
+  debugLog.info('image-preflight', 'Effektbild für Codex herunterskaliert', {
+    source: resolved,
+    output: outPath,
+    originalBytes: stat.size,
+    scaledBytes: buffer.length,
+    originalSize: `${width}x${height}`,
+    scaledSize: `${outMeta.width || 0}x${outMeta.height || 0}`,
+  });
+  return outPath;
 }
 
 async function buildReferenceImageEntries({ productPath, layoutPath } = {}) {
@@ -285,6 +344,7 @@ module.exports = {
   buildReferenceImageEntry,
   buildReferencePathEntry,
   buildReferenceImageEntries,
+  prepareEffectReferencePath,
   buildPreflightTaskPrompt,
   buildPreflightMessages,
   buildTemplateLayoutHint,

@@ -8,7 +8,7 @@ const debugLog = require('../debug/logger');
 const { isImagePath } = require('./image-prep');
 const {
   buildReferencePathEntry,
-  buildPreflightMessages,
+  prepareEffectReferencePath,
 } = require('./image-preflight');
 const { normalizeQuality } = require('./image-settings');
 
@@ -40,7 +40,8 @@ function compositeCachePath(cacheKey) {
 
 async function buildProductEffectReferences(productPath, effectPath) {
   const product = await buildReferencePathEntry(productPath, 'product');
-  const effect = await buildReferencePathEntry(effectPath, 'effect');
+  const scaledEffectPath = await prepareEffectReferencePath(effectPath);
+  const effect = await buildReferencePathEntry(scaledEffectPath, 'effect');
   if (!product) throw new Error('Produktreferenz konnte nicht gelesen werden.');
   if (!effect) throw new Error('Effektbild konnte nicht gelesen werden.');
   return [product, effect];
@@ -82,7 +83,6 @@ class ProductEffectPipeline {
       prompt = `${prompt}\n\nAdditional instructions: ${extra}`;
     }
 
-    const encodedRefs = referenceImages.filter((r) => r.b64_json);
     const apiPayload = {
       model: 'codex-local:image',
       prompt,
@@ -91,13 +91,11 @@ class ProductEffectPipeline {
       requireReferences: true,
       referenced_image_paths: refPaths,
     };
-    if (encodedRefs.length) {
-      apiPayload.reference_images = encodedRefs;
-    }
 
     debugLog.info('product-effect-pipeline', 'Produkt-Hintergrund mit Effekt', {
       productPath,
       effectPath,
+      scaledEffectPath: refPaths[1] || effectPath,
       referenceCount: referenceImages.length,
     });
 
