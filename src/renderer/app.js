@@ -14,6 +14,7 @@ import {
 let session = {};
 let appPreferences = { codexBackend: 'direct' };
 let templates = [];
+let effects = [];
 let imageSettingsCatalog = null;
 let promptData = null;
 let lastPreviewPath = '';
@@ -37,6 +38,8 @@ let currentWaitContext = null;
 let openLightbox = () => {};
 let openEditorCompare = () => {};
 let suppressTemplateClick = false;
+let suppressEffectClick = false;
+let effectGenerateLocked = false;
 
 const WM_SORT_MIME = 'application/x-wm-sort';
 
@@ -654,6 +657,65 @@ function setupSortableDnD() {
       el.classList.remove('dragging', 'drop-target');
     });
   });
+
+  let effectDragId = null;
+  const effectList = $('effect-list');
+  if (effectList) {
+    effectList.addEventListener('dragstart', (e) => {
+      const card = e.target.closest('.effect-card');
+      if (!card) return;
+      effectDragId = card.dataset.id;
+      card.classList.add('dragging');
+      suppressEffectClick = true;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData(WM_SORT_MIME, 'effect');
+      e.dataTransfer.setData('text/plain', effectDragId);
+    });
+
+    effectList.addEventListener('dragover', (e) => {
+      if (effectDragId) {
+        const card = e.target.closest('.effect-card');
+        if (!card) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        effectList.querySelectorAll('.effect-card.drop-target').forEach((el) => {
+          el.classList.remove('drop-target');
+        });
+        card.classList.add('drop-target');
+        return;
+      }
+      if (isFileDrag(e.dataTransfer)) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+      }
+    });
+
+    effectList.addEventListener('drop', async (e) => {
+      if (!effectDragId || !isInternalSortDrag(e.dataTransfer)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const card = e.target.closest('.effect-card');
+      if (!card) return;
+      const toId = card.dataset.id;
+      const ids = effects.map((item) => item.id);
+      const fromIdx = ids.indexOf(effectDragId);
+      const toIdx = ids.indexOf(toId);
+      if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return;
+      const nextIds = moveArrayItem(ids, fromIdx, toIdx);
+      effects = await api.effectsReorder(nextIds);
+      renderEffectList('effect-list', session.effectId, async (id) => {
+        await selectEffect(id);
+      });
+    });
+
+    effectList.addEventListener('dragend', () => {
+      effectDragId = null;
+      effectList.querySelectorAll('.effect-card.dragging, .effect-card.drop-target').forEach((el) => {
+        el.classList.remove('dragging', 'drop-target');
+      });
+      setTimeout(() => { suppressEffectClick = false; }, 0);
+    });
+  }
 }
 
 function setupDragDrop() {
@@ -920,6 +982,12 @@ function applyLabels() {
   $('lbl-template').textContent = t('template.select');
   $('templates-import-hint').textContent = `${t('template.importHint')} ${t('template.reorderHint')}`;
   $('btn-import-template').textContent = t('template.import');
+  if ($('lbl-effects')) $('lbl-effects').textContent = t('effect.select');
+  if ($('effects-import-hint')) {
+    $('effects-import-hint').textContent = `${t('effect.importHint')} ${t('effect.reorderHint')} ${t('effect.selectionHint')}`;
+  }
+  if ($('btn-generate-effect')) $('btn-generate-effect').textContent = t('effect.generate');
+  if ($('btn-import-effect')) $('btn-import-effect').textContent = t('effect.import');
   $('lbl-refs').textContent = t('refs.title');
   $('btn-add-refs').textContent = t('refs.add');
   $('lbl-settings').textContent = t('settings.projectTitle');
@@ -1811,6 +1879,7 @@ async function refreshImageSettingsUi() {
 function readSettingsFromUi() {
   return {
     templateId: session.templateId,
+    effectId: session.effectId || '',
     size: $('setting-size').value,
     quality: $('setting-quality').value,
     brandName: $('setting-brand').value,
@@ -1828,6 +1897,7 @@ function readSettingsFromUi() {
 function promptInputsFromSettings(settings) {
   return {
     templateId: settings.templateId || '',
+    effectId: settings.effectId || '',
     brandName: settings.brandName || '',
     seriesName: settings.seriesName || '',
     tagline: settings.tagline || '',
@@ -2037,6 +2107,327 @@ async function removeReferenceAt(index) {
   renderRefs();
 }
 
+async function loadEffects() {
+  effects = await api.effectsList();
+  let selectedId = session.effectId || '';
+  if (selectedId && !effects.some((e) => e.id === selectedId)) {
+    selectedId = '';
+    await updateSession({ effectId: '' });
+  }
+  renderEffectList('effect-list', session.effectId, async (id) => {
+    await selectEffect(id);
+  });
+}
+
+async function selectEffect(id) {
+  if (id && id === session.effectId) {
+    await clearEffectSelection();
+    return;
+  }
+  await updateSession({ effectId: id || '' });
+  renderEffectList('effect-list', session.effectId, async (nextId) => {
+    await selectEffect(nextId);
+  });
+}
+
+async function clearEffectSelection() {
+  await updateSession({ effectId: '' });
+  renderEffectList('effect-list', '', async (id) => {
+    await selectEffect(id);
+  });
+}
+
+function renderEffectList(containerId, selectedId, onSelect) {
+  const el = $(containerId);
+  if (!el) return;
+  el.innerHTML = '';
+  const sortable = containerId === 'effect-list';
+
+  const noneCard = document.createElement('div');
+  noneCard.className = `effect-card effect-card-none${!selectedId ? ' selected' : ''}`;
+  noneCard.dataset.id = '';
+  const noneSpan = document.createElement('span');
+  noneSpan.textContent = t('effect.none');
+  noneCard.appendChild(noneSpan);
+  noneCard.addEventListener('click', () => {
+    if (suppressEffectClick) return;
+    onSelect('');
+  });
+  el.appendChild(noneCard);
+
+  if (!effects.length) {
+    const empty = document.createElement('p');
+    empty.className = 'muted';
+    empty.textContent = t('effect.empty');
+    el.appendChild(empty);
+    return;
+  }
+
+  for (const effect of effects) {
+    const card = document.createElement('div');
+    card.className = `effect-card${effect.id === selectedId ? ' selected' : ''}`;
+    card.dataset.id = effect.id;
+    if (sortable) card.draggable = true;
+    const img = document.createElement('img');
+    img.alt = effect.name;
+    img.draggable = false;
+    api.effectsGetImage(effect.id).then((url) => { if (url) img.src = url; }).catch(() => {});
+    const span = document.createElement('span');
+    span.textContent = effect.name;
+    card.appendChild(img);
+    card.appendChild(span);
+    card.addEventListener('click', () => {
+      if (suppressEffectClick) return;
+      onSelect(effect.id);
+    });
+    card.addEventListener('contextmenu', async (e) => {
+      const action = await showContextMenu(e, effectContextItems(effect));
+      if (action) await handleEffectContextAction(action, effect, onSelect);
+    });
+    el.appendChild(card);
+  }
+}
+
+function effectContextItems(effect) {
+  const items = [
+    menuItem('select', 'context.select'),
+  ];
+  if (session.effectId === effect.id) {
+    items.push(menuItem('deselect', 'effect.none'));
+  }
+  items.push(
+    menuItem('rename', 'context.rename'),
+    menuItem('regenerate', 'effect.regenerate'),
+    menuItem('delete', 'context.delete'),
+    menuItem('sep', '', { separator: true }),
+    menuItem('explorer', 'context.showInExplorer', { enabled: !!effect.path }),
+  );
+  return items;
+}
+
+async function handleEffectContextAction(actionId, effect, onSelect) {
+  switch (actionId) {
+    case 'select':
+      await onSelect(effect.id);
+      break;
+    case 'deselect':
+      await clearEffectSelection();
+      break;
+    case 'rename':
+      await renameEffect(effect.id);
+      break;
+    case 'regenerate':
+      openEffectGenerateDialog(effect.sourcePrompt || effect.name);
+      break;
+    case 'delete':
+      await deleteEffect(effect.id);
+      break;
+    case 'explorer':
+      if (effect.path) await openPathInExplorer(effect.path);
+      break;
+    default:
+      break;
+  }
+}
+
+async function renameEffect(id) {
+  const effect = effects.find((e) => e.id === id);
+  if (!effect) return;
+  const name = await askPrompt(t('effect.rename'), effect.name);
+  if (!name) return;
+  await api.effectsRename({ id, name });
+  await loadEffects();
+}
+
+async function deleteEffect(id) {
+  const effect = effects.find((e) => e.id === id);
+  if (!effect) return;
+  const ok = await askConfirm(t('effect.delete'), t('effect.deleteConfirm', { name: effect.name }));
+  if (!ok) return;
+  await api.effectsDelete(id);
+  if (session.effectId === id) {
+    await updateSession({ effectId: '' });
+  }
+  await loadEffects();
+}
+
+async function importEffectsDialog() {
+  const imported = await api.effectsImportDialog();
+  if (!imported?.length) return;
+  await loadEffects();
+  showStatus(`${t('effect.importSuccess')}: ${imported.length}`, { level: 'success' });
+}
+
+function setupEffectImport() {
+  const panel = $('effects-panel');
+  const zone = $('effect-list');
+  if (!panel || !zone) return;
+  const prevent = (e) => { e.preventDefault(); e.stopPropagation(); };
+
+  async function importPaths(paths) {
+    const imported = await api.effectsImportPaths({ paths });
+    if (!imported?.length) {
+      showError(new Error(t('effect.importInvalid')));
+      return;
+    }
+    await loadEffects();
+    showStatus(`${t('effect.importSuccess')}: ${imported.length}`, { level: 'success' });
+  }
+
+  bindClick('btn-import-effect', () => importEffectsDialog(), t('effect.import'));
+
+  [panel, zone].forEach((el) => {
+    el.addEventListener('dragenter', (e) => {
+      prevent(e);
+      panel.classList.add('drag-over');
+      zone.classList.add('drag-over');
+    });
+    el.addEventListener('dragover', (e) => {
+      prevent(e);
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    });
+    el.addEventListener('dragleave', (e) => {
+      prevent(e);
+      if (!panel.contains(e.relatedTarget)) {
+        panel.classList.remove('drag-over');
+        zone.classList.remove('drag-over');
+      }
+    });
+    el.addEventListener('drop', async (e) => {
+      prevent(e);
+      panel.classList.remove('drag-over');
+      zone.classList.remove('drag-over');
+      if (isInternalSortDrag(e.dataTransfer)) return;
+      const paths = imagePathsFromDataTransfer(e.dataTransfer);
+      if (paths.length) await importPaths(paths);
+      else showError(new Error(t('effect.importInvalid')));
+    });
+  });
+}
+
+function updateEffectGenerateDialogUi() {
+  const review = $('effect-generate-review');
+  const previewWrap = $('effect-generate-preview-wrap');
+  const submit = $('effect-generate-submit');
+  if (!review || !previewWrap || !submit) return;
+  const locked = effectGenerateLocked;
+  review.classList.toggle('hidden', !locked);
+  previewWrap.classList.toggle('hidden', !locked);
+  submit.classList.toggle('hidden', locked);
+  submit.disabled = locked;
+}
+
+function resetEffectGenerateDialog() {
+  effectGenerateLocked = false;
+  if ($('effect-generate-preview')) $('effect-generate-preview').src = '';
+  if ($('effect-generate-summary')) $('effect-generate-summary').textContent = '';
+  updateEffectGenerateDialogUi();
+}
+
+async function openEffectGenerateDialog(prefill = '') {
+  resetEffectGenerateDialog();
+  const dialog = $('effect-generate-dialog');
+  const form = $('effect-generate-form');
+  const promptEl = $('effect-generate-prompt');
+  if (!dialog || !form || !promptEl) return;
+
+  $('effect-generate-title').textContent = t('effect.generateTitle');
+  $('effect-generate-lbl-prompt').textContent = t('effect.generatePrompt');
+  promptEl.placeholder = t('effect.generatePlaceholder');
+  promptEl.value = prefill || '';
+  $('effect-generate-cancel').textContent = t('dialog.cancel');
+  $('effect-generate-submit').textContent = t('effect.generate');
+  $('effect-generate-accept').textContent = t('effect.accept');
+  $('effect-generate-reject').textContent = t('effect.reject');
+
+  const pending = await api.effectsGetPendingGenerate();
+  if (pending?.previewB64) {
+    effectGenerateLocked = true;
+    $('effect-generate-preview').src = `data:image/png;base64,${pending.previewB64}`;
+    $('effect-generate-summary').textContent = pending.prompt || '';
+    promptEl.value = pending.prompt || prefill || '';
+    updateEffectGenerateDialogUi();
+  }
+
+  return new Promise((resolve) => {
+    const cleanup = () => {
+      form.removeEventListener('submit', onSubmit);
+      $('effect-generate-cancel').removeEventListener('click', onCancel);
+      $('effect-generate-accept')?.removeEventListener('click', onAccept);
+      $('effect-generate-reject')?.removeEventListener('click', onReject);
+      dialog.removeEventListener('cancel', onCancel);
+    };
+    const closeDialog = () => {
+      cleanup();
+      dialog.close();
+      resolve();
+    };
+    const onCancel = async (e) => {
+      e?.preventDefault();
+      if (effectGenerateLocked) {
+        await api.effectsRejectGenerate();
+      }
+      resetEffectGenerateDialog();
+      closeDialog();
+    };
+    const onSubmit = async (e) => {
+      e.preventDefault();
+      const prompt = promptEl.value.trim();
+      if (!prompt) {
+        showStatus(t('effect.needPrompt'), { level: 'warn' });
+        return;
+      }
+      try {
+        showWait(t('wait.status.effectGenerate'), { kind: 'effectGenerate', prompt: waitContextExcerpt(prompt) });
+        const result = await api.effectsGenerate({
+          prompt,
+          quality: session.quality || 'high',
+          size: '1024x1024',
+        });
+        hideWait();
+        effectGenerateLocked = true;
+        if (result.previewB64) {
+          $('effect-generate-preview').src = `data:image/png;base64,${result.previewB64}`;
+        }
+        $('effect-generate-summary').textContent = result.prompt || prompt;
+        updateEffectGenerateDialogUi();
+      } catch (err) {
+        hideWait();
+        showError(err, t('effect.generate'));
+      }
+    };
+    const onAccept = async () => {
+      const name = await askPrompt(t('effect.saveName'), promptEl.value.trim().slice(0, 80));
+      if (!name) return;
+      try {
+        await api.effectsAcceptGenerate({ name });
+        resetEffectGenerateDialog();
+        closeDialog();
+        await loadEffects();
+        showStatus(t('effect.saveSuccess'), { level: 'success' });
+      } catch (err) {
+        showError(err, t('effect.accept'));
+      }
+    };
+    const onReject = async () => {
+      await api.effectsRejectGenerate();
+      resetEffectGenerateDialog();
+    };
+
+    form.addEventListener('submit', onSubmit);
+    $('effect-generate-cancel').addEventListener('click', onCancel);
+    $('effect-generate-accept').addEventListener('click', onAccept);
+    $('effect-generate-reject').addEventListener('click', onReject);
+    dialog.addEventListener('cancel', onCancel);
+    dialog.showModal();
+    focusDialogField(promptEl);
+  });
+}
+
+function setupEffectGenerateDialog() {
+  bindClick('btn-generate-effect', () => openEffectGenerateDialog(), t('effect.generate'));
+}
+
 async function importTemplatesDialog() {
   const imported = await api.templatesImportDialog();
   if (!imported?.length) return;
@@ -2140,6 +2531,25 @@ function setupPanelContextMenus() {
     if (e.target.closest('.ref-thumb')) return;
     const action = await showContextMenu(e, [menuItem('add', 'context.addImages')]);
     if (action === 'add') await addReferenceImagesDialog();
+  });
+
+  $('effects-panel')?.addEventListener('contextmenu', async (e) => {
+    if (e.target.closest('.effect-card')) return;
+    const action = await showContextMenu(e, [
+      menuItem('none', 'effect.none', { enabled: Boolean(session.effectId) }),
+      menuItem('sep', '', { separator: true }),
+      menuItem('generate', 'effect.generate'),
+      menuItem('import', 'context.import'),
+    ]);
+    if (action === 'none') await clearEffectSelection();
+    else if (action === 'generate') await openEffectGenerateDialog();
+    else if (action === 'import') {
+      try {
+        await importEffectsDialog();
+      } catch (err) {
+        showError(err, t('effect.import'));
+      }
+    }
   });
 }
 
@@ -2251,9 +2661,11 @@ function resolvePromptExcerpt(settings, pdata) {
 
 function waitContextForGeneration(settings, kind, pdata) {
   const tmpl = templates.find((item) => item.id === (settings.templateId || session.templateId));
+  const effect = effects.find((item) => item.id === (settings.effectId || session.effectId));
   return {
     kind,
     template: tmpl?.name || tmpl?.id || '',
+    effect: effect?.name || '',
     mainLine: settings.brandName || '',
     adLine1: settings.seriesName || '',
     adLine2: settings.tagline || '',
@@ -2323,6 +2735,7 @@ function renderWaitContext(ctx) {
 
   if (ctx.kind === 'image' || ctx.kind === 'prompt') {
     add('wait.context.template', ctx.template);
+    add('wait.context.effect', ctx.effect);
     add('wait.context.mainLine', ctx.mainLine);
     add('wait.context.adLine1', ctx.adLine1);
     add('wait.context.adLine2', ctx.adLine2);
@@ -2348,6 +2761,8 @@ function renderWaitContext(ctx) {
     add('wait.context.adLine2', ctx.adLine2);
   } else if (ctx.kind === 'bridge') {
     add('wait.context.detail', ctx.detail);
+  } else if (ctx.kind === 'effectGenerate') {
+    add('wait.context.prompt', ctx.prompt);
   }
 
   let html = `<dl class="wait-context-grid">${rows.join('')}</dl>`;
@@ -2568,6 +2983,8 @@ function setupInteractionHandlers() {
   setupGlobalFileDragAccept();
   setupBridgeDialog();
   setupTemplateImport();
+  setupEffectImport();
+  setupEffectGenerateDialog();
   setupSortableDnD();
   setupDragDrop();
   setupPreviewDrop();
@@ -2990,6 +3407,9 @@ function setupInteractionHandlers() {
   api.on('templates:updated', async () => {
     await loadTemplates();
   });
+  api.on('effects:updated', async () => {
+    await loadEffects();
+  });
   api.on('action:template-import', () => importTemplatesDialog());
   api.on('action:bridge-setup', async () => {
     const status = await api.bridgeGetStatus();
@@ -3055,6 +3475,7 @@ async function init() {
     writeSettingsToUi();
     restorePromptFromSession();
     await loadTemplates();
+    await loadEffects();
     renderRefs();
     await restorePreviewFromSession(session);
     await renderHelp($('help-sidebar'), $('help-content'));

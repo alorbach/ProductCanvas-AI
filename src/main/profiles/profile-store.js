@@ -6,6 +6,7 @@ const paths = require('../paths');
 
 const DEFAULTS = {
   templateId: '',
+  effectId: '',
   mode: 'werbung',
   size: 'template',
   quality: 'high',

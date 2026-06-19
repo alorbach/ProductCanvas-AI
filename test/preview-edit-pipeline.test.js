@@ -7,7 +7,7 @@ const os = require('os');
 
 const root = path.join(__dirname, '..');
 const { PreviewEditPipeline, buildPreviewEditReferences } = require(path.join(root, 'src', 'main', 'generate', 'preview-edit-pipeline'));
-const { buildPreviewEditFrozenRules } = require(path.join(root, 'src', 'main', 'generate', 'layout-fidelity'));
+const { buildPreviewEditFrozenRules, LAYOUT_FROZEN_RULES } = require(path.join(root, 'src', 'main', 'generate', 'layout-fidelity'));
 const {
   resolveStoredPreview,
   isValidStoredPreviewPath,
@@ -15,10 +15,13 @@ const {
 const paths = require(path.join(root, 'src', 'main', 'paths'));
 
 const changeRequest = 'Neon-Rahmen von blau auf rot ändern';
-const editRules = buildPreviewEditFrozenRules(changeRequest, { size: '1536x1024' });
-assert(editRules.includes(changeRequest), 'preview edit rules include change request');
-assert(editRules.includes('ONE ATTACHED IMAGE'), 'preview edit uses single image rules');
-assert(!editRules.includes('IMAGE 2'), 'preview edit must not reference template image');
+const editRulesWithTemplate = buildPreviewEditFrozenRules(changeRequest, { size: '1536x1024' }, {
+  template: { productStage: { x: 48, y: 200, width: 1440, height: 580 } },
+  hasLayoutReference: true,
+});
+assert(editRulesWithTemplate.includes(changeRequest), 'preview edit rules include change request');
+assert(editRulesWithTemplate.includes('TWO ATTACHED IMAGES'), 'preview edit uses two images with template');
+assert(editRulesWithTemplate.includes(LAYOUT_FROZEN_RULES.split('\n')[0]), 'frozen rules included');
 
 class MockRegistry {
   constructor(templatePath) {
@@ -64,18 +67,18 @@ class MockRegistry {
     const resolvedMissing = resolveStoredPreview({ lastPreviewPath: path.join(previewDir, 'missing.png') });
     assert(!resolvedMissing.valid && resolvedMissing.sessionPatch, 'missing preview clears session');
 
-    const refs = await buildPreviewEditReferences(previewPath);
-    assert.strictEqual(refs.length, 1, 'preview only reference');
+    const refs = await buildPreviewEditReferences(previewPath, templatePath);
+    assert.strictEqual(refs.length, 2, 'preview + template references');
 
     let chatCalled = false;
     let imagesCalled = false;
     const mockClient = {
       async getCapabilities() {
-        return { features: { image_reference_attachments: true } };
+        return { features: { image_reference_attachments: true, image_masks: true } };
       },
       async chat(payload) {
         chatCalled = true;
-        assert.strictEqual(payload.referenced_image_paths?.length, 1, 'chat forwards preview path only');
+        assert.strictEqual(payload.referenced_image_paths?.length, 2, 'chat forwards preview + template');
         return {
           response: {
             choices: [{
@@ -93,12 +96,12 @@ class MockRegistry {
       async images(payload) {
         imagesCalled = true;
         assert(payload.requireReferences === true, 'preview edit requires references');
-        assert.strictEqual(payload.referenced_image_paths?.length, 1, 'images forwards preview path only');
-        assert(!payload.prompt.includes('IMAGE 2'), 'final prompt must not reference template image');
+        assert.strictEqual(payload.referenced_image_paths?.length, 2, 'images forwards preview + template');
+        assert(payload.prompt.includes('LAYOUT FROZEN ZONES'), 'layout lock in final prompt');
         return {
           response: {
             data: [{ b64_json: png.toString('base64') }],
-            provider_details: { refs_forwarded_to_codex: true, reference_attachment_count: 1 },
+            provider_details: { refs_forwarded_to_codex: true, reference_attachment_count: 2 },
           },
           _attachmentMode: 'referenced_image_paths',
         };
@@ -119,7 +122,7 @@ class MockRegistry {
     assert(fs.existsSync(result.editedPreviewPath), 'edited preview file exists');
     assert(result.changeSummary.includes('Neon'), 'change summary preserved');
     assert(result.editedPreviewB64, 'returns b64');
-    assert(!result.optimizedEditPrompt.includes('IMAGE 2'), 'optimized prompt preview-only');
+    assert(result.optimizedEditPrompt.includes('LAYOUT FROZEN ZONES'), 'optimized prompt includes layout lock');
 
     console.log('preview-edit-pipeline.test.js: all assertions passed');
   } finally {

@@ -15,11 +15,65 @@ const {
 } = require('./image-preflight');
 const { resolveImageGenerationSettings } = require('./image-settings');
 const { buildStageMaskPath } = require('./stage-mask');
+const { ProductEffectPipeline } = require('./product-effect-pipeline');
 
 class ImagePipeline {
-  constructor(codexClient, templateRegistry) {
+  constructor(codexClient, templateRegistry, effectRegistry) {
     this.client = codexClient;
     this.registry = templateRegistry;
+    this.effectRegistry = effectRegistry;
+    this.productEffectPipeline = new ProductEffectPipeline(codexClient);
+  }
+
+  async resolveProductReferences(settings, productPaths, onProgress, signalKey) {
+    const originalProductPath = productPaths[0] || '';
+    if (!originalProductPath || !settings.effectId || !this.effectRegistry) {
+      return {
+        referenceImages: settings.referenceImages,
+        productPaths,
+        effectApplied: false,
+        compositedProductPath: '',
+      };
+    }
+
+    const effect = this.effectRegistry.getById(settings.effectId);
+    if (!effect) {
+      return {
+        referenceImages: settings.referenceImages,
+        productPaths,
+        effectApplied: false,
+        compositedProductPath: '',
+      };
+    }
+
+    const effectPath = this.effectRegistry.resolveEffectPath(effect);
+    const composite = await this.productEffectPipeline.applyEffectToProduct({
+      productPath: originalProductPath,
+      effectPath,
+      extraPrompt: settings.extraPrompt,
+      quality: settings.quality,
+    }, signalKey, onProgress);
+
+    if (!composite.composited || composite.path === originalProductPath) {
+      return {
+        referenceImages: settings.referenceImages,
+        productPaths,
+        effectApplied: false,
+        compositedProductPath: '',
+      };
+    }
+
+    const updatedRefs = (settings.referenceImages || []).map((ref, index) => {
+      if (index !== 0) return ref;
+      return { ...ref, path: composite.path, name: ref.name || path.basename(composite.path) };
+    });
+
+    return {
+      referenceImages: updatedRefs,
+      productPaths: [composite.path, ...productPaths.slice(1)],
+      effectApplied: true,
+      compositedProductPath: composite.path,
+    };
   }
 
   async resolveFinalPrompt({
@@ -29,6 +83,8 @@ class ImagePipeline {
     templatePath,
     attachments,
     productPaths,
+    effectApplied,
+    compositedProductPath,
     onProgress,
     signalKey,
   }) {
@@ -40,7 +96,10 @@ class ImagePipeline {
       };
     }
 
-    const fingerprint = computePreflightFingerprint(settings, templatePath, productPaths);
+    const fingerprint = computePreflightFingerprint(settings, templatePath, productPaths, {
+      effectApplied,
+      compositedProductPath,
+    });
 
     const preflight = await runImagePreflight(this.client, {
       settings,
@@ -49,6 +108,7 @@ class ImagePipeline {
       productPath: attachments.productPaths[0] || '',
       layoutPath: attachments.hasTemplateReference ? templatePath : '',
       referenceImages: attachments.referenceImages,
+      effectApplied,
       signalKey,
       onProgress,
     });
@@ -69,7 +129,7 @@ class ImagePipeline {
       }
     }
 
-    const productPaths = collectReferencePaths(settings.referenceImages);
+    const initialProductPaths = collectReferencePaths(settings.referenceImages);
     const templateDims = template ? await this.registry.getDimensions(template) : null;
     const imageSettings = resolveImageGenerationSettings(settings, templateDims);
     const enrichedPromptData = {
@@ -77,9 +137,18 @@ class ImagePipeline {
       productAnalysis: promptData?.productAnalysis || settings.productAnalysis || '',
     };
 
-    const attachments = await buildImageAttachments(settings.referenceImages, templatePath, {
-      attachTemplate: Boolean(templatePath),
-    });
+    const productPrep = await this.resolveProductReferences(
+      imageSettings,
+      initialProductPaths,
+      onProgress,
+      signalKey,
+    );
+
+    const attachments = await buildImageAttachments(
+      productPrep.referenceImages,
+      templatePath,
+      { attachTemplate: Boolean(templatePath) },
+    );
 
     const { finalPrompt, preflightFingerprint } = await this.resolveFinalPrompt({
       promptData: enrichedPromptData,
@@ -87,7 +156,9 @@ class ImagePipeline {
       template,
       templatePath,
       attachments,
-      productPaths,
+      productPaths: productPrep.productPaths,
+      effectApplied: productPrep.effectApplied,
+      compositedProductPath: productPrep.compositedProductPath,
       onProgress,
       signalKey,
     });
@@ -157,6 +228,8 @@ class ImagePipeline {
 
     debugLog.info('image-pipeline', 'KI-Bildgenerierung mit Anhängen', {
       templateId: settings.templateId || '',
+      effectId: settings.effectId || '',
+      effectApplied: productPrep.effectApplied,
       templateName: template?.name || '',
       templateFile: template?.file || '',
       productRefs: attachments.productPaths.length,
@@ -222,7 +295,7 @@ class ImagePipeline {
         path: outPath,
         b64,
         result,
-        composited: false,
+        composited: productPrep.effectApplied,
         attachmentMode,
         preflightPrompt: finalPrompt,
         preflightFingerprint,

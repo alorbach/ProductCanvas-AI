@@ -47,6 +47,8 @@ const paths = {
   recentPath: () => path.join(userDataRoot(), 'recent.json'),
   defaultsPath: () => path.join(userDataRoot(), 'defaults.json'),
   userTemplatesRegistryPath: () => path.join(userDataRoot(), 'user-templates.json'),
+  userEffectsDir: () => ensureDir(path.join(userDataRoot(), 'effects')),
+  userEffectsRegistryPath: () => path.join(userDataRoot(), 'user-effects.json'),
   bridgeStatePath: () => path.join(userDataRoot(), 'bridge-state.json'),
   tempPreviewDir: () => ensureDir(path.join(userDataRoot(), 'temp-previews')),
 };

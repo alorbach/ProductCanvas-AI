@@ -22,6 +22,15 @@ Imported files are copied to `%APPDATA%\productcanvas-ai\templates\` and registe
 
 The template defines canvas size, background design, text areas, and optional category icons in the footer.
 
+### 1b. Effect images (optional)
+
+The **Effect images** column holds background/effect assets (e.g. fire on black) separate from layout templates.
+
+- **Generate effect** – describe the effect in text; accept the AI preview to save it to your library under `%APPDATA%\productcanvas-ai\effects\`.
+- **Import effect image** – drag PNG/JPG/WebP or use the import button (same formats as templates).
+
+Select an effect in the **Effect images** column (or **None** to disable). By default, the app merges the effect into the **product photo background** before the main generation step. Override this behaviour with **Extra prompt** (e.g. when you want a different product/background treatment).
+
 ### 2. Add reference product images
 
 Reference photos tell the AI what your product looks like. They are used in two phases:
@@ -54,7 +63,7 @@ The settings panel controls output options and text that appears on the layout.
 | **Headline** | Primary text line on the layout (e.g. brand or retailer). **AI suggestion** (sparkle icon) requires reference images. |
 | **Ad line 1** | Second text line (e.g. series or model family). **AI suggestion** requires reference images. |
 | **Ad line 2** | Third text line – short promotional phrase. **AI suggestion** requires reference images. |
-| **Extra prompt** | Optional free-text hints for the AI, e.g. “keep product exactly as in reference, no shape changes”. |
+| **Extra prompt** | Optional free-text hints for the AI, e.g. “keep product exactly as in reference, no shape changes”. When an effect image is selected, use this to override the default product-background merge. |
 
 Size and quality affect generation time and token cost on the Codex side. Template-based sizes keep the aspect ratio of your layout.
 
@@ -92,7 +101,7 @@ When complete, the preview panel shows the result. Click the preview for fullscr
 After generation, use **Edit with AI** below the preview. You can also **replace the preview manually**: drag PNG, JPG, or WebP onto the preview area (the file is copied into the temporary preview store).
 
 1. Describe what should change in **Change request** (e.g. “change neon frame from blue to red”).
-2. Click **Edit with AI**. Only the current preview image is sent to the AI (not the layout template).
+2. Click **Edit with AI**. The current preview and the selected layout template are used to protect header, footer, contact bar, and branding unless you explicitly request changes in the change request.
 3. Use **Compare fullscreen** to view the original and edited result side by side.
 4. **Accept change** keeps the edited preview as your working result, or **Reject change** restores the previous preview.
 

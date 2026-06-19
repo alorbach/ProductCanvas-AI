@@ -4,17 +4,22 @@ const fs = require('fs');
 const path = require('path');
 const paths = require('../paths');
 const debugLog = require('../debug/logger');
+const { isImagePath } = require('./image-prep');
 const {
   buildReferencePathEntry,
   buildPreflightMessages,
   gatewayErrorNeedsResponsesContentParts,
 } = require('./image-preflight');
 const {
+  appendLayoutLockBlock,
   appendPreviewEditLockBlock,
   buildPreviewEditFrozenRules,
   sanitizePreflightPrompt,
 } = require('./layout-fidelity');
 const { resolveImageGenerationSettings } = require('./image-settings');
+const { buildStageMaskPath } = require('./stage-mask');
+
+const PREVIEW_LAYOUT_HINT = 'Image 1 = advertisement preview to edit; Image 2 = layout template for frozen header/footer zones.';
 
 function extractJson(text) {
   const match = String(text || '').match(/\{[\s\S]*\}/);
@@ -30,12 +35,18 @@ function getChoiceContent(result) {
   return result?.response?.choices?.[0]?.message?.content || '';
 }
 
-async function buildPreviewEditReferences(previewPath) {
+async function buildPreviewEditReferences(previewPath, templatePath) {
   const preview = await buildReferencePathEntry(previewPath, 'preview');
   if (!preview) {
     throw new Error('Vorschaubild konnte nicht gelesen werden.');
   }
-  return [preview];
+  const refs = [preview];
+  const layoutPath = String(templatePath || '').trim();
+  if (layoutPath && fs.existsSync(layoutPath) && isImagePath(layoutPath)) {
+    const layout = await buildReferencePathEntry(layoutPath, 'layout');
+    if (layout) refs.push(layout);
+  }
+  return refs;
 }
 
 function collectReferencePaths(referenceImages) {
@@ -48,13 +59,17 @@ class PreviewEditPipeline {
     this.registry = templateRegistry;
   }
 
-  async optimizeEditPrompt(previewPath, changeRequest, imageSettings, signalKey, onProgress) {
+  async optimizeEditPrompt(previewPath, templatePath, template, changeRequest, imageSettings, signalKey, onProgress) {
     onProgress?.({ status: 'running', messageKey: 'wait.status.previewEditPrompt' });
 
-    const referenceImages = await buildPreviewEditReferences(previewPath);
+    const referenceImages = await buildPreviewEditReferences(previewPath, templatePath);
+    const hasLayoutReference = referenceImages.length > 1;
     const refPaths = collectReferencePaths(referenceImages);
 
-    const taskPrompt = buildPreviewEditFrozenRules(changeRequest, imageSettings);
+    const taskPrompt = buildPreviewEditFrozenRules(changeRequest, imageSettings, {
+      template,
+      hasLayoutReference,
+    });
     const model = 'codex-local:auto';
     let messages = buildPreflightMessages(taskPrompt, referenceImages, { model });
 
@@ -88,30 +103,55 @@ class PreviewEditPipeline {
       throw new Error('Prompt-Optimierung für Vorschau-Edit fehlgeschlagen.');
     }
 
-    optimizedEditPrompt = appendPreviewEditLockBlock(optimizedEditPrompt, imageSettings);
+    optimizedEditPrompt = appendPreviewEditLockBlock(optimizedEditPrompt, imageSettings, template);
+    if (hasLayoutReference) {
+      optimizedEditPrompt = `${optimizedEditPrompt}\n\n${PREVIEW_LAYOUT_HINT}`;
+    }
 
     return {
       optimizedEditPrompt,
       changeSummary: String(parsed?.changeSummary || '').trim(),
       preservedElements: parsed?.preservedElements || [],
       referenceImages,
+      hasLayoutReference,
     };
   }
 
-  async generatePreviewImage(previewPath, optimizedEditPrompt, imageSettings, signalKey, onProgress) {
+  async generatePreviewImage(
+    previewPath,
+    templatePath,
+    template,
+    templateDims,
+    optimizedEditPrompt,
+    imageSettings,
+    hasLayoutReference,
+    signalKey,
+    onProgress,
+  ) {
     onProgress?.({ status: 'running', messageKey: 'wait.status.previewEditImage' });
 
-    const referenceImages = await buildPreviewEditReferences(previewPath);
+    const referenceImages = await buildPreviewEditReferences(previewPath, templatePath);
     const refPaths = collectReferencePaths(referenceImages);
 
-    let bridgeCapabilities = null;
-    try {
-      bridgeCapabilities = await this.client.getCapabilities();
-    } catch (err) {
-      debugLog.warn('preview-edit-pipeline', 'Bridge-Capabilities nicht abrufbar', { message: err.message });
+    let stageMaskPath = null;
+    if (template?.productStage) {
+      try {
+        stageMaskPath = await buildStageMaskPath(template, templateDims, imageSettings.size);
+        if (stageMaskPath) {
+          debugLog.info('preview-edit-pipeline', 'Produktbühnen-Maske für Vorschau-Edit', {
+            maskPath: stageMaskPath,
+            templateId: template.id,
+          });
+        }
+      } catch (err) {
+        debugLog.warn('preview-edit-pipeline', 'Maske konnte nicht erzeugt werden', { message: err.message });
+      }
     }
 
-    const prompt = appendPreviewEditLockBlock(optimizedEditPrompt, imageSettings);
+    let prompt = appendPreviewEditLockBlock(optimizedEditPrompt, imageSettings, template);
+    if (hasLayoutReference) {
+      prompt = `${prompt}\n\n${PREVIEW_LAYOUT_HINT}`;
+    }
 
     const encodedRefs = referenceImages.filter((r) => r.b64_json);
     const apiPayload = {
@@ -125,12 +165,16 @@ class PreviewEditPipeline {
     if (encodedRefs.length) {
       apiPayload.reference_images = encodedRefs;
     }
+    if (stageMaskPath) {
+      apiPayload.mask_path = stageMaskPath;
+    }
 
     debugLog.info('preview-edit-pipeline', 'Vorschau-Edit Bildgenerierung', {
       imageSize: imageSettings.size,
       imageQuality: imageSettings.quality,
       referenceCount: referenceImages.length,
-      bridgeSupportsRefs: bridgeCapabilities?.features?.image_reference_attachments === true,
+      hasLayoutReference,
+      stageMaskPrepared: Boolean(stageMaskPath),
     });
 
     const result = await this.client.images(apiPayload, signalKey);
@@ -151,6 +195,7 @@ class PreviewEditPipeline {
         || Number(providerDetails.reference_attachment_count || 0) > 0,
       referenceAttachmentCount: Number(providerDetails.reference_attachment_count || 0),
       optimizedEditPrompt: prompt,
+      stageMaskPrepared: Boolean(stageMaskPath),
     };
   }
 
@@ -164,6 +209,7 @@ class PreviewEditPipeline {
     }
 
     const template = templateId ? this.registry.getById(templateId) : null;
+    const templatePath = template ? this.registry.resolveTemplatePath(template) : '';
     const dims = template ? await this.registry.getDimensions(template) : null;
     const imageSettings = resolveImageGenerationSettings(
       { size: size || 'template', quality },
@@ -172,6 +218,8 @@ class PreviewEditPipeline {
 
     const optimized = await this.optimizeEditPrompt(
       preview,
+      templatePath,
+      template,
       changeRequest,
       imageSettings,
       signalKey,
@@ -180,8 +228,12 @@ class PreviewEditPipeline {
 
     const image = await this.generatePreviewImage(
       preview,
+      templatePath,
+      template,
+      dims,
       optimized.optimizedEditPrompt,
       imageSettings,
+      optimized.hasLayoutReference,
       signalKey,
       onProgress,
     );
@@ -199,6 +251,7 @@ class PreviewEditPipeline {
       imageQuality: imageSettings.quality,
       refsForwardedToCodex: image.refsForwardedToCodex,
       referenceAttachmentCount: image.referenceAttachmentCount,
+      stageMaskPrepared: image.stageMaskPrepared,
     };
   }
 }
@@ -206,4 +259,5 @@ class PreviewEditPipeline {
 module.exports = {
   PreviewEditPipeline,
   buildPreviewEditReferences,
+  PREVIEW_LAYOUT_HINT,
 };

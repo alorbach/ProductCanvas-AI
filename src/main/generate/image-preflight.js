@@ -114,7 +114,7 @@ async function buildReferenceImageEntries({ productPath, layoutPath } = {}) {
   return entries;
 }
 
-function buildPreflightTaskPrompt({ settings, promptData, template }) {
+function buildPreflightTaskPrompt({ settings, promptData, template, effectApplied }) {
   const templateHint = buildTemplateLayoutHint(template, { layoutImageAttached: true });
   const size = String(settings?.size || '').trim();
   const quality = String(settings?.quality || '').trim();
@@ -141,6 +141,9 @@ function buildPreflightTaskPrompt({ settings, promptData, template }) {
     `Target output size: ${size || '1536x1024'}${settings?.sizeMode === 'template' ? ' (from selected layout template)' : ''}${settings?.sizeMode === 'template2x' ? ' (2× selected layout template)' : ''}`,
     `Preferred quality: ${quality || 'high'}`,
   ];
+  if (effectApplied) {
+    lines.push('Product reference already has the selected effect image applied as background — preserve that background style in the product stage.');
+  }
   if (template) lines.push(buildProductStageHint(template));
   if (templateHint) lines.push(`Layout context: ${templateHint}`);
   if (promptData?.productDescription) lines.push(`Product details: ${promptData.productDescription}`);
@@ -196,9 +199,14 @@ function buildPreflightMessages(taskPrompt, referenceImages, options = {}) {
   ];
 }
 
-function computePreflightFingerprint(settings, templatePath, productPaths) {
+function computePreflightFingerprint(settings, templatePath, productPaths, options = {}) {
   const payload = {
     templateId: settings?.templateId || '',
+    effectId: settings?.effectId || '',
+    effectApplied: Boolean(options.effectApplied),
+    compositedProductPath: options.compositedProductPath
+      ? path.resolve(options.compositedProductPath)
+      : '',
     templatePath: templatePath ? path.resolve(templatePath) : '',
     productPaths: (productPaths || []).map((p) => path.resolve(p)).sort(),
     brandName: settings?.brandName || '',
@@ -221,6 +229,7 @@ async function runImagePreflight(bridgeClient, {
   productPath,
   layoutPath,
   referenceImages: existingRefs,
+  effectApplied,
   signalKey,
   onProgress,
 },) {
@@ -234,7 +243,7 @@ async function runImagePreflight(bridgeClient, {
 
   onProgress?.({ status: 'running', messageKey: 'wait.status.imagePreflight' });
 
-  const taskPrompt = buildPreflightTaskPrompt({ settings, promptData, template });
+  const taskPrompt = buildPreflightTaskPrompt({ settings, promptData, template, effectApplied });
   const model = 'codex-local:auto';
   let messages = buildPreflightMessages(taskPrompt, referenceImages, { model });
   const refPaths = (referenceImages || []).map((r) => r.path).filter(Boolean);

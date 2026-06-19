@@ -9,8 +9,11 @@ const { CodexManager } = require('./bridge/codex-manager');
 const { createCodexProvider } = require('./bridge/codex-provider');
 const { CodexService } = require('./bridge/codex-service');
 const { TemplateRegistry } = require('./templates/template-registry');
+const { EffectRegistry } = require('./effects/effect-registry');
 const { TemplateEditorService } = require('./templates/template-editor-service');
+const { EffectGenerateService } = require('./effects/effect-generate-service');
 const { TemplateEditPipeline } = require('./generate/template-edit-pipeline');
+const { EffectGeneratePipeline } = require('./generate/effect-generate-pipeline');
 const { PreviewEditPipeline } = require('./generate/preview-edit-pipeline');
 const { PreviewEditService } = require('./generate/preview-edit-service');
 const { importPreviewFromPaths } = require('./generate/preview-import');
@@ -31,9 +34,9 @@ const {
 const { migrateIfNeeded } = require('./migration/user-data-migrate');
 const mainI18n = require('./i18n/main-i18n');
 
-const MAIN_WINDOW_WIDTH = 1440;
+const MAIN_WINDOW_WIDTH = 1600;
 const MAIN_WINDOW_HEIGHT = 900;
-const MAIN_WINDOW_MIN_WIDTH = 1440;
+const MAIN_WINDOW_MIN_WIDTH = 1600;
 const MAIN_WINDOW_MIN_HEIGHT = 900;
 
 let mainWindow = null;
@@ -43,11 +46,14 @@ let codexManager;
 let codexProvider;
 let codexService;
 let templateRegistry;
+let effectRegistry;
 let profileStore;
 let promptBuilder;
 let imagePipeline;
 let templateEditor;
+let effectGenerator;
 let templateEditPipeline;
+let effectGeneratePipeline;
 let previewEditor;
 let previewEditPipeline;
 let docLoader;
@@ -167,6 +173,17 @@ async function importTemplateFiles(filePaths, name) {
     send('session:loaded', session);
   }
   send('templates:updated', templateRegistry.listAll());
+  return imported;
+}
+
+async function importEffectFiles(filePaths, name) {
+  const imported = await effectRegistry.importFromPaths(filePaths, name);
+  if (imported.length && session) {
+    session.effectId = imported[imported.length - 1].id;
+    scheduleAutosave();
+    send('session:loaded', session);
+  }
+  send('effects:updated', effectRegistry.listAll());
   return imported;
 }
 
@@ -487,6 +504,76 @@ function registerIpc() {
     return result.dataUrl;
   });
 
+  ipcMain.handle('effects:list', () => effectRegistry.listAll());
+
+  ipcMain.handle('effects:importDialog', async () => {
+    focusMainWindow();
+    const r = await dialog.showOpenDialog(mainWindow, {
+      filters: [{ name: mt('menu.images'), extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
+      properties: ['openFile', 'multiSelections'],
+    });
+    if (r.canceled) return [];
+    return importEffectFiles(r.filePaths);
+  });
+
+  ipcMain.handle('effects:importPaths', async (_, { paths: filePaths, name }) => {
+    return importEffectFiles(filePaths || [], name);
+  });
+
+  ipcMain.handle('effects:delete', (_, id) => {
+    const result = effectRegistry.deleteEffect(id);
+    send('effects:updated', effectRegistry.listAll());
+    return result;
+  });
+
+  ipcMain.handle('effects:rename', (_, { id, name }) => {
+    const entry = effectRegistry.renameEffect(id, name);
+    send('effects:updated', effectRegistry.listAll());
+    return entry;
+  });
+
+  ipcMain.handle('effects:reorder', (_, orderedIds) => {
+    const list = effectRegistry.reorderEffects(orderedIds);
+    send('effects:updated', list);
+    return list;
+  });
+
+  ipcMain.handle('effects:getImage', (_, id) => {
+    const result = effectRegistry.getImageDataUrl(id);
+    if (result.pruned) {
+      send('effects:updated', effectRegistry.listAll());
+    }
+    return result.dataUrl;
+  });
+
+  ipcMain.handle('effects:generate', async (_, { prompt, quality, size, pairingCode }) => {
+    const signalKey = `effect-gen-${Date.now()}`;
+    send('job:progress', { status: 'running', signalKey, messageKey: 'wait.status.effectGenerate' });
+    const onProgress = (p) => send('job:progress', { ...p, signalKey });
+    await requireCodexReady(pairingCode);
+    const unsubscribe = subscribeCodexJobProgress(onProgress);
+    try {
+      return await effectGenerator.runGenerate({ prompt, quality, size }, onProgress, signalKey);
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  ipcMain.handle('effects:getPendingGenerate', () => effectGenerator.getPendingGenerate());
+
+  ipcMain.handle('effects:acceptGenerate', async (_, { name }) => {
+    const saved = await effectGenerator.acceptGenerate(name);
+    send('effects:updated', effectRegistry.listAll());
+    if (session) {
+      session.effectId = saved.id;
+      scheduleAutosave();
+      send('session:loaded', session);
+    }
+    return saved;
+  });
+
+  ipcMain.handle('effects:rejectGenerate', () => effectGenerator.rejectGenerate());
+
   ipcMain.handle('templates:runEdit', async (_, { templateId, changeRequest, quality, size, referenceImagePath, pairingCode }) => {
     const signalKey = `edit-${Date.now()}`;
     send('job:progress', { status: 'running', signalKey, messageKey: 'wait.status.templateEditPrompt' });
@@ -777,11 +864,14 @@ app.whenReady().then(() => {
   codexProvider = createCodexProvider(bridgeManager.getClient(), { systemLocaleFn: systemLocale });
   codexService = new CodexService(bridgeManager, codexManager, codexProvider, systemLocale);
   templateRegistry = new TemplateRegistry();
+  effectRegistry = new EffectRegistry();
   profileStore = new ProfileStore();
   promptBuilder = new PromptBuilder(codexProvider, templateRegistry);
-  imagePipeline = new ImagePipeline(codexProvider, templateRegistry);
+  imagePipeline = new ImagePipeline(codexProvider, templateRegistry, effectRegistry);
   templateEditPipeline = new TemplateEditPipeline(codexProvider, templateRegistry);
+  effectGeneratePipeline = new EffectGeneratePipeline(codexProvider);
   templateEditor = new TemplateEditorService(templateEditPipeline, templateRegistry);
+  effectGenerator = new EffectGenerateService(effectGeneratePipeline, effectRegistry);
   previewEditPipeline = new PreviewEditPipeline(codexProvider, templateRegistry);
   previewEditor = new PreviewEditService(previewEditPipeline, {
     getSession: () => session || profileStore.loadSession(),
@@ -802,6 +892,7 @@ app.whenReady().then(() => {
   }
   debugLog.setBroadcast((entry) => send('debug:entry', entry));
   templateRegistry.listAll();
+  effectRegistry.listAll();
   createWindow();
 
   app.on('activate', () => {

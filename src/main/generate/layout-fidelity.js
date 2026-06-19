@@ -106,24 +106,45 @@ function buildTemplateEditFrozenRules(changeRequest, imageSettings = {}, options
   return lines.join('\n\n');
 }
 
-function buildPreviewEditFrozenRules(changeRequest, imageSettings = {}) {
+function buildPreviewEditFrozenRules(changeRequest, imageSettings = {}, options = {}) {
   const sizeLine = imageSettings.size
     ? `Target output size: ${imageSettings.size}. Do not change aspect ratio or canvas size.`
     : 'Keep exact canvas dimensions of the attached preview.';
+  const template = options.template;
+  const hasLayoutReference = Boolean(options.hasLayoutReference && template);
   const lines = [
     'Edit the attached advertisement preview image.',
     sizeLine,
-    'ONE ATTACHED IMAGE:',
-    '- The preview image is the only reference — apply the user change to this image.',
-    'Preserve header, footer, contact bar, branding, neon accents, and typography unless the user explicitly requests a change.',
+  ];
+  if (hasLayoutReference) {
+    lines.push(
+      'TWO ATTACHED IMAGES:',
+      '- IMAGE 1 = advertisement preview to edit (apply the user change here).',
+      '- IMAGE 2 = layout template (authoritative for frozen header, footer, contact bar, branding, neon accents).',
+      LAYOUT_FROZEN_RULES,
+      LAYOUT_EDITABLE_RULES,
+      'Only change header, footer, contact bar, branding, or neon accents if the user explicitly requests it in the change request.',
+      buildProductStageHint(template),
+    );
+  } else {
+    lines.push(
+      'ONE ATTACHED IMAGE:',
+      '- The preview image is the only reference — apply the user change to this image.',
+      'Preserve header, footer, contact bar, branding, neon accents, and typography unless the user explicitly requests a change.',
+    );
+  }
+  lines.push(
     'Apply the user change precisely; do not redesign the ad or invent a new layout.',
     `User change request: ${changeRequest}`,
     'Return ONLY JSON: {"optimizedEditPrompt":"english image edit prompt","changeSummary":"short german summary","preservedElements":["..."]}',
-  ];
+  );
   return lines.join('\n\n');
 }
 
-function appendPreviewEditLockBlock(prompt, imageSettings = {}) {
+function appendPreviewEditLockBlock(prompt, imageSettings = {}, template = null) {
+  if (template) {
+    return appendLayoutLockBlock(prompt, template, imageSettings);
+  }
   const parts = [String(prompt || '').trim()];
   parts.push([
     'PREVIEW EDIT RULES:',

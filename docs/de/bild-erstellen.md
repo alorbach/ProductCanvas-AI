@@ -22,6 +22,15 @@ Importierte Dateien werden nach `%APPDATA%\productcanvas-ai\templates\` kopiert.
 
 Die Vorlage legt Canvas-Größe, Hintergrund, Textbereiche und optionale Kategorie-Icons in der Fußzeile fest.
 
+### 1b. Effektbilder (optional)
+
+Die Spalte **Effektbilder** enthält Hintergrund-/Effekt-Assets (z. B. Feuer auf schwarz), getrennt von Layout-Vorlagen.
+
+- **Effektbild erzeugen** – Effekt in Text beschreiben; KI-Vorschau akzeptieren, um das Bild unter `%APPDATA%\productcanvas-ai\effects\` zu speichern.
+- **Effektbild importieren** – PNG/JPG/WebP ziehen oder Import-Button (gleiche Formate wie Vorlagen).
+
+Effekt in der Spalte **Effektbilder** auswählen (oder **Keins**). Standard: Der Effekt wird vor dem Hauptgenerierungsschritt in den **Produkthintergrund** des Referenzfotos eingefügt. Über **Zusatz-Prompt** übersteuerbar (z. B. andere Produkt-/Hintergrund-Behandlung).
+
 ### 2. Referenz-Produktbilder
 
 Referenzfotos beschreiben Ihr Produkt für die KI. Sie werden in zwei Phasen genutzt:
@@ -52,7 +61,7 @@ Formate: **PNG, JPG, WebP**.
 | **Hauptzeile** | Primäre Textzeile im Layout (z. B. Marke oder Händler). **KI-Vorschlag** (Funkeln-Symbol) erfordert Referenzbilder. |
 | **Werbezeile 1** | Zweite Textzeile (z. B. Serie oder Modellfamilie). **KI-Vorschlag** erfordert Referenzbilder. |
 | **Werbezeile 2** | Dritte Textzeile – kurzer Werbesatz. **KI-Vorschlag** erfordert Referenzbilder. |
-| **Zusatz-Prompt** | Optionale Hinweise, z. B. „Produkt exakt wie Referenz, keine Formänderung“. |
+| **Zusatz-Prompt** | Optionale Hinweise, z. B. „Produkt exakt wie Referenz, keine Formänderung“. Bei gewähltem Effektbild: Standard-Hintergrund-Merge überschreiben. |
 
 Auflösung und Qualität beeinflussen Generierungsdauer und Codex-Kosten. Vorlagenmaße behalten das Seitenverhältnis Ihres Layouts.
 
@@ -90,7 +99,7 @@ Nach Abschluss erscheint die Vorschau. Klick für Vollbild (Esc zum Schließen).
 Nach der Generierung steht unter der Vorschau **Mit KI bearbeiten** zur Verfügung. Sie können die Vorschau auch **manuell ersetzen**: PNG, JPG oder WebP per **Drag & Drop** auf den Vorschau-Bereich ziehen (das Bild wird in den temporären Vorschau-Speicher kopiert).
 
 1. **Änderungswunsch** beschreiben (z. B. „Neon-Rahmen von blau auf rot“).
-2. **Mit KI bearbeiten** – nur das aktuelle Vorschau-Bild wird an die KI übergeben (keine Layout-Vorlage).
+2. **Mit KI bearbeiten** – Vorschau und gewählte Layout-Vorlage schützen Kopfzeile, Fußzeile, Kontaktleiste und Branding, sofern im Änderungswunsch nicht explizit etwas anderes gewünscht ist.
 3. **Vollbild-Vergleich** – Original und Ergebnis nebeneinander.
 4. **Änderung übernehmen** behält die bearbeitete Vorschau, **Änderung verwerfen** stellt die vorherige wieder her.
 

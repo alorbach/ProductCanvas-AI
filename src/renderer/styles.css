@@ -167,7 +167,7 @@ body {
 .view.active { display: grid; }
 
 #view-werbung {
-  grid-template-columns: 200px 170px 420px minmax(260px, 1fr);
+  grid-template-columns: 180px 160px 170px 400px minmax(260px, 1fr);
   grid-template-rows: minmax(0, 1fr);
   gap: 12px;
   padding: 12px;
@@ -201,6 +201,7 @@ body {
 }
 
 .templates-panel,
+.effects-panel,
 .refs-panel,
 .settings-panel,
 .preview-panel {
@@ -306,6 +307,84 @@ input, select, textarea {
 
 .templates-import-hint { margin: 0 0 8px; font-size: 0.85rem; }
 .templates-panel .btn-sm { margin-bottom: 12px; width: 100%; }
+
+.effects-panel .effects-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.effects-panel .btn-sm { width: 100%; }
+
+.effect-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
+  margin-bottom: 8px;
+}
+
+.effect-card {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px;
+  cursor: pointer;
+  background: #111;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.effect-card.selected {
+  border-color: var(--accent);
+  background: rgba(255, 215, 0, 0.08);
+}
+
+.effect-card img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 4px;
+  display: block;
+  background: #0a0a0a;
+}
+
+.effect-card span {
+  display: block;
+  font-size: 0.78rem;
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.effect-card-none {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.4em;
+  padding: 10px 6px;
+}
+
+.effect-card-none span {
+  margin-top: 0;
+  font-size: 0.82rem;
+}
+
+#effects-panel.drag-over .effects-drop-zone {
+  border-color: var(--accent);
+  background: rgba(255, 215, 0, 0.06);
+}
+
+.effect-generate-form label { display: block; margin-bottom: 10px; }
+.effect-generate-form textarea { resize: vertical; min-height: 4em; }
+.effect-generate-preview { margin: 10px 0; }
+.effect-generate-preview img {
+  max-width: 100%;
+  border-radius: 6px;
+  background: #111;
+}
 
 .templates-drop-zone.drag-over {
   outline: 2px dashed var(--accent);
@@ -1024,7 +1103,7 @@ body.debug-open { padding-bottom: 220px; }
   #view-werbung {
     gap: 8px;
     padding: 8px;
-    grid-template-columns: 172px 150px minmax(330px, 390px) minmax(220px, 1fr);
+    grid-template-columns: 160px 140px 150px minmax(300px, 380px) minmax(220px, 1fr);
   }
 
   .panel { padding: 8px 10px; }

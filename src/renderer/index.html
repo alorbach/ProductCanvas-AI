@@ -46,6 +46,15 @@
       <div id="template-list" class="template-list templates-drop-zone"></div>
       <button type="button" class="btn secondary btn-sm" id="btn-import-template">Import template</button>
     </section>
+    <section class="panel effects-panel" id="effects-panel">
+      <h2 id="lbl-effects">Effect images</h2>
+      <p id="effects-import-hint" class="muted effects-import-hint"></p>
+      <div id="effect-list" class="effect-list effects-drop-zone"></div>
+      <div class="effects-actions">
+        <button type="button" class="btn secondary btn-sm" id="btn-generate-effect">Generate effect</button>
+        <button type="button" class="btn secondary btn-sm" id="btn-import-effect">Import effect</button>
+      </div>
+    </section>
     <section class="panel refs-panel" id="refs-panel">
       <h2 id="lbl-refs">Reference product images</h2>
       <p id="refs-drop-hint" class="refs-drop-hint muted">Drag images here or use the button</p>
@@ -278,6 +287,29 @@
       <div class="prompt-actions">
         <button type="button" class="btn secondary" id="confirm-cancel" value="cancel">Cancel</button>
         <button type="submit" class="btn danger" id="confirm-ok" value="ok">OK</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="effect-generate-dialog">
+    <form method="dialog" id="effect-generate-form" class="prompt-form effect-generate-form">
+      <h2 id="effect-generate-title">Generate effect image</h2>
+      <label><span id="effect-generate-lbl-prompt">Effect description</span>
+        <textarea id="effect-generate-prompt" rows="3" class="prompt-input"></textarea>
+      </label>
+      <div class="effect-generate-preview hidden" id="effect-generate-preview-wrap">
+        <img id="effect-generate-preview" alt="" />
+        <p id="effect-generate-summary" class="muted"></p>
+      </div>
+      <div id="effect-generate-review" class="editor-review-bar hidden">
+        <div class="accept-row">
+          <button type="button" class="btn primary" id="effect-generate-accept">Accept</button>
+          <button type="button" class="btn danger" id="effect-generate-reject">Reject</button>
+        </div>
+      </div>
+      <div class="prompt-actions">
+        <button type="button" class="btn secondary" id="effect-generate-cancel">Cancel</button>
+        <button type="submit" class="btn primary" id="effect-generate-submit">Generate</button>
       </div>
     </form>
   </dialog>
