@@ -27,6 +27,7 @@ const { DocLoader } = require('./docs/doc-loader');
 const paths = require('./paths');
 const debugLog = require('./debug/logger');
 const { isImagePath } = require('./generate/image-prep');
+const { migrateReferenceImages } = require('./generate/reference-roles');
 const { getPreferences, setPreferences } = require('./app-preferences');
 const { invalidateCodexBinaryCache, getCodexCliInfo } = require('./bridge/codex-cli-client');
 const {
@@ -454,6 +455,9 @@ function registerIpc() {
       session = profileStore.loadSession();
     }
     session = { ...session, ...patch };
+    if (Array.isArray(session.referenceImages)) {
+      session.referenceImages = migrateReferenceImages(session.referenceImages);
+    }
     scheduleAutosave();
     return session;
   });
@@ -488,7 +492,7 @@ function registerIpc() {
 
   ipcMain.handle('refs:addPaths', (_, filePaths) => {
     const valid = (filePaths || []).filter((p) => p && fs.existsSync(p) && isImagePath(p));
-    return valid.map((p) => ({ path: p, name: path.basename(p) }));
+    return valid.map((p) => ({ path: p, name: path.basename(p), role: 'detail' }));
   });
 
   ipcMain.handle('templates:list', () => templateRegistry.listAll());

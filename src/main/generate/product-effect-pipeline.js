@@ -5,7 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const paths = require('../paths');
 const debugLog = require('../debug/logger');
-const { isImagePath } = require('./image-prep');
+const { isImagePath, computePerAttachmentByteBudget } = require('./image-prep');
 const {
   buildReferencePathEntry,
   prepareEffectReferencePath,
@@ -39,9 +39,13 @@ function compositeCachePath(cacheKey) {
 }
 
 async function buildProductEffectReferences(productPath, effectPath) {
-  const product = await buildReferencePathEntry(productPath, 'product');
+  const options = {
+    byteBudget: computePerAttachmentByteBudget(2),
+    attachmentCount: 2,
+  };
+  const product = await buildReferencePathEntry(productPath, 'product', options);
   const scaledEffectPath = await prepareEffectReferencePath(effectPath);
-  const effect = await buildReferencePathEntry(scaledEffectPath, 'effect');
+  const effect = await buildReferencePathEntry(scaledEffectPath, 'effect', options);
   if (!product) throw new Error('Produktreferenz konnte nicht gelesen werden.');
   if (!effect) throw new Error('Effektbild konnte nicht gelesen werden.');
   return [product, effect];

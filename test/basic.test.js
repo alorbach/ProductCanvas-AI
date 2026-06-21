@@ -72,18 +72,22 @@ assert.equal(inferAccentKey('Vorlage-blau'), 'blue');
 assert.equal(inferAccentMeta({ name: 'Vorlage-grün' }).accentHex, '#00c853');
 
 const { buildTemplateLayoutHint } = require(path.join(root, 'src', 'main', 'generate', 'image-preflight'));
-const hint = buildTemplateLayoutHint({ name: 'Vorlage-blau', accentHex: '#FFD700', categories: ['LAUTSPRECHER'] }, { layoutImageAttached: true });
+const hint = buildTemplateLayoutHint({ name: 'Vorlage-blau', accentHex: '#FFD700', categories: ['LAUTSPRECHER'] }, {
+  layoutImageAttached: true,
+  attachmentPlan: [{ imageIndex: 2, role: 'layout' }],
+});
 assert(hint.includes('IMAGE 2 is authoritative'));
 assert(!hint.includes('#FFD700'));
 
 const { buildReferencePromptFromForm } = require(path.join(root, 'src', 'main', 'generate', 'prompt-builder'));
 const stubRegistry = { resolveTemplatePath: () => 'C:\\tpl.png' };
 const stub = buildReferencePromptFromForm(
-  { brandName: 'acme', seriesName: 'Motion', tagline: 'Test', templateId: 't1' },
+  { brandName: 'acme', seriesName: 'Motion', tagline: 'Test', templateId: 't1', referenceImages: [{ path: 'C:\\prod.png', role: 'detail' }] },
   { id: 't1' },
   stubRegistry,
   '',
   ['C:\\prod.png'],
+  [],
 );
 assert.equal(stub.brandName, 'ACME');
 assert.equal(stub.imagePrompt, '');

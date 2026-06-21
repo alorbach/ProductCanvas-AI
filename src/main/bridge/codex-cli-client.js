@@ -5,6 +5,9 @@ const os = require('os');
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
 const debugLog = require('../debug/logger');
+const { computePerAttachmentByteBudget } = require('../generate/image-prep');
+const { prepareProductReferencePath } = require('../generate/image-preflight');
+const { buildReferenceOrderBlock } = require('../generate/reference-roles');
 
 const envBinaryOverride = process.env.ALORBACH_CODEX_BINARY || '';
 const defaultBinaryName = 'codex';
@@ -540,6 +543,21 @@ function mimeFromImagePath(filePath) {
   return '';
 }
 
+function attachmentFromPath(filePath) {
+  const resolved = path.resolve(String(filePath || '').trim());
+  if (!resolved || !fs.existsSync(resolved)) return null;
+  const mime = mimeFromImagePath(resolved);
+  if (!mime) return null;
+  let bytes = 0;
+  try {
+    bytes = fs.statSync(resolved).size;
+  } catch {
+    return null;
+  }
+  if (!bytes) return null;
+  return { bytes, mime, path: resolved, source_path: resolved };
+}
+
 function tryCopyImagePath(filePath, tempDir, index) {
   if (!tempDir) return null;
   const resolved = path.resolve(String(filePath || '').trim());
@@ -556,37 +574,103 @@ function tryCopyImagePath(filePath, tempDir, index) {
   }
   if (!bytes.length) return null;
   const imagePath = path.join(tempDir, `input-image-${index}.${extension}`);
-  fs.writeFileSync(imagePath, bytes);
+  if (path.resolve(imagePath).toLowerCase() === resolved.toLowerCase()) {
+    return { bytes: bytes.length, mime, path: imagePath, source_path: resolved };
+  }
+  try {
+    fs.writeFileSync(imagePath, bytes);
+  } catch {
+    return attachmentFromPath(resolved);
+  }
   return { bytes: bytes.length, mime, path: imagePath, source_path: resolved };
 }
 
-function attachmentFromReferenceImage(entry, tempDir, index) {
-  const b64 = String(entry?.b64_json || '').trim();
-  if (!b64) return null;
-  const mime = String(entry.mime_type || 'image/jpeg').toLowerCase();
-  const attachment = tryWriteDataImage(`data:${mime};base64,${b64}`, tempDir, index);
-  if (!attachment) return null;
-  if (entry.label) attachment.label = String(entry.label);
-  return attachment;
+function extractImageUrlFromPart(part) {
+  if (!part || typeof part !== 'object') return '';
+  if (part.type === 'input_image') {
+    if (typeof part.image_url === 'string') return part.image_url;
+    if (typeof part.image_url?.url === 'string') return part.image_url.url;
+  }
+  if (part.type === 'image_url' && typeof part.image_url?.url === 'string') {
+    return part.image_url.url;
+  }
+  return '';
 }
 
-function collectImageAttachments(payload, tempDir) {
+function countInlineImages(messages) {
+  let count = 0;
+  for (const message of Array.isArray(messages) ? messages : []) {
+    if (!Array.isArray(message.content)) continue;
+    for (const part of message.content) {
+      if (extractImageUrlFromPart(part)) count += 1;
+    }
+  }
+  return count;
+}
+
+async function resolveAttachmentSourcePath(filePath, byteBudget) {
+  const resolved = String(filePath || '').trim();
+  if (!resolved) return '';
+  return prepareProductReferencePath(resolved, { byteBudget });
+}
+
+async function attachmentFromOversizedFile(filePath, tempDir, index, byteBudget) {
+  const prepared = await resolveAttachmentSourcePath(filePath, byteBudget);
+  if (!prepared) return null;
+  if (path.resolve(prepared).toLowerCase() !== path.resolve(filePath).toLowerCase()) {
+    return attachmentFromPath(prepared);
+  }
+  return tryCopyImagePath(prepared, tempDir, `${index}-scaled`);
+}
+
+async function collectImageAttachments(payload, tempDir) {
+  const refImages = Array.isArray(payload.reference_images) ? payload.reference_images : [];
+  const refPaths = Array.isArray(payload.referenced_image_paths) ? payload.referenced_image_paths : [];
+  const frames = Array.isArray(payload.frames) ? payload.frames : [];
+  const totalCount = Math.max(1, refImages.length + refPaths.length + frames.length);
+  const byteBudget = computePerAttachmentByteBudget(totalCount);
+
   const attachments = [];
-  const seen = new Set();
+  const seenPaths = new Set();
+  const seenSources = new Set();
   const push = (attachment) => {
-    if (!attachment?.path || seen.has(attachment.path.toLowerCase())) return;
-    seen.add(attachment.path.toLowerCase());
+    if (!attachment?.path) return;
+    const pathKey = attachment.path.toLowerCase();
+    const sourceKey = String(attachment.source_path || attachment.path).toLowerCase();
+    if (seenPaths.has(pathKey) || seenSources.has(sourceKey)) return;
+    seenPaths.add(pathKey);
+    seenSources.add(sourceKey);
     attachments.push(attachment);
   };
-  for (const entry of Array.isArray(payload.reference_images) ? payload.reference_images : []) {
-    push(attachmentFromReferenceImage(entry, tempDir, attachments.length + 1));
+
+  for (const entry of refImages) {
+    const b64 = String(entry?.b64_json || '').trim();
+    if (!b64) continue;
+    const mime = String(entry.mime_type || 'image/jpeg').toLowerCase();
+    let attachment = tryWriteDataImage(`data:${mime};base64,${b64}`, tempDir, attachments.length + 1);
+    if (attachment && attachment.bytes > byteBudget) {
+      const sourcePath = entry.path || attachment.path;
+      attachment = await attachmentFromOversizedFile(sourcePath, tempDir, attachments.length + 1, byteBudget);
+    }
+    if (!attachment) continue;
+    if (entry.label) attachment.label = String(entry.label);
+    if (entry.source_path) attachment.source_path = entry.source_path;
+    push(attachment);
   }
-  for (const filePath of Array.isArray(payload.referenced_image_paths) ? payload.referenced_image_paths : []) {
-    push(tryCopyImagePath(filePath, tempDir, attachments.length + 1));
+
+  for (const filePath of refPaths) {
+    const prepared = await resolveAttachmentSourcePath(filePath, byteBudget);
+    push(attachmentFromPath(prepared));
   }
-  for (const frame of Array.isArray(payload.frames) ? payload.frames : []) {
-    push(tryWriteDataImage(frame, tempDir, attachments.length + 1));
+
+  for (const frame of frames) {
+    let attachment = tryWriteDataImage(frame, tempDir, attachments.length + 1);
+    if (attachment && attachment.bytes > byteBudget) {
+      attachment = await attachmentFromOversizedFile(attachment.path, tempDir, attachments.length + 1, byteBudget);
+    }
+    push(attachment);
   }
+
   return attachments;
 }
 
@@ -623,6 +707,7 @@ function imagePrompt(payload, attachments = [], maskPath = '') {
   const prompt = String(payload.prompt || '').trim();
   const size = String(payload.size || '1024x1024').trim();
   const quality = String(payload.quality || 'high').trim();
+  const attachmentPlan = Array.isArray(payload.attachment_plan) ? payload.attachment_plan : [];
   const lines = [
     'Generate exactly one image using your built-in image generation tool.',
     'Do not access unrelated local files or modify anything except generated image output.',
@@ -635,8 +720,11 @@ function imagePrompt(payload, attachments = [], maskPath = '') {
       const label = attachments[i].label ? ` (${attachments[i].label})` : '';
       lines.push(`- Image ${i + 1}${label}: exact reference from attachment ${i + 1}.`);
     }
-    if (attachments.length >= 2) {
-      lines.push('- Merge products from Image 1 into the layout structure of Image 2 photorealistically.');
+    const orderBlock = buildReferenceOrderBlock(attachmentPlan);
+    if (orderBlock) {
+      lines.push(orderBlock);
+    } else if (attachments.length >= 2) {
+      lines.push('- Merge reference images photorealistically according to the user prompt.');
     }
   }
   if (maskPath) {
@@ -653,7 +741,59 @@ function imagePrompt(payload, attachments = [], maskPath = '') {
   return lines.join('\n');
 }
 
-function buildChatPrompt(messages, maxTokens, tempDir) {
+async function serializeMessageContent(content, tempDir, attachments, byteBudget, options = {}) {
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return JSON.stringify(content || '');
+
+  const pathRefsOnly = options.pathRefsOnly === true;
+  let inlineImageIndex = options.inlineImageOffset || 0;
+
+  const parts = [];
+  for (const part of content) {
+    const imageUrl = extractImageUrlFromPart(part);
+    if (imageUrl) {
+      if (pathRefsOnly) {
+        inlineImageIndex += 1;
+        parts.push({
+          type: part.type === 'input_image' ? 'input_text' : 'text',
+          text: `[Image ${inlineImageIndex} attached]`,
+        });
+        continue;
+      }
+      let attachment = tryWriteDataImage(imageUrl, tempDir, attachments.length + 1);
+      if (attachment && attachment.bytes > byteBudget) {
+        attachment = await attachmentFromOversizedFile(attachment.path, tempDir, attachments.length + 1, byteBudget);
+      }
+      if (attachment) {
+        attachments.push(attachment);
+        parts.push({
+          type: part.type === 'input_image' ? 'input_text' : 'text',
+          text: `[Image ${attachments.length} attached]`,
+        });
+        continue;
+      }
+    }
+    if (part && (part.type === 'input_text' || part.type === 'text') && typeof part.text === 'string') {
+      parts.push(part);
+      continue;
+    }
+    if (part && typeof part.text === 'string') {
+      parts.push({ type: 'text', text: part.text });
+      continue;
+    }
+    parts.push(part);
+  }
+  return JSON.stringify(parts);
+}
+
+async function buildChatPrompt(messages, maxTokens, tempDir, referencedImagePaths = []) {
+  const refPaths = Array.isArray(referencedImagePaths) ? referencedImagePaths : [];
+  const pathRefsOnly = refPaths.length > 0;
+  const inlineCount = pathRefsOnly ? 0 : countInlineImages(messages);
+  const pathCount = refPaths.length;
+  const totalCount = Math.max(1, inlineCount + pathCount);
+  const byteBudget = computePerAttachmentByteBudget(totalCount);
+
   const attachments = [];
   const parts = [
     'Respond to the following chat transcript.',
@@ -661,13 +801,33 @@ function buildChatPrompt(messages, maxTokens, tempDir) {
     `Maximum response tokens hint: ${maxTokens || 1024}.`,
     '',
   ];
+
+  let inlineImageOffset = 0;
   for (const message of Array.isArray(messages) ? messages : []) {
     const role = String(message.role || 'user');
-    const content = typeof message.content === 'string'
-      ? message.content
-      : JSON.stringify(message.content || '');
+    const content = Array.isArray(message.content)
+      ? await serializeMessageContent(message.content, tempDir, attachments, byteBudget, {
+        pathRefsOnly,
+        inlineImageOffset,
+      })
+      : (typeof message.content === 'string'
+        ? message.content
+        : JSON.stringify(message.content || ''));
+    if (pathRefsOnly && Array.isArray(message.content)) {
+      inlineImageOffset += message.content.filter((part) => extractImageUrlFromPart(part)).length;
+    }
     parts.push(`${role.toUpperCase()}: ${content}`);
   }
+
+  const seen = new Set(attachments.map((item) => item.path.toLowerCase()));
+  for (const filePath of refPaths) {
+    const prepared = await resolveAttachmentSourcePath(filePath, byteBudget);
+    const attachment = attachmentFromPath(prepared);
+    if (!attachment?.path || seen.has(attachment.path.toLowerCase())) continue;
+    seen.add(attachment.path.toLowerCase());
+    attachments.push(attachment);
+  }
+
   parts.push('', 'ASSISTANT:');
   return { attachments, prompt: parts.join('\n') };
 }
@@ -781,7 +941,12 @@ class CodexCliClient {
     const model = String(payload.model || 'codex-local:auto').replace(/^codex-local:/, '') || 'auto';
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'productcanvas-codex-chat-'));
     const outputFile = path.join(tempDir, 'last-message.txt');
-    const { attachments, prompt } = buildChatPrompt(messages, payload.max_tokens, tempDir);
+    const { attachments, prompt } = await buildChatPrompt(
+      messages,
+      payload.max_tokens,
+      tempDir,
+      payload.referenced_image_paths,
+    );
     const args = [
       'exec', '--skip-git-repo-check', '--ephemeral', '--cd', tempDir,
       '--output-last-message', outputFile,
@@ -842,7 +1007,7 @@ class CodexCliClient {
     const before = listGeneratedImages(generatedImagesDir);
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'productcanvas-codex-image-'));
     const outputFile = path.join(tempDir, 'last-message.txt');
-    const attachments = collectImageAttachments(payload, tempDir);
+    const attachments = await collectImageAttachments(payload, tempDir);
 
     let maskPath = '';
     const maskCandidate = String(payload.mask_path || '').trim();
@@ -944,4 +1109,5 @@ module.exports = {
   getCodexCliInfo,
   collectImageAttachments,
   imagePrompt,
+  buildChatPrompt,
 };

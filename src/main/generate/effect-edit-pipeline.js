@@ -4,11 +4,12 @@ const fs = require('fs');
 const path = require('path');
 const paths = require('../paths');
 const debugLog = require('../debug/logger');
-const { isImagePath } = require('./image-prep');
+const { isImagePath, computePerAttachmentByteBudget } = require('./image-prep');
 const {
   buildReferencePathEntry,
   buildPreflightMessages,
   gatewayErrorNeedsResponsesContentParts,
+  emitReferencePrepProgress,
 } = require('./image-preflight');
 const {
   appendEffectEditLockBlock,
@@ -41,14 +42,21 @@ function formatResizeSummary(imageSettings) {
 }
 
 async function buildEffectEditReferences(effectPath, referenceImagePath) {
-  const effect = await buildReferencePathEntry(effectPath, 'effect');
+  const stylePath = String(referenceImagePath || '').trim();
+  const hasStyle = stylePath && fs.existsSync(stylePath) && isImagePath(stylePath);
+  const attachmentCount = hasStyle ? 2 : 1;
+  const options = {
+    byteBudget: computePerAttachmentByteBudget(attachmentCount),
+    attachmentCount,
+  };
+
+  const effect = await buildReferencePathEntry(effectPath, 'effect', options);
   if (!effect) {
     throw new Error('Effektbild konnte nicht gelesen werden.');
   }
   const refs = [effect];
-  const stylePath = String(referenceImagePath || '').trim();
-  if (stylePath && fs.existsSync(stylePath) && isImagePath(stylePath)) {
-    const style = await buildReferencePathEntry(stylePath, 'style');
+  if (hasStyle) {
+    const style = await buildReferencePathEntry(stylePath, 'style', options);
     if (style) refs.push(style);
   }
   return refs;
@@ -68,6 +76,7 @@ class EffectEditPipeline {
     onProgress?.({ status: 'running', messageKey: 'wait.status.effectEditPrompt' });
 
     const referenceImages = await buildEffectEditReferences(effectPath, referenceImagePath);
+    emitReferencePrepProgress(onProgress, referenceImages);
     const hasStyleReference = referenceImages.length > 1;
     const refPaths = collectReferencePaths(referenceImages);
 
@@ -134,6 +143,7 @@ class EffectEditPipeline {
     onProgress?.({ status: 'running', messageKey: 'wait.status.effectEditImage' });
 
     const referenceImages = await buildEffectEditReferences(effectPath, referenceImagePath);
+    emitReferencePrepProgress(onProgress, referenceImages);
     const refPaths = collectReferencePaths(referenceImages);
 
     let prompt = appendEffectEditLockBlock(optimizedEditPrompt, imageSettings);

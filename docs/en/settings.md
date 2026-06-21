@@ -100,7 +100,7 @@ A profile file is JSON with this structure:
     "brandName": "...",
     "seriesName": "...",
     "tagline": "...",
-    "referenceImages": [{ "path": "...", "name": "..." }],
+    "referenceImages": [{ "path": "...", "name": "...", "role": "detail" }],
     "imagePrompt": "...",
     "...": "..."
   }

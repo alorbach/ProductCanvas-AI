@@ -1,11 +1,5 @@
 'use strict';
 
-const fs = require('fs');
-const path = require('path');
-const {
-  isImagePath,
-} = require('./image-prep');
-const { buildReferenceImageEntries } = require('./image-preflight');
 const {
   appendLayoutLockBlock,
   buildTemplateLayoutHint,
@@ -14,15 +8,18 @@ const {
 const {
   normalizeQuality,
 } = require('./image-settings');
+const { buildReferenceImageEntries } = require('./image-preflight');
+const {
+  collectReferencePaths,
+  collectReferenceRefs,
+  selectReferencesForWerbung,
+  buildReferenceOrderBlock,
+  MAX_WERBUNG_ATTACHMENTS,
+} = require('./reference-roles');
 
 const PRODUCT_FIDELITY_BLOCK = [
   'CRITICAL PRODUCT FIDELITY — HIGHEST PRIORITY:',
   'The attached product reference photo is the ONLY source for product appearance.',
-].join(' ');
-
-const DUAL_REFERENCE_MIX_BLOCK = [
-  'TWO ATTACHED REFERENCE IMAGES — merge them as follows:',
-  'IMAGE 1 = PRODUCT REFERENCE; IMAGE 2 = LAYOUT TEMPLATE.',
 ].join(' ');
 
 const ANALYZE_PRODUCT_PROMPT = `Analysiere das Produktbild für eine Werbeanzeige. Antworte auf Deutsch, strukturiert und präzise:
@@ -34,15 +31,13 @@ const ANALYZE_PRODUCT_PROMPT = `Analysiere das Produktbild für eine Werbeanzeig
 - Gesamtanordnung im Bild
 Wichtig: Nichts hinzuerfinden, nichts weglassen. Nur sichtbare Details beschreiben.`;
 
-const MAX_IMAGE_ATTACHMENTS = 2;
-
-function appendFidelityToImagePrompt(imagePrompt, hasReferenceImages, hasLayoutTemplate = false) {
+function appendFidelityToImagePrompt(imagePrompt, hasReferenceImages, attachmentPlan = null) {
   const base = String(imagePrompt || '').trim();
   if (!hasReferenceImages) return base;
-  if (base.toUpperCase().includes('TWO ATTACHED REFERENCE IMAGES')) return base;
-  if (hasLayoutTemplate) {
-    const block = DUAL_REFERENCE_MIX_BLOCK;
-    return base ? `${base}\n\n${block}` : block;
+  if (base.toUpperCase().includes('ATTACHED REFERENCE IMAGES')) return base;
+  const orderBlock = buildReferenceOrderBlock(attachmentPlan);
+  if (orderBlock) {
+    return base ? `${base}\n\n${orderBlock}` : orderBlock;
   }
   if (base.toUpperCase().includes('CRITICAL PRODUCT FIDELITY')) return base;
   return base ? `${base}\n\n${PRODUCT_FIDELITY_BLOCK}` : PRODUCT_FIDELITY_BLOCK;
@@ -53,22 +48,25 @@ function normalizeRefOptions(refOptions) {
     return {
       hasProductReference: refOptions,
       hasTemplateReference: false,
+      attachmentPlan: [],
     };
   }
   return {
     hasProductReference: Boolean(refOptions?.hasProductReference),
     hasTemplateReference: Boolean(refOptions?.hasTemplateReference),
+    attachmentPlan: Array.isArray(refOptions?.attachmentPlan) ? refOptions.attachmentPlan : [],
   };
 }
 
 function buildImageGenerationPrompt(promptData, refOptions) {
-  const { hasProductReference, hasTemplateReference } = normalizeRefOptions(refOptions);
+  const { hasProductReference, hasTemplateReference, attachmentPlan } = normalizeRefOptions(refOptions);
   const parts = [];
   const finalPrompt = String(promptData?.finalPrompt || promptData?.imagePrompt || '').trim();
   if (finalPrompt) parts.push(finalPrompt);
 
-  if (hasProductReference && hasTemplateReference) {
-    parts.push('Reference order: Image 1 = exact products from product photo; Image 2 = layout/branding from template. Copy neon accent color from Image 2 exactly. Photorealistic merge, not a collage.');
+  const orderBlock = buildReferenceOrderBlock(attachmentPlan);
+  if (orderBlock && (hasProductReference || hasTemplateReference)) {
+    parts.push(orderBlock);
   } else if (hasProductReference) {
     parts.push('Reference: match attached product photo exactly.');
   } else if (hasTemplateReference) {
@@ -78,41 +76,32 @@ function buildImageGenerationPrompt(promptData, refOptions) {
   return parts.filter(Boolean).join('\n\n');
 }
 
-function collectReferencePaths(referenceImages) {
-  return (referenceImages || [])
-    .map((r) => (typeof r === 'string' ? r : r?.path))
-    .filter((p) => p && fs.existsSync(p) && isImagePath(p))
-    .map((p) => path.resolve(p));
-}
-
 async function buildImageAttachments(referenceImages, templatePath, options = {}) {
-  const attachTemplate = options.attachTemplate !== false
-    && templatePath
-    && fs.existsSync(templatePath)
-    && isImagePath(templatePath);
+  const selection = selectReferencesForWerbung(referenceImages, {
+    templatePath,
+    attachTemplate: options.attachTemplate !== false,
+    maxSlots: MAX_WERBUNG_ATTACHMENTS,
+  });
 
-  const productPaths = collectReferencePaths(referenceImages);
-  const maxProducts = attachTemplate ? MAX_IMAGE_ATTACHMENTS - 1 : MAX_IMAGE_ATTACHMENTS;
-  const selectedProducts = productPaths.slice(0, Math.max(maxProducts, 0));
+  const referenceImagesEntries = await buildReferenceImageEntries({
+    productRefs: selection.refs.map((r) => ({ path: r.path, role: r.role, label: r.label })),
+    layoutPath: selection.layoutPath,
+  });
 
-  const productPath = selectedProducts[0] || '';
-  const layoutPath = attachTemplate ? path.resolve(templatePath) : '';
-
-  const referenceImagesEntries = await buildReferenceImageEntries({ productPath, layoutPath });
-
-  const attachmentPaths = [...selectedProducts];
-  if (layoutPath && !attachmentPaths.includes(layoutPath)) {
-    attachmentPaths.push(layoutPath);
-  }
+  const hasProductReference = selection.refs.length > 0;
+  const hasTemplateReference = Boolean(selection.layoutPath);
 
   return {
-    productPaths: selectedProducts,
-    attachmentPaths,
+    productPaths: selection.productPaths,
+    attachmentPaths: selection.attachmentPaths,
     referenceImages: referenceImagesEntries,
+    attachmentPlan: selection.attachmentPlan,
+    skippedRefs: selection.skipped,
+    primaryDetailPath: selection.primaryDetailPath,
     frames: [],
     frameMeta: [],
-    hasProductReference: selectedProducts.length > 0,
-    hasTemplateReference: Boolean(layoutPath),
+    hasProductReference,
+    hasTemplateReference,
   };
 }
 
@@ -125,18 +114,20 @@ function buildImageApiPayload({
   frames,
   hasProductReference,
   hasTemplateReference,
+  attachmentPlan,
   maskPath,
 }) {
   const requireReferences = hasProductReference || hasTemplateReference;
   let prompt = buildImageGenerationPrompt(promptData, {
     hasProductReference,
     hasTemplateReference,
+    attachmentPlan,
   });
   prompt = sanitizePreflightPrompt(prompt, {
     allowGoldHeader: Boolean(settings?.extraPrompt && /gold/i.test(settings.extraPrompt)),
   });
   if (hasTemplateReference && template) {
-    prompt = appendLayoutLockBlock(prompt, template, settings);
+    prompt = appendLayoutLockBlock(prompt, template, settings, attachmentPlan);
   }
 
   const payload = {
@@ -145,15 +136,17 @@ function buildImageApiPayload({
     size: settings.size || '1536x1024',
     quality: normalizeQuality(settings.quality),
     requireReferences,
+    attachment_plan: attachmentPlan || [],
   };
 
   if (referenceImages?.length) {
     const encodedRefs = referenceImages.filter((r) => r.b64_json);
     if (encodedRefs.length) {
       payload.reference_images = encodedRefs;
+    } else if (attachmentPaths?.length) {
+      payload.referenced_image_paths = attachmentPaths;
     }
-  }
-  if (attachmentPaths?.length) {
+  } else if (attachmentPaths?.length) {
     payload.referenced_image_paths = attachmentPaths;
   }
   if (frames?.length) {
@@ -168,13 +161,13 @@ function buildImageApiPayload({
 
 module.exports = {
   PRODUCT_FIDELITY_BLOCK,
-  DUAL_REFERENCE_MIX_BLOCK,
   ANALYZE_PRODUCT_PROMPT,
-  MAX_IMAGE_ATTACHMENTS,
+  MAX_WERBUNG_ATTACHMENTS,
   appendFidelityToImagePrompt,
   buildImageGenerationPrompt,
   buildTemplateLayoutHint,
   collectReferencePaths,
+  collectReferenceRefs,
   buildImageAttachments,
   buildImageApiPayload,
 };

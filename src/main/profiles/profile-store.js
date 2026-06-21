@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const paths = require('../paths');
+const { migrateReferenceImages } = require('../generate/reference-roles');
 
 const DEFAULTS = {
   templateId: '',
@@ -69,7 +70,9 @@ class ProfileStore {
     if (!session) {
       return { ...this.getDefaults(), dirty: false, profilePath: '' };
     }
-    return { ...this.getDefaults(), ...session, dirty: false };
+    const merged = { ...this.getDefaults(), ...session, dirty: false };
+    merged.referenceImages = migrateReferenceImages(merged.referenceImages);
+    return merged;
   }
 
   saveSession(session) {
@@ -81,7 +84,9 @@ class ProfileStore {
   loadProfile(filePath) {
     const data = readJson(filePath, null);
     if (!data) throw new Error('Profil konnte nicht geladen werden.');
-    return { ...this.getDefaults(), ...data.settings, profilePath: filePath, profileName: data.name || '' };
+    const loaded = { ...this.getDefaults(), ...data.settings, profilePath: filePath, profileName: data.name || '' };
+    loaded.referenceImages = migrateReferenceImages(loaded.referenceImages);
+    return loaded;
   }
 
   saveProfile(filePath, session, name) {

@@ -89,7 +89,11 @@ Jobs können **bis zu 30 Minuten** laufen, bevor eine Zeitüberschreitung gemeld
 - Bridge gepairt, Codex angemeldet.
 - **Debug-Log** auf HTTP-/Anhang-Fehler.
 
-Sehr große Referenzen werden ggf. automatisch verkleinert. Meldung „body too large“: Bildmaße reduzieren.
+ProductCanvas AI skaliert große Referenzbilder (Produkt, Vorlage, Vorschau) vor dem Senden an Codex herunter. Die Codex CLI begrenzt die kombinierte Eingabe auf etwa 1 MB pro Turn; sehr große Master können dennoch fehlschlagen — dann kleinere Exporte verwenden.
+
+Bei **„body too large“** war der Bridge-HTTP-Body zu groß — Bildmaße reduzieren oder erneut versuchen (Referenzen werden automatisch herunterskaliert).
+
+Bei **„input too large“** oder **„exceeds the maximum length of 1048576 characters“** wurde das Codex-Turn-Limit überschritten — Generierung erneut starten; die App skaliert Referenzen vor jedem Versuch herunter.
 
 ## Bildqualität und Produkttreue
 

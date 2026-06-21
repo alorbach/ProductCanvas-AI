@@ -49,8 +49,10 @@ Formate: **PNG, JPG, WebP**.
 
 **Tipps:**
 
-- **Mehrere Perspektiven**, wenn ein Foto nicht alle Details zeigt.
-- **Reihenfolge per Drag-and-Drop** – das erste Bild ist die **Hauptreferenz**.
+- **Modus pro Bild** (Dropdown unter jedem Thumbnail): **A · Produktdetail** (Standard), **B · Bühnen-Element** (sichtbar in der Produktbühne), **C · Nur Stil** (Stimmung/Licht, ohne wörtliche Übernahme).
+- **Mehrere Perspektiven** mit Modus A, wenn ein Foto nicht alle Details zeigt.
+- **Reihenfolge per Drag-and-Drop** – das erste **Detail**-Bild ist die **Hauptreferenz** (Effekt-Hintergrund, KI-Werbezeilen).
+- Die **Layout-Vorlage** ist separat und nicht „Bild 2“ in der Referenzliste; bis zu **vier** Anhänge gesamt (inkl. Vorlage).
 - Thumbnails mit × oder Kontextmenü entfernen.
 
 ### 3. Projekteinstellungen

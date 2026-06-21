@@ -4,11 +4,12 @@ const fs = require('fs');
 const path = require('path');
 const paths = require('../paths');
 const debugLog = require('../debug/logger');
-const { isImagePath } = require('./image-prep');
+const { isImagePath, computePerAttachmentByteBudget } = require('./image-prep');
 const {
   buildReferencePathEntry,
   buildPreflightMessages,
   gatewayErrorNeedsResponsesContentParts,
+  emitReferencePrepProgress,
 } = require('./image-preflight');
 const {
   appendLayoutLockBlock,
@@ -36,14 +37,21 @@ function getChoiceContent(result) {
 }
 
 async function buildPreviewEditReferences(previewPath, templatePath) {
-  const preview = await buildReferencePathEntry(previewPath, 'preview');
+  const layoutPath = String(templatePath || '').trim();
+  const hasLayout = layoutPath && fs.existsSync(layoutPath) && isImagePath(layoutPath);
+  const attachmentCount = hasLayout ? 2 : 1;
+  const options = {
+    byteBudget: computePerAttachmentByteBudget(attachmentCount),
+    attachmentCount,
+  };
+
+  const preview = await buildReferencePathEntry(previewPath, 'preview', options);
   if (!preview) {
     throw new Error('Vorschaubild konnte nicht gelesen werden.');
   }
   const refs = [preview];
-  const layoutPath = String(templatePath || '').trim();
-  if (layoutPath && fs.existsSync(layoutPath) && isImagePath(layoutPath)) {
-    const layout = await buildReferencePathEntry(layoutPath, 'layout');
+  if (hasLayout) {
+    const layout = await buildReferencePathEntry(layoutPath, 'layout', options);
     if (layout) refs.push(layout);
   }
   return refs;
@@ -63,6 +71,7 @@ class PreviewEditPipeline {
     onProgress?.({ status: 'running', messageKey: 'wait.status.previewEditPrompt' });
 
     const referenceImages = await buildPreviewEditReferences(previewPath, templatePath);
+    emitReferencePrepProgress(onProgress, referenceImages);
     const hasLayoutReference = referenceImages.length > 1;
     const refPaths = collectReferencePaths(referenceImages);
 
@@ -131,6 +140,7 @@ class PreviewEditPipeline {
     onProgress?.({ status: 'running', messageKey: 'wait.status.previewEditImage' });
 
     const referenceImages = await buildPreviewEditReferences(previewPath, templatePath);
+    emitReferencePrepProgress(onProgress, referenceImages);
     const refPaths = collectReferencePaths(referenceImages);
 
     let stageMaskPath = null;

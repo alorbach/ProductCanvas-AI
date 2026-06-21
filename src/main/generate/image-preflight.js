@@ -12,14 +12,25 @@ const {
   EFFECT_REFERENCE_MAX_EDGE,
   EFFECT_REFERENCE_JPEG_QUALITY,
   EFFECT_REFERENCE_MAX_BYTES,
+  PRODUCT_REFERENCE_MAX_EDGE,
+  PRODUCT_REFERENCE_JPEG_QUALITY,
+  computePerAttachmentByteBudget,
 } = require('./image-prep');
 const {
-  LAYOUT_EDITABLE_RULES,
-  LAYOUT_FROZEN_RULES,
+  summarizeReferencePrep,
+  emitReferencePrepProgress,
+} = require('./reference-prep-report');
+const {
+  buildLayoutEditableRules,
+  buildLayoutFrozenRules,
   buildProductStageHint,
   buildTemplateLayoutHint,
   sanitizePreflightPrompt,
 } = require('./layout-fidelity');
+const {
+  buildReferenceOrderBlock,
+  layoutImageIndex,
+} = require('./reference-roles');
 
 const PREFLIGHT_JPEG_QUALITY = 92;
 
@@ -34,41 +45,154 @@ async function readReferenceImageMeta(filePath) {
   return { width, height };
 }
 
-async function buildReferencePathEntry(filePath, label) {
+function resolveReferenceByteBudget(options = {}) {
+  if (Number(options.byteBudget) > 0) return Number(options.byteBudget);
+  return computePerAttachmentByteBudget(options.attachmentCount || 1, options.promptCharEstimate || 0);
+}
+
+async function encodeImageWithinBudget(resolved, byteBudget, maxEdge, startQuality) {
+  let edge = maxEdge;
+  let quality = startQuality;
+  let buffer = null;
+  while (edge >= 512) {
+    quality = startQuality;
+    while (quality >= 48) {
+      buffer = await sharp(resolved)
+        .rotate()
+        .resize(edge, edge, {
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .jpeg({ quality, mozjpeg: true })
+        .toBuffer();
+      if (buffer.length <= byteBudget) return buffer;
+      quality -= 8;
+    }
+    edge = Math.floor(edge * 0.75);
+  }
+  return buffer || sharp(resolved).rotate().jpeg({ quality: 48, mozjpeg: true }).toBuffer();
+}
+
+async function prepareProductReferencePath(filePath, options = {}) {
+  if (!filePath || !fs.existsSync(filePath) || !isImagePath(filePath)) {
+    return filePath;
+  }
+
+  const resolved = path.resolve(filePath);
+  const stat = fs.statSync(resolved);
+  const meta = await sharp(resolved).rotate().metadata();
+  const width = meta.width || 0;
+  const height = meta.height || 0;
+  const maxEdge = Math.max(width, height);
+  const byteBudget = resolveReferenceByteBudget(options);
+  const needsScale = maxEdge > PRODUCT_REFERENCE_MAX_EDGE || stat.size > byteBudget;
+  if (!needsScale) {
+    return resolved;
+  }
+
+  const cacheKey = crypto.createHash('sha256').update(JSON.stringify({
+    path: resolved,
+    mtimeMs: stat.mtimeMs,
+    size: stat.size,
+    maxEdge: PRODUCT_REFERENCE_MAX_EDGE,
+    quality: PRODUCT_REFERENCE_JPEG_QUALITY,
+    byteBudget,
+    kind: 'product-ref',
+  })).digest('hex').slice(0, 16);
+  const outPath = path.join(paths.tempPreviewDir(), `ref-${cacheKey}.jpg`);
+  if (fs.existsSync(outPath)) {
+    return outPath;
+  }
+
+  const buffer = await encodeImageWithinBudget(
+    resolved,
+    byteBudget,
+    PRODUCT_REFERENCE_MAX_EDGE,
+    PRODUCT_REFERENCE_JPEG_QUALITY,
+  );
+  fs.writeFileSync(outPath, buffer);
+  const outMeta = await sharp(buffer).metadata();
+  debugLog.info('image-preflight', 'Referenzbild für Codex herunterskaliert', {
+    label: options.label || path.basename(resolved),
+    source: resolved,
+    output: outPath,
+    originalBytes: stat.size,
+    scaledBytes: buffer.length,
+    byteBudget,
+    originalSize: `${width}x${height}`,
+    scaledSize: `${outMeta.width || 0}x${outMeta.height || 0}`,
+  });
+  return outPath;
+}
+
+async function buildReferencePathEntry(filePath, label, options = {}) {
   if (!filePath || !fs.existsSync(filePath) || !isImagePath(filePath)) {
     return null;
   }
-  const { width, height } = await readReferenceImageMeta(filePath);
-  return {
+  const sourcePath = path.resolve(filePath);
+  const byteBudget = resolveReferenceByteBudget(options);
+  const originalMeta = await readReferenceImageMeta(sourcePath);
+  const preparedPath = await prepareProductReferencePath(sourcePath, {
+    ...options,
     label,
-    path: path.resolve(filePath),
+  });
+  const { width, height } = await readReferenceImageMeta(preparedPath);
+  const prep = summarizeReferencePrep({
+    label,
+    sourcePath,
+    preparedPath,
+    originalWidth: originalMeta.width,
+    originalHeight: originalMeta.height,
     width,
     height,
-    original_width: width,
-    original_height: height,
+    byteBudget,
+  });
+  return {
+    label,
+    source_path: sourcePath,
+    path: path.resolve(preparedPath),
+    width,
+    height,
+    original_width: originalMeta.width,
+    original_height: originalMeta.height,
+    byteBudget,
+    prep,
   };
 }
 
-async function encodeReferenceImage(filePath) {
-  const ext = path.extname(filePath).toLowerCase();
-  const meta = await sharp(filePath).rotate().metadata();
+async function encodeReferenceImage(filePath, options = {}) {
+  const byteBudget = resolveReferenceByteBudget(options);
+  const preparedPath = await prepareProductReferencePath(filePath, options);
+  const ext = path.extname(preparedPath).toLowerCase();
+  const meta = await sharp(preparedPath).rotate().metadata();
   let buffer;
   let mime_type;
   if (ext === '.png' || ext === '.webp') {
-    buffer = await sharp(filePath).rotate().png().toBuffer();
+    buffer = await sharp(preparedPath).rotate().png().toBuffer();
     mime_type = 'image/png';
+    if (buffer.length > byteBudget || buffer.length > MAX_BRIDGE_FRAME_BYTES) {
+      buffer = await encodeImageWithinBudget(
+        preparedPath,
+        Math.min(byteBudget, MAX_BRIDGE_FRAME_BYTES),
+        PRODUCT_REFERENCE_MAX_EDGE,
+        PRODUCT_REFERENCE_JPEG_QUALITY,
+      );
+      mime_type = 'image/jpeg';
+    }
   } else {
-    buffer = await sharp(filePath)
+    buffer = await sharp(preparedPath)
       .rotate()
       .jpeg({ quality: PREFLIGHT_JPEG_QUALITY, mozjpeg: true })
       .toBuffer();
     mime_type = 'image/jpeg';
-  }
-  if (buffer.length > MAX_BRIDGE_FRAME_BYTES) {
-    const name = path.basename(filePath);
-    throw new Error(
-      `Referenzbild „${name}“ ist zu groß (${Math.round(buffer.length / 1024)} KB). Bitte eine kleinere Datei verwenden – die App skaliert Referenzen nicht mehr automatisch.`,
-    );
+    if (buffer.length > byteBudget || buffer.length > MAX_BRIDGE_FRAME_BYTES) {
+      buffer = await encodeImageWithinBudget(
+        preparedPath,
+        Math.min(byteBudget, MAX_BRIDGE_FRAME_BYTES),
+        PRODUCT_REFERENCE_MAX_EDGE,
+        PREFLIGHT_JPEG_QUALITY,
+      );
+    }
   }
   const outMeta = await sharp(buffer).metadata();
   return {
@@ -81,32 +205,38 @@ async function encodeReferenceImage(filePath) {
   };
 }
 
-async function buildReferenceImageEntry(filePath, label) {
+async function buildReferenceImageEntry(filePath, label, options = {}) {
   if (!filePath || !fs.existsSync(filePath) || !isImagePath(filePath)) {
     return null;
   }
-  try {
-    const fileSize = fs.statSync(filePath).size;
-    if (fileSize > MAX_BRIDGE_FRAME_BYTES) {
-      return buildReferencePathEntry(filePath, label);
-    }
-    const encoded = await encodeReferenceImage(filePath);
-    return {
-      label,
-      path: path.resolve(filePath),
-      b64_json: encoded.buffer.toString('base64'),
-      mime_type: encoded.mime_type,
-      width: encoded.width,
-      height: encoded.height,
-      original_width: encoded.original_width,
-      original_height: encoded.original_height,
-    };
-  } catch (err) {
-    if (/zu groß/i.test(String(err?.message || ''))) {
-      return buildReferencePathEntry(filePath, label);
-    }
-    throw err;
-  }
+  const sourcePath = path.resolve(filePath);
+  const entryOptions = { ...options, label };
+  const byteBudget = resolveReferenceByteBudget(entryOptions);
+  const encoded = await encodeReferenceImage(sourcePath, entryOptions);
+  const preparedPath = await prepareProductReferencePath(sourcePath, entryOptions);
+  const prep = summarizeReferencePrep({
+    label,
+    sourcePath,
+    preparedPath,
+    originalWidth: encoded.original_width,
+    originalHeight: encoded.original_height,
+    width: encoded.width,
+    height: encoded.height,
+    byteBudget,
+  });
+  return {
+    label,
+    source_path: sourcePath,
+    path: path.resolve(preparedPath),
+    b64_json: encoded.buffer.toString('base64'),
+    mime_type: encoded.mime_type,
+    width: encoded.width,
+    height: encoded.height,
+    original_width: encoded.original_width,
+    original_height: encoded.original_height,
+    byteBudget,
+    prep,
+  };
 }
 
 async function prepareEffectReferencePath(effectPath) {
@@ -160,38 +290,70 @@ async function prepareEffectReferencePath(effectPath) {
   return outPath;
 }
 
-async function buildReferenceImageEntries({ productPath, layoutPath } = {}) {
+async function buildReferenceImageEntries({ productPath, layoutPath, productRefs } = {}) {
+  const refs = Array.isArray(productRefs) && productRefs.length
+    ? productRefs
+    : [
+      ...(productPath ? [{ path: productPath, role: 'detail', label: 'product' }] : []),
+    ];
+  const plannedPaths = [
+    ...refs.map((r) => r.path),
+    layoutPath,
+  ].filter((p) => p && fs.existsSync(p) && isImagePath(p));
+  const attachmentCount = Math.max(plannedPaths.length, 1);
+  const byteBudget = computePerAttachmentByteBudget(attachmentCount);
+  const options = { byteBudget, attachmentCount };
+
   const entries = [];
-  if (productPath) {
-    const product = await buildReferenceImageEntry(productPath, 'product');
-    if (product) entries.push(product);
+  for (const ref of refs) {
+    const label = ref.label || 'product';
+    const entry = await buildReferenceImageEntry(ref.path, label, options);
+    if (entry) {
+      entry.role = ref.role || 'detail';
+      entries.push(entry);
+    }
   }
   if (layoutPath) {
-    const layout = await buildReferenceImageEntry(layoutPath, 'layout');
-    if (layout) entries.push(layout);
+    const layout = await buildReferenceImageEntry(layoutPath, 'layout', options);
+    if (layout) {
+      layout.role = 'layout';
+      entries.push(layout);
+    }
   }
   return entries;
 }
 
-function buildPreflightTaskPrompt({ settings, promptData, template, effectApplied }) {
-  const templateHint = buildTemplateLayoutHint(template, { layoutImageAttached: true });
+function buildPreflightTaskPrompt({ settings, promptData, template, effectApplied, attachmentPlan }) {
+  const plan = Array.isArray(attachmentPlan) ? attachmentPlan : [];
+  const templateHint = buildTemplateLayoutHint(template, {
+    layoutImageAttached: plan.some((e) => e.role === 'layout'),
+    attachmentPlan: plan,
+  });
   const size = String(settings?.size || '').trim();
   const quality = String(settings?.quality || '').trim();
   const brand = String(promptData?.brandName || settings?.brandName || 'the brand').trim() || 'the brand';
+  const layoutIdx = layoutImageIndex(plan);
+  const orderBlock = buildReferenceOrderBlock(plan);
+  const frozenRules = buildLayoutFrozenRules(plan);
+  const editableRules = buildLayoutEditableRules(plan);
   const lines = [
     `Create a photorealistic retail advertisement image for ${brand} using the attached reference image(s).`,
     'Return ONLY the final English image-edit prompt — no explanation, no markdown, no JSON.',
     '',
     'Rules:',
-    '- IMAGE 1 (product): copy exact product models, driver layout, tweeter panels, logos, finishes.',
-    '- IMAGE 2 (layout template): copy frozen layout zones exactly — header, footer, contact bar, brand text colors, icon row, neon accents.',
-    '- The neon side-bar color in IMAGE 2 is mandatory (e.g. blue template = blue neon, not yellow).',
-    '- Do NOT recolor header brand text to gold unless it is gold in IMAGE 2.',
-    '- Do NOT add category highlight boxes or new footer emphasis.',
-    '- Merge products from Image 1 into the product stage of Image 2 photorealistically.',
-    '- Do NOT invent different products. Do NOT use products from the layout template image.',
-    LAYOUT_FROZEN_RULES,
-    LAYOUT_EDITABLE_RULES,
+    orderBlock,
+  ];
+  if (layoutIdx > 0) {
+    lines.push(
+      `- The neon side-bar color in IMAGE ${layoutIdx} is mandatory (e.g. blue template = blue neon, not yellow).`,
+      `- Do NOT recolor header brand text to gold unless it is gold in IMAGE ${layoutIdx}.`,
+      '- Do NOT add category highlight boxes or new footer emphasis.',
+      '- Do NOT invent different products. Do NOT use products from the layout template image.',
+    );
+  }
+  lines.push(
+    frozenRules,
+    editableRules,
     '',
     `Main line: ${promptData?.brandName || settings?.brandName || '–'}`,
     `Ad line 1: ${promptData?.seriesName || settings?.seriesName || '–'}`,
@@ -199,7 +361,7 @@ function buildPreflightTaskPrompt({ settings, promptData, template, effectApplie
     `Extra: ${settings?.extraPrompt || '–'}`,
     `Target output size: ${size || '1536x1024'}${settings?.sizeMode === 'template' ? ' (from selected layout template)' : ''}${settings?.sizeMode === 'template2x' ? ' (2× selected layout template)' : ''}`,
     `Preferred quality: ${quality || 'high'}`,
-  ];
+  );
   if (effectApplied) {
     lines.push('Product reference already has the selected effect image applied as background — preserve that background style in the product stage.');
   }
@@ -259,6 +421,10 @@ function buildPreflightMessages(taskPrompt, referenceImages, options = {}) {
 }
 
 function computePreflightFingerprint(settings, templatePath, productPaths, options = {}) {
+  const referenceRoles = (options.referenceRoles || []).map((r) => ({
+    path: path.resolve(r.path),
+    role: r.role || 'detail',
+  }));
   const payload = {
     templateId: settings?.templateId || '',
     effectId: settings?.effectId || '',
@@ -268,6 +434,7 @@ function computePreflightFingerprint(settings, templatePath, productPaths, optio
       : '',
     templatePath: templatePath ? path.resolve(templatePath) : '',
     productPaths: (productPaths || []).map((p) => path.resolve(p)).sort(),
+    referenceRoles,
     brandName: settings?.brandName || '',
     seriesName: settings?.seriesName || '',
     tagline: settings?.tagline || '',
@@ -288,6 +455,7 @@ async function runImagePreflight(bridgeClient, {
   productPath,
   layoutPath,
   referenceImages: existingRefs,
+  attachmentPlan,
   effectApplied,
   signalKey,
   onProgress,
@@ -302,14 +470,16 @@ async function runImagePreflight(bridgeClient, {
 
   onProgress?.({ status: 'running', messageKey: 'wait.status.imagePreflight' });
 
-  const taskPrompt = buildPreflightTaskPrompt({ settings, promptData, template, effectApplied });
+  const taskPrompt = buildPreflightTaskPrompt({
+    settings,
+    promptData,
+    template,
+    effectApplied,
+    attachmentPlan,
+  });
   const model = 'codex-local:auto';
   let messages = buildPreflightMessages(taskPrompt, referenceImages, { model });
-  const refPaths = (referenceImages || []).map((r) => r.path).filter(Boolean);
   const chatPayload = { model, messages, max_tokens: 1800 };
-  if (refPaths.length) {
-    chatPayload.referenced_image_paths = refPaths;
-  }
   let result;
   try {
     result = await bridgeClient.chat(chatPayload, signalKey);
@@ -345,6 +515,8 @@ module.exports = {
   buildReferencePathEntry,
   buildReferenceImageEntries,
   prepareEffectReferencePath,
+  prepareProductReferencePath,
+  encodeImageWithinBudget,
   buildPreflightTaskPrompt,
   buildPreflightMessages,
   buildTemplateLayoutHint,
@@ -352,4 +524,5 @@ module.exports = {
   computePreflightFingerprint,
   gatewayErrorNeedsResponsesContentParts,
   runImagePreflight,
+  emitReferencePrepProgress,
 };

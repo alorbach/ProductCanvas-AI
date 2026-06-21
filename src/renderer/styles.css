@@ -429,6 +429,29 @@ input, select, textarea {
   transition: outline-color 0.12s ease, opacity 0.12s ease;
 }
 
+.ref-thumb-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+}
+
+.ref-role-select {
+  width: 100%;
+  font-size: 0.68rem;
+  padding: 2px 4px;
+}
+
+.ref-primary-hint {
+  font-size: 0.62rem;
+  line-height: 1.2;
+}
+
+.refs-role-truncated {
+  margin: 0 0 8px;
+  font-size: 0.82rem;
+}
+
 .ref-thumb.dragging { opacity: 0.45; cursor: grabbing; }
 .ref-thumb.drop-target { outline: 2px dashed var(--accent); outline-offset: 2px; border-radius: 4px; }
 
@@ -950,6 +973,22 @@ body.lightbox-open { overflow: hidden; }
   white-space: pre-wrap;
   max-height: 72px;
   overflow: auto;
+}
+
+.wait-context-refs {
+  margin: 8px 0 0;
+  padding-left: 1.2em;
+  font-size: 0.8rem;
+}
+
+.wait-context-refs li {
+  margin: 4px 0;
+}
+
+.wait-context-effect-note {
+  margin: 6px 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
 }
 
 .hidden { display: none !important; }

@@ -4,11 +4,12 @@ const fs = require('fs');
 const path = require('path');
 const paths = require('../paths');
 const debugLog = require('../debug/logger');
-const { isImagePath } = require('./image-prep');
+const { isImagePath, computePerAttachmentByteBudget } = require('./image-prep');
 const {
   buildReferencePathEntry,
   buildPreflightMessages,
   gatewayErrorNeedsResponsesContentParts,
+  emitReferencePrepProgress,
 } = require('./image-preflight');
 const {
   appendLayoutLockBlock,
@@ -51,14 +52,21 @@ function formatResizeSummary(imageSettings) {
 }
 
 async function buildTemplateEditReferences(templatePath, referenceImagePath) {
-  const layout = await buildReferencePathEntry(templatePath, 'layout');
+  const stylePath = String(referenceImagePath || '').trim();
+  const hasStyle = stylePath && fs.existsSync(stylePath) && isImagePath(stylePath);
+  const attachmentCount = hasStyle ? 2 : 1;
+  const options = {
+    byteBudget: computePerAttachmentByteBudget(attachmentCount),
+    attachmentCount,
+  };
+
+  const layout = await buildReferencePathEntry(templatePath, 'layout', options);
   if (!layout) {
     throw new Error('Vorlagenbild konnte nicht gelesen werden.');
   }
   const refs = [layout];
-  const stylePath = String(referenceImagePath || '').trim();
-  if (stylePath && fs.existsSync(stylePath) && isImagePath(stylePath)) {
-    const style = await buildReferencePathEntry(stylePath, 'style');
+  if (hasStyle) {
+    const style = await buildReferencePathEntry(stylePath, 'style', options);
     if (style) refs.push(style);
   }
   return refs;
@@ -78,6 +86,7 @@ class TemplateEditPipeline {
     onProgress?.({ status: 'running', messageKey: 'wait.status.templateEditPrompt' });
 
     const referenceImages = await buildTemplateEditReferences(templatePath, referenceImagePath);
+    emitReferencePrepProgress(onProgress, referenceImages);
     const hasStyleReference = referenceImages.length > 1;
     const refPaths = collectReferencePaths(referenceImages);
 
@@ -144,6 +153,7 @@ class TemplateEditPipeline {
     onProgress?.({ status: 'running', messageKey: 'wait.status.templateEditImage' });
 
     const referenceImages = await buildTemplateEditReferences(templatePath, referenceImagePath);
+    emitReferencePrepProgress(onProgress, referenceImages);
     const refPaths = collectReferencePaths(referenceImages);
 
     let bridgeCapabilities = null;

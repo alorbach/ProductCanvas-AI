@@ -93,7 +93,11 @@ Image and prompt jobs can run **up to 30 minutes** before the app reports a time
 - Bridge is paired and Codex is logged in.
 - Open **Debug log** – look for HTTP or attachment errors.
 
-Large reference files may be resized automatically. If you see “body too large”, reduce image dimensions and try again.
+ProductCanvas AI downscales large reference images (product, template, preview) before sending them to Codex. Codex CLI enforces a combined input limit of about 1 MB per turn; very large masters may still fail — use smaller exports if needed.
+
+If you see **“body too large”**, the Bridge HTTP body was too large — reduce source dimensions or retry (references are downscaled automatically).
+
+If you see **“input too large”** or **“exceeds the maximum length of 1048576 characters”**, Codex’s turn limit was exceeded — retry generation; the app scales references down before each attempt.
 
 ## Image quality and fidelity
 

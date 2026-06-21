@@ -13,10 +13,16 @@ const {
   runImagePreflight,
 } = require('./image-preflight');
 const { resolveImageGenerationSettings } = require('./image-settings');
+const {
+  buildReferenceOrderBlock,
+  resolvePrimaryDetailRef,
+  selectReferencesForWerbung,
+  MAX_WERBUNG_ATTACHMENTS,
+} = require('./reference-roles');
 
 const AD_LINE_KEYS = new Set(['brandName', 'seriesName', 'tagline']);
 
-function buildReferencePromptFromForm(options, template, templateRegistry, productAnalysis, imagePaths) {
+function buildReferencePromptFromForm(options, template, templateRegistry, productAnalysis, imagePaths, attachmentPlan) {
   const templatePath = templateRegistry.resolveTemplatePath(template);
   return {
     brandName: String(options.brandName || '').trim().toUpperCase(),
@@ -28,7 +34,13 @@ function buildReferencePromptFromForm(options, template, templateRegistry, produ
     imagePrompt: '',
     finalPrompt: '',
     preflightPrompt: '',
-    preflightFingerprint: computePreflightFingerprint(options, templatePath, imagePaths),
+    preflightFingerprint: computePreflightFingerprint(options, templatePath, imagePaths, {
+      referenceRoles: (options.referenceImages || []).map((r) => ({
+        path: path.resolve(r.path || r),
+        role: r.role || 'detail',
+      })),
+    }),
+    attachmentPlan: attachmentPlan || [],
   };
 }
 
@@ -93,6 +105,10 @@ class PromptBuilder {
     const imagePaths = collectReferencePaths(options.referenceImages);
     const hasReferences = imagePaths.length > 0;
     const templatePath = this.registry.resolveTemplatePath(template);
+    const selection = selectReferencesForWerbung(options.referenceImages, {
+      templatePath,
+      maxSlots: MAX_WERBUNG_ATTACHMENTS,
+    });
 
     if (hasReferences && !options.runPreflight) {
       debugLog.info('prompt-builder', 'JSON-Builder und Preflight übersprungen (Preflight nur bei Generierung)');
@@ -102,6 +118,7 @@ class PromptBuilder {
         this.registry,
         options.productAnalysis || '',
         imagePaths,
+        selection.attachmentPlan,
       );
     }
 
@@ -113,25 +130,28 @@ class PromptBuilder {
         this.registry,
         options.productAnalysis || '',
         imagePaths,
+        selection.attachmentPlan,
       );
       const templateDims = await this.registry.getDimensions(template);
       const imageSettings = resolveImageGenerationSettings(options, templateDims);
-      const productPath = imagePaths[0] || '';
       const referenceImages = await buildReferenceImageEntries({
-        productPath,
-        layoutPath: templatePath,
+        productRefs: selection.refs.map((r) => ({ path: r.path, role: r.role, label: r.label })),
+        layoutPath: selection.layoutPath,
       });
       const preflight = await runImagePreflight(this.client, {
         settings: imageSettings,
         promptData: stub,
         template,
-        productPath,
-        layoutPath: templatePath,
+        productPath: selection.primaryDetailPath,
+        layoutPath: selection.layoutPath,
         referenceImages,
+        attachmentPlan: selection.attachmentPlan,
         signalKey,
         onProgress,
       });
-      const fingerprint = computePreflightFingerprint(imageSettings, templatePath, imagePaths);
+      const fingerprint = computePreflightFingerprint(imageSettings, templatePath, imagePaths, {
+        referenceRoles: selection.refs.map((r) => ({ path: r.path, role: r.role })),
+      });
       return {
         ...stub,
         imagePrompt: preflight.finalPrompt,
@@ -152,12 +172,14 @@ class PromptBuilder {
 - imagePrompt MUSS englisch sein: photorealistic AI-generated premium retail advertisement for ${brand}, cinematic lighting, NOT a collage.
 `;
 
+    const orderHint = buildReferenceOrderBlock(selection.attachmentPlan);
     const chatPrompt = `Du bist Werbetexter für Produktwerbung.
 Erzeuge ein JSON-Objekt für ein Werbebild. Nur gültiges JSON, keine Erklärung.
 
 Vorlage: ${template.name}, Akzentfarbe: ${template.accent}, Bühne: ${template.stageHint}
 ${exampleHint}
 ${fidelityRules}
+${orderHint ? `\nReferenz-Reihenfolge:\n${orderHint}` : ''}
 
 Bereits bekannt – Hauptzeile: ${options.brandName || '–'}
 Werbezeile 1: ${options.seriesName || '–'}
@@ -174,7 +196,7 @@ JSON-Felder:
 - tagline (Werbezeile 2, 1 Zeile Deutsch)
 - productDescription (detailliert, zählbar, keine Erfindungen)
 - placementInstructions (nur Platzierung, Produkt unverändert)
-- imagePrompt (vollständiger englischer Prompt: merge products from attached Image 1 into layout from attached Image 2, photorealistic ${brand} retail ad, ad text matching template — NOT a flat collage)`;
+- imagePrompt (vollständiger englischer Prompt für die Referenzbilder — photorealistic ${brand} retail ad, NOT a flat collage)`;
 
     onProgress?.({ status: 'running', messageKey: 'wait.status.buildingPrompt' });
 
@@ -198,13 +220,16 @@ JSON-Felder:
       throw new Error('Ungültige Werbezeile für KI-Vorschlag.');
     }
 
-    const imagePaths = collectReferencePaths(options.referenceImages);
-    const productPath = imagePaths[0] || '';
+    const primary = resolvePrimaryDetailRef(options.referenceImages);
+    const productPath = primary?.path || '';
     if (!productPath) {
       throw new Error('Keine Referenzbilder für KI-Vorschlag vorhanden.');
     }
 
-    const referenceImages = await buildReferenceImageEntries({ productPath, layoutPath: '' });
+    const referenceImages = await buildReferenceImageEntries({
+      productRefs: [{ path: productPath, role: 'detail', label: 'product' }],
+      layoutPath: '',
+    });
     if (!referenceImages.length) {
       throw new Error('Keine Referenzbilder für KI-Vorschlag vorhanden.');
     }
@@ -220,12 +245,7 @@ JSON-Felder:
       content: 'You are ProductCanvas AI ad copywriter. Analyze the attached product image and return only the requested German ad line. No explanation, no markdown, no quotes.',
     };
 
-    const refPaths = referenceImages.map((r) => r.path).filter(Boolean);
     const chatPayload = { model, messages, max_tokens: 64 };
-    if (refPaths.length) {
-      chatPayload.referenced_image_paths = refPaths;
-    }
-
     let result;
     try {
       result = await this.client.chat(chatPayload, signalKey);

@@ -6,7 +6,6 @@ const path = require('path');
 const root = path.join(__dirname, '..');
 const {
   PRODUCT_FIDELITY_BLOCK,
-  DUAL_REFERENCE_MIX_BLOCK,
   appendFidelityToImagePrompt,
   buildImageGenerationPrompt,
   buildImageApiPayload,
@@ -17,12 +16,16 @@ const {
   computePreflightFingerprint,
 } = require(path.join(root, 'src', 'main', 'generate', 'image-preflight'));
 
-assert(PRODUCT_FIDELITY_BLOCK.includes('CRITICAL PRODUCT FIDELITY'), 'fidelity block defined');
-assert(DUAL_REFERENCE_MIX_BLOCK.includes('IMAGE 1 = PRODUCT REFERENCE'), 'dual reference block defined');
+const attachmentPlan = [
+  { imageIndex: 1, role: 'detail', label: 'product', isPrimaryDetail: true },
+  { imageIndex: 2, role: 'layout', label: 'layout', isPrimaryDetail: false },
+];
 
-const withFidelity = appendFidelityToImagePrompt('Create ad image.', true);
+assert(PRODUCT_FIDELITY_BLOCK.includes('CRITICAL PRODUCT FIDELITY'), 'fidelity block defined');
+
+const withFidelity = appendFidelityToImagePrompt('Create ad image.', true, attachmentPlan);
 assert(withFidelity.includes('Create ad image.'), 'keeps original prompt');
-assert(withFidelity.includes('CRITICAL PRODUCT FIDELITY'), 'appends fidelity block');
+assert(withFidelity.includes('ATTACHED REFERENCE IMAGES'), 'appends role order block');
 
 const withoutRefs = appendFidelityToImagePrompt('Create ad image.', false);
 assert.equal(withoutRefs, 'Create ad image.', 'no block without refs');
@@ -36,9 +39,13 @@ assert(!genPrompt.includes('CRITICAL PRODUCT FIDELITY'), 'no long fidelity block
 
 const dualPrompt = buildImageGenerationPrompt({
   finalPrompt: 'Merge product photo into layout template.',
-}, { hasProductReference: true, hasTemplateReference: true });
+}, {
+  hasProductReference: true,
+  hasTemplateReference: true,
+  attachmentPlan,
+});
 assert(dualPrompt.includes('Merge product photo'), 'keeps preflight text');
-assert(dualPrompt.includes('Image 1 = exact products'), 'dual attachment order hint');
+assert(dualPrompt.includes('Image 1 (primary product)'), 'dynamic attachment order hint');
 assert(!dualPrompt.includes('TWO ATTACHED REFERENCE IMAGES'), 'no duplicate dual block');
 
 const apiPayload = buildImageApiPayload({
@@ -54,12 +61,13 @@ const apiPayload = buildImageApiPayload({
   frames: ['data:image/jpeg;base64,abc', 'data:image/jpeg;base64,def'],
   hasProductReference: true,
   hasTemplateReference: true,
+  attachmentPlan,
 });
 assert(apiPayload.reference_images?.length === 2, 'reference_images primary payload');
-assert(apiPayload.referenced_image_paths?.length === 2, 'paths as secondary attempt');
-assert(apiPayload.frames?.length === 2, 'frames as tertiary attempt');
+assert.equal(apiPayload.referenced_image_paths, undefined, 'no duplicate path payload when encoded refs exist');
+assert(apiPayload.frames?.length === 2, 'frames preserved');
 assert(apiPayload.requireReferences === true, 'requireReferences when refs present');
-assert(apiPayload.prompt.includes('Image 1 = exact products'), 'short hint in payload');
+assert(apiPayload.prompt.includes('Image 1 (primary product)'), 'role hint in payload');
 assert(apiPayload.model === 'codex-local:image', 'image model');
 
 const messages = buildPreflightMessages('Task prompt', [
@@ -72,17 +80,34 @@ const fp1 = computePreflightFingerprint(
   { templateId: 'a', brandName: 'X' },
   'C:\\tpl.png',
   ['C:\\prod.png'],
+  { referenceRoles: [{ path: 'C:\\prod.png', role: 'detail' }] },
 );
 const fp2 = computePreflightFingerprint(
   { templateId: 'a', brandName: 'X' },
   'C:\\tpl.png',
   ['C:\\prod.png'],
+  { referenceRoles: [{ path: 'C:\\prod.png', role: 'detail' }] },
 );
 assert.equal(fp1, fp2, 'fingerprint stable');
 assert.notEqual(
-  computePreflightFingerprint({ templateId: 'b', brandName: 'X' }, 'C:\\tpl.png', ['C:\\prod.png']),
+  computePreflightFingerprint(
+    { templateId: 'b', brandName: 'X' },
+    'C:\\tpl.png',
+    ['C:\\prod.png'],
+    { referenceRoles: [{ path: 'C:\\prod.png', role: 'detail' }] },
+  ),
   fp1,
   'fingerprint changes with settings',
+);
+assert.notEqual(
+  computePreflightFingerprint(
+    { templateId: 'a', brandName: 'X' },
+    'C:\\tpl.png',
+    ['C:\\prod.png'],
+    { referenceRoles: [{ path: 'C:\\prod.png', role: 'stage' }] },
+  ),
+  fp1,
+  'fingerprint changes with role',
 );
 
 console.log('All prompt-fidelity tests passed.');

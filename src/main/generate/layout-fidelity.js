@@ -1,5 +1,11 @@
 'use strict';
 
+const {
+  buildLayoutEditableRules,
+  buildLayoutFrozenRules,
+  layoutImageIndex,
+} = require('./reference-roles');
+
 const LAYOUT_FROZEN_RULES = [
   'LAYOUT FROZEN ZONES (copy pixel-identically from IMAGE 2 / attached template):',
   '- Top-left logo, top-right brand title, contact bar, footer category icons and labels.',
@@ -26,13 +32,16 @@ function buildProductStageHint(template) {
 
 function buildTemplateLayoutHint(template, options = {}) {
   if (!template) return '';
+  const plan = Array.isArray(options.attachmentPlan) ? options.attachmentPlan : [];
+  const layoutIdx = layoutImageIndex(plan);
   const lines = [
     `Selected layout template: "${template.name}" (${template.importedFrom || template.file || 'user template'}).`,
   ];
   if (options.layoutImageAttached) {
+    const layoutRef = layoutIdx > 0 ? `IMAGE ${layoutIdx}` : 'the attached layout image';
     lines.push(
-      'IMAGE 2 is authoritative for all frozen layout zones.',
-      'Copy header, footer, contact bar, icon row, neon accents, and brand text colors exactly from IMAGE 2.',
+      `${layoutRef} is authoritative for all frozen layout zones.`,
+      `Copy header, footer, contact bar, icon row, neon accents, and brand text colors exactly from ${layoutRef}.`,
     );
   } else {
     lines.push(`Accent hint: ${template.accentHex || template.accent}.`);
@@ -66,10 +75,13 @@ function sanitizePreflightPrompt(prompt, options = {}) {
   return text;
 }
 
-function appendLayoutLockBlock(prompt, template, imageSettings = {}) {
+function appendLayoutLockBlock(prompt, template, imageSettings = {}, attachmentPlan = null) {
+  const plan = Array.isArray(attachmentPlan) ? attachmentPlan : [];
+  const frozenRules = plan.length ? buildLayoutFrozenRules(plan) : LAYOUT_FROZEN_RULES;
+  const editableRules = plan.length ? buildLayoutEditableRules(plan) : LAYOUT_EDITABLE_RULES;
   const parts = [String(prompt || '').trim()];
-  parts.push(LAYOUT_FROZEN_RULES);
-  parts.push(LAYOUT_EDITABLE_RULES);
+  parts.push(frozenRules);
+  parts.push(editableRules);
   if (template) {
     parts.push(buildProductStageHint(template));
   }
@@ -241,6 +253,8 @@ module.exports = {
   appendPreviewEditLockBlock,
   buildEffectEditRules,
   buildEffectResizeOnlyPrompt,
+  buildLayoutEditableRules,
+  buildLayoutFrozenRules,
   buildProductStageHint,
   buildPreviewEditFrozenRules,
   buildResizeOnlyPrompt,

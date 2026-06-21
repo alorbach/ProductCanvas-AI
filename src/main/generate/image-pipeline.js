@@ -8,10 +8,15 @@ const {
   buildImageAttachments,
   buildImageApiPayload,
   collectReferencePaths,
+  collectReferenceRefs,
 } = require('./image-request');
+const {
+  resolvePrimaryDetailRef,
+} = require('./reference-roles');
 const {
   runImagePreflight,
   computePreflightFingerprint,
+  emitReferencePrepProgress,
 } = require('./image-preflight');
 const { resolveImageGenerationSettings } = require('./image-settings');
 const { buildStageMaskPath } = require('./stage-mask');
@@ -25,14 +30,17 @@ class ImagePipeline {
     this.productEffectPipeline = new ProductEffectPipeline(codexClient);
   }
 
-  async resolveProductReferences(settings, productPaths, onProgress, signalKey) {
-    const originalProductPath = productPaths[0] || '';
+  async resolveProductReferences(settings, onProgress, signalKey) {
+    const primary = resolvePrimaryDetailRef(settings.referenceImages);
+    const originalProductPath = primary?.path || '';
+    const productPaths = collectReferencePaths(settings.referenceImages);
     if (!originalProductPath || !settings.effectId || !this.effectRegistry) {
       return {
         referenceImages: settings.referenceImages,
         productPaths,
         effectApplied: false,
         compositedProductPath: '',
+        effectCompositeCached: false,
       };
     }
 
@@ -43,6 +51,7 @@ class ImagePipeline {
         productPaths,
         effectApplied: false,
         compositedProductPath: '',
+        effectCompositeCached: false,
       };
     }
 
@@ -60,19 +69,26 @@ class ImagePipeline {
         productPaths,
         effectApplied: false,
         compositedProductPath: '',
+        effectCompositeCached: false,
       };
     }
 
-    const updatedRefs = (settings.referenceImages || []).map((ref, index) => {
-      if (index !== 0) return ref;
+    const updatedRefs = (settings.referenceImages || []).map((ref) => {
+      const normalizedPath = typeof ref === 'string' ? ref : ref?.path;
+      if (path.resolve(normalizedPath || '') !== path.resolve(originalProductPath)) return ref;
       return { ...ref, path: composite.path, name: ref.name || path.basename(composite.path) };
     });
 
+    const updatedProductPaths = productPaths.map((p) => (
+      path.resolve(p) === path.resolve(originalProductPath) ? composite.path : p
+    ));
+
     return {
       referenceImages: updatedRefs,
-      productPaths: [composite.path, ...productPaths.slice(1)],
+      productPaths: updatedProductPaths,
       effectApplied: true,
       compositedProductPath: composite.path,
+      effectCompositeCached: composite.cached === true,
     };
   }
 
@@ -83,6 +99,7 @@ class ImagePipeline {
     templatePath,
     attachments,
     productPaths,
+    referenceImages,
     effectApplied,
     compositedProductPath,
     onProgress,
@@ -99,15 +116,20 @@ class ImagePipeline {
     const fingerprint = computePreflightFingerprint(settings, templatePath, productPaths, {
       effectApplied,
       compositedProductPath,
+      referenceRoles: collectReferenceRefs(referenceImages || settings.referenceImages).map((r) => ({
+        path: r.path,
+        role: r.role,
+      })),
     });
 
     const preflight = await runImagePreflight(this.client, {
       settings,
       promptData,
       template,
-      productPath: attachments.productPaths[0] || '',
+      productPath: attachments.primaryDetailPath || attachments.productPaths[0] || '',
       layoutPath: attachments.hasTemplateReference ? templatePath : '',
       referenceImages: attachments.referenceImages,
+      attachmentPlan: attachments.attachmentPlan,
       effectApplied,
       signalKey,
       onProgress,
@@ -139,7 +161,6 @@ class ImagePipeline {
 
     const productPrep = await this.resolveProductReferences(
       imageSettings,
-      initialProductPaths,
       onProgress,
       signalKey,
     );
@@ -150,6 +171,12 @@ class ImagePipeline {
       { attachTemplate: Boolean(templatePath) },
     );
 
+    emitReferencePrepProgress(onProgress, attachments.referenceImages, {
+      effectApplied: productPrep.effectApplied,
+      effectCompositeCached: productPrep.effectCompositeCached === true,
+      skippedRefs: attachments.skippedRefs,
+    });
+
     const { finalPrompt, preflightFingerprint } = await this.resolveFinalPrompt({
       promptData: enrichedPromptData,
       settings: imageSettings,
@@ -157,6 +184,7 @@ class ImagePipeline {
       templatePath,
       attachments,
       productPaths: productPrep.productPaths,
+      referenceImages: productPrep.referenceImages,
       effectApplied: productPrep.effectApplied,
       compositedProductPath: productPrep.compositedProductPath,
       onProgress,
@@ -201,6 +229,7 @@ class ImagePipeline {
       frames: attachments.frames,
       hasProductReference: attachments.hasProductReference,
       hasTemplateReference: attachments.hasTemplateReference,
+      attachmentPlan: attachments.attachmentPlan,
       maskPath: stageMaskPath,
     });
 

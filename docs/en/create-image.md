@@ -49,8 +49,10 @@ Supported formats: **PNG, JPG, WebP**.
 
 **Tips:**
 
-- Add **multiple angles** when one photo does not show all details.
-- **Drag to reorder** – the first image is treated as the **main reference**.
+- **Mode per image** (dropdown under each thumbnail): **A · Product detail** (default), **B · Stage element** (visible in the product stage), **C · Style only** (mood/lighting without copying subjects literally).
+- Add **multiple angles** with mode A when one photo does not show all details.
+- **Drag to reorder** – the first **detail** image is the **primary reference** (effect background, AI ad-line suggestions).
+- The **layout template** is separate from the reference list (not “Image 2” in the UI); up to **four** total attachments including the template.
 - Remove thumbnails with the × button or context menu.
 
 ### 3. Project settings

@@ -136,6 +136,11 @@ function formatError(err) {
   if (raw.toLowerCase().includes('body is too large')) {
     return t('error.bodyTooLarge');
   }
+  if (raw.includes('input_too_large')
+    || /exceeds the maximum length/i.test(raw)
+    || /max_chars/i.test(raw)) {
+    return t('error.inputTooLarge');
+  }
   if (raw.includes('BRIDGE_HEADERS_TIMEOUT') || raw.toLowerCase().includes('headers timeout')
     || raw.includes('zu lange nicht geantwortet')) {
     return t('error.bridgeTimeout');
@@ -158,6 +163,11 @@ function formatError(err) {
       return t('error.needsPairing');
     }
     if (inner.toLowerCase().includes('body is too large')) return t('error.bodyTooLarge');
+    if (inner.includes('input_too_large')
+      || /exceeds the maximum length/i.test(inner)
+      || /max_chars/i.test(inner)) {
+      return t('error.inputTooLarge');
+    }
     return inner;
   }
   return raw || t('error.generic');
@@ -1954,7 +1964,10 @@ function promptInputsFromSettings(settings) {
     seriesName: settings.seriesName || '',
     tagline: settings.tagline || '',
     extraPrompt: settings.extraPrompt || '',
-    referenceImages: (settings.referenceImages || []).map((r) => r.path).filter(Boolean),
+    referenceImages: (settings.referenceImages || []).map((r) => ({
+      path: r.path,
+      role: r.role || 'detail',
+    })).filter((r) => r.path),
   };
 }
 
@@ -2091,6 +2104,7 @@ async function selectTemplate(id, { openEditor = false } = {}) {
   }
   await refreshImageSettingsUi();
   writeSettingsToUi();
+  renderRefs();
   if (openEditor) {
     await selectEditorTemplate(id, { syncSession: false });
     showView('templates');
@@ -2643,13 +2657,37 @@ function renderTemplateList(containerId, selectedId, onSelect) {
   }
 }
 
+function normalizeRefRole(role) {
+  const value = String(role || '').trim().toLowerCase();
+  if (value === 'stage' || value === 'style') return value;
+  return 'detail';
+}
+
+function maxReferenceSlotsForSession() {
+  return session.templateId ? 3 : 4;
+}
+
+function firstDetailRefIndex(refs) {
+  return (refs || []).findIndex((ref) => normalizeRefRole(ref.role) === 'detail');
+}
+
 function renderRefs() {
   const el = $('refs-list');
+  const panel = $('refs-panel');
   const refs = session.referenceImages || [];
   el.innerHTML = '';
+  panel?.querySelector('.refs-role-truncated')?.remove();
   if (!refs.length) {
     el.innerHTML = `<p class="muted refs-empty-inline">${t('refs.empty')}</p>`;
     return;
+  }
+  const primaryDetailIdx = firstDetailRefIndex(refs);
+  const maxSlots = maxReferenceSlotsForSession();
+  if (refs.length > maxSlots) {
+    const warn = document.createElement('p');
+    warn.className = 'refs-role-truncated muted';
+    warn.textContent = t('refs.role.truncated').replace('{count}', String(maxSlots));
+    panel?.insertBefore(warn, el);
   }
   refs.forEach((ref, idx) => {
     const div = document.createElement('div');
@@ -2659,6 +2697,31 @@ function renderRefs() {
     const img = document.createElement('img');
     img.draggable = false;
     api.filesReadDataUrl(ref.path).then((url) => { if (url) img.src = url; });
+    const meta = document.createElement('div');
+    meta.className = 'ref-thumb-meta';
+    const roleSelect = document.createElement('select');
+    roleSelect.className = 'ref-role-select';
+    roleSelect.title = t('refs.usageHint');
+    for (const role of ['detail', 'stage', 'style']) {
+      const opt = document.createElement('option');
+      opt.value = role;
+      opt.textContent = t(`refs.role.${role}`);
+      roleSelect.appendChild(opt);
+    }
+    roleSelect.value = normalizeRefRole(ref.role);
+    roleSelect.addEventListener('change', async () => {
+      const next = [...(session.referenceImages || [])];
+      next[idx] = { ...next[idx], role: normalizeRefRole(roleSelect.value) };
+      await updateSession({ referenceImages: next });
+      renderRefs();
+    });
+    meta.appendChild(roleSelect);
+    if (idx === primaryDetailIdx) {
+      const hint = document.createElement('span');
+      hint.className = 'ref-primary-hint muted';
+      hint.textContent = t('refs.role.primaryHint');
+      meta.appendChild(hint);
+    }
     const btn = document.createElement('button');
     btn.textContent = '×';
     btn.addEventListener('click', async (e) => {
@@ -2680,6 +2743,7 @@ function renderRefs() {
       if (action === 'remove') await removeReferenceAt(idx);
     });
     div.appendChild(img);
+    div.appendChild(meta);
     div.appendChild(btn);
     el.appendChild(div);
   });
@@ -2707,6 +2771,82 @@ function waitContextExcerpt(text, max = 200) {
   return s.length <= max ? s : `${s.slice(0, max)}…`;
 }
 
+function basenameFromPath(filePath) {
+  const value = String(filePath || '').trim();
+  if (!value) return '';
+  const parts = value.split(/[/\\]/);
+  return parts[parts.length - 1] || '';
+}
+
+function seedReferencePrepFromSettings(settings) {
+  const prep = [];
+  for (const ref of settings.referenceImages || []) {
+    const fileName = String(ref.name || '').trim() || basenameFromPath(ref.path);
+    if (!fileName) continue;
+    const role = normalizeRefRole(ref.role);
+    const label = role === 'detail' ? 'product' : (role === 'stage' ? 'stage_element' : 'style');
+    prep.push({
+      label,
+      role,
+      fileName,
+      scaled: false,
+      pending: true,
+    });
+  }
+  return prep;
+}
+
+function referencePrepLabel(label) {
+  const key = `wait.context.refLabel.${label}`;
+  const text = t(key);
+  return text === key ? String(label || '') : text;
+}
+
+function formatReferencePrepLine(ref) {
+  const label = referencePrepLabel(ref.skipped ? 'skipped' : ref.label);
+  const name = String(ref.fileName || '').trim();
+  if (ref.skipped) {
+    const role = referencePrepLabel(ref.role === 'stage' ? 'stage_element' : (ref.role === 'style' ? 'style' : 'product_detail'));
+    return t('wait.context.refSkipped').replace('{name}', name).replace('{role}', role);
+  }
+  if (ref.pending) {
+    return name ? `${label}: ${name}` : label;
+  }
+  const sizePart = ref.originalSize && ref.preparedSize && ref.originalSize !== ref.preparedSize
+    ? t('wait.context.refSizeChange')
+      .replace('{from}', ref.originalSize)
+      .replace('{to}', ref.preparedSize)
+    : (ref.preparedSize || ref.originalSize || '');
+  const fromBytes = formatFileSize(ref.originalBytes);
+  const toBytes = formatFileSize(ref.preparedBytes);
+  const bytePart = ref.scaled && fromBytes && toBytes && fromBytes !== toBytes
+    ? t('wait.context.refSizeChange').replace('{from}', fromBytes).replace('{to}', toBytes)
+    : (toBytes || fromBytes || '');
+  const details = [sizePart, bytePart].filter(Boolean).join(', ');
+  const status = ref.scaled ? t('wait.context.refScaled') : t('wait.context.refOriginal');
+  const core = name ? `${label}: ${name}` : label;
+  return details ? `${core} — ${details}, ${status}` : `${core}, ${status}`;
+}
+
+function renderReferencePrepList(ctx) {
+  const refs = ctx.referencePrep;
+  if (!Array.isArray(refs) || !refs.length) return '';
+  const items = refs.map((ref) => `<li>${escapeHtml(formatReferencePrepLine(ref))}</li>`).join('');
+  let html = `<ul class="wait-context-refs">${items}</ul>`;
+  if (ctx.effectApplied) {
+    const note = ctx.effectCompositeCached
+      ? `${t('wait.context.effectComposite')} ${t('wait.context.effectCompositeCached')}`
+      : t('wait.context.effectComposite');
+    html += `<p class="wait-context-effect-note">${escapeHtml(note)}</p>`;
+  }
+  return html;
+}
+
+function waitKindsWithReferencePrep(kind) {
+  return kind === 'image' || kind === 'prompt' || kind === 'previewEdit'
+    || kind === 'templateEdit' || kind === 'effectEdit';
+}
+
 function resolvePromptExcerpt(settings, pdata) {
   const fromData = pdata?.preflightPrompt || pdata?.finalPrompt || pdata?.imagePrompt;
   if (fromData) return waitContextExcerpt(fromData);
@@ -2719,6 +2859,7 @@ function resolvePromptExcerpt(settings, pdata) {
 function waitContextForGeneration(settings, kind, pdata) {
   const tmpl = templates.find((item) => item.id === (settings.templateId || session.templateId));
   const effect = effects.find((item) => item.id === (settings.effectId || session.effectId));
+  const referencePrep = seedReferencePrepFromSettings(settings);
   return {
     kind,
     template: tmpl?.name || tmpl?.id || '',
@@ -2729,6 +2870,7 @@ function waitContextForGeneration(settings, kind, pdata) {
     size: settings.size || '',
     quality: settings.quality || '',
     refs: (settings.referenceImages || []).length,
+    referencePrep: referencePrep.length ? referencePrep : undefined,
     prompt: resolvePromptExcerpt(settings, pdata),
   };
 }
@@ -2799,7 +2941,7 @@ function renderWaitContext(ctx) {
     const sizeTmpl = getSelectedTemplate();
     if (ctx.size) add('wait.context.size', formatGatewaySizeLabel(ctx.size, sizeTmpl));
     if (ctx.quality) add('wait.context.quality', qualityLabel(ctx.quality));
-    if (ctx.refs != null) add('wait.context.refs', ctx.refs);
+    if (ctx.refs != null && !ctx.referencePrep?.length) add('wait.context.refs', ctx.refs);
   } else if (ctx.kind === 'templateEdit') {
     add('wait.context.template', ctx.template);
     const sizeTmpl = getEditorTemplate();
@@ -2825,6 +2967,9 @@ function renderWaitContext(ctx) {
   }
 
   let html = `<dl class="wait-context-grid">${rows.join('')}</dl>`;
+  if (waitKindsWithReferencePrep(ctx.kind) && ctx.referencePrep?.length) {
+    html += renderReferencePrepList(ctx);
+  }
   if (ctx.prompt && (ctx.kind === 'image' || ctx.kind === 'prompt')) {
     html += `<p class="wait-context-prompt"><strong>${escapeHtml(t('wait.context.prompt'))}:</strong> ${escapeHtml(ctx.prompt)}</p>`;
   }
@@ -2858,6 +3003,23 @@ function updateWait(progress) {
   }
   if (progress.session_output) {
     $('wait-output').textContent = progress.session_output.slice(-2000);
+  }
+  if (progress.referencePrep?.length
+    || progress.effectApplied != null
+    || progress.effectCompositeCached != null) {
+    currentWaitContext = {
+      ...(currentWaitContext || {}),
+      referencePrep: progress.referencePrep?.length
+        ? progress.referencePrep
+        : currentWaitContext?.referencePrep,
+      effectApplied: progress.effectApplied != null
+        ? progress.effectApplied
+        : currentWaitContext?.effectApplied,
+      effectCompositeCached: progress.effectCompositeCached != null
+        ? progress.effectCompositeCached
+        : currentWaitContext?.effectCompositeCached,
+    };
+    renderWaitContext(currentWaitContext);
   }
 }
 

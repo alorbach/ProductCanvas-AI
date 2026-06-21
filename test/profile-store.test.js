@@ -32,6 +32,13 @@ try {
   const profileDir = path.join(path.dirname(profilePath), 'test');
   const copied = fs.readdirSync(profileDir).filter((name) => name.endsWith('.png')).sort();
   assert.deepStrictEqual(copied, ['photo-1.png', 'photo.png'], 'duplicate basenames get unique profile copies');
+
+  const loaded = store.loadSession();
+  fs.writeFileSync(paths.sessionPath(), JSON.stringify({
+    referenceImages: [{ path: sharedSource, name: 'photo.png' }],
+  }, null, 2));
+  const migratedSession = store.loadSession();
+  assert.equal(migratedSession.referenceImages[0].role, 'detail', 'missing role migrates to detail');
 } finally {
   paths.userDataRoot = origUserData;
   fs.rmSync(tmpDir, { recursive: true, force: true });

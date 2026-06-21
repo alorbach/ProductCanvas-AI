@@ -98,7 +98,7 @@ Profile speichern ein vollständiges Projekt zur Wiederverwendung oder Weitergab
     "brandName": "...",
     "seriesName": "...",
     "tagline": "...",
-    "referenceImages": [{ "path": "...", "name": "..." }],
+    "referenceImages": [{ "path": "...", "name": "...", "role": "detail" }],
     "imagePrompt": "...",
     "...": "..."
   }
