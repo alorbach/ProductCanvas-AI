@@ -9,6 +9,8 @@ const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
 
 assert(pkg.dependencies?.undici, 'undici must be a production dependency for packaged builds');
 assert(pkg.dependencies?.sharp, 'sharp must be a production dependency for packaged builds');
+assert(pkg.dependencies?.archiver, 'archiver must be a production dependency for packaged builds');
+assert(pkg.dependencies?.['extract-zip'], 'extract-zip must be a production dependency for packaged builds');
 
 const undici = require('undici');
 assert(typeof undici.Agent === 'function', 'undici.Agent must be available');

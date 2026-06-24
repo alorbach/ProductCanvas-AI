@@ -37,6 +37,8 @@ const {
 } = require('./safe-paths');
 const { migrateIfNeeded } = require('./migration/user-data-migrate');
 const mainI18n = require('./i18n/main-i18n');
+const { exportToFile, importFromFile, defaultExportFileName } = require('./data-bundle/data-bundle-service');
+const { composeEml, createSupportDraftDir, writeEmlFile } = require('./support/eml-compose');
 
 const MAIN_WINDOW_WIDTH = 1600;
 const MAIN_WINDOW_HEIGHT = 900;
@@ -348,6 +350,43 @@ function buildMenu() {
           label: mt('menu.saveAs'),
           accelerator: 'CmdOrCtrl+Shift+S',
           click: () => send('action:save-as', {}),
+        },
+        { type: 'separator' },
+        {
+          label: mt('menu.dataBundle.export'),
+          click: async () => {
+            try {
+              const r = await dialog.showSaveDialog(mainWindow, {
+                defaultPath: defaultExportFileName(session),
+                filters: [{ name: mt('menu.dataBundle.zipFilter'), extensions: ['zip'] }],
+              });
+              if (r.canceled || !r.filePath) return;
+              if (!session) throw new Error(mt('menu.dataBundle.noSession'));
+              await exportToFile(r.filePath, session, templateRegistry, effectRegistry);
+              shell.showItemInFolder(r.filePath);
+            } catch (err) {
+              dialog.showErrorBox(mt('menu.error.title'), err.message);
+            }
+          },
+        },
+        {
+          label: mt('menu.dataBundle.import'),
+          click: async () => {
+            const r = await dialog.showOpenDialog(mainWindow, {
+              filters: [{ name: mt('menu.dataBundle.zipFilter'), extensions: ['zip'] }],
+              properties: ['openFile'],
+            });
+            if (r.canceled || !r.filePaths[0]) return;
+            try {
+              const result = await importFromFile(r.filePaths[0], templateRegistry, effectRegistry);
+              session = { ...result.session, dirty: false, profilePath: '' };
+              profileStore.saveSession(session);
+              send('dataBundle:imported', result);
+              send('session:loaded', session);
+            } catch (err) {
+              dialog.showErrorBox(mt('menu.error.title'), err.message);
+            }
+          },
         },
         { type: 'separator' },
         {
@@ -920,6 +959,90 @@ function registerIpc() {
   ipcMain.handle('debug:clear', () => {
     debugLog.clear();
     return { success: true };
+  });
+
+  ipcMain.handle('dataBundle:exportDialog', async () => {
+    if (!session) throw new Error(mt('menu.dataBundle.noSession'));
+    const r = await dialog.showSaveDialog(mainWindow, {
+      defaultPath: defaultExportFileName(session),
+      filters: [{ name: mt('menu.dataBundle.zipFilter'), extensions: ['zip'] }],
+    });
+    if (r.canceled || !r.filePath) return null;
+    return exportToFile(r.filePath, session, templateRegistry, effectRegistry);
+  });
+
+  ipcMain.handle('dataBundle:importDialog', async () => {
+    const r = await dialog.showOpenDialog(mainWindow, {
+      filters: [{ name: mt('menu.dataBundle.zipFilter'), extensions: ['zip'] }],
+      properties: ['openFile'],
+    });
+    if (r.canceled || !r.filePaths[0]) return null;
+    const result = await importFromFile(r.filePaths[0], templateRegistry, effectRegistry);
+    session = { ...result.session, dirty: false, profilePath: '' };
+    profileStore.saveSession(session);
+    send('dataBundle:imported', result);
+    send('session:loaded', session);
+    return result;
+  });
+
+  ipcMain.handle('debug:saveDialog', async () => {
+    const logPath = debugLog.getLogPath();
+    const date = new Date().toISOString().slice(0, 10);
+    const r = await dialog.showSaveDialog(mainWindow, {
+      defaultPath: `ProductCanvas-Debug-${date}.log`,
+      filters: [{ name: mt('menu.debugLog.filter'), extensions: ['log', 'txt'] }],
+    });
+    if (r.canceled || !r.filePath) return null;
+    if (fs.existsSync(logPath)) {
+      fs.copyFileSync(logPath, r.filePath);
+    } else {
+      fs.writeFileSync(r.filePath, '', 'utf8');
+    }
+    return r.filePath;
+  });
+
+  ipcMain.handle('support:composeEmail', async () => {
+    const draftDir = createSupportDraftDir();
+    const buildInfo = getBuildInfo();
+    const zipPath = path.join(draftDir, 'ProductCanvas-Session.zip');
+    const exportResult = await exportToFile(zipPath, session, templateRegistry, effectRegistry);
+
+    const logPath = debugLog.getLogPath();
+    const debugCopyPath = path.join(draftDir, 'debug.log');
+    if (fs.existsSync(logPath)) {
+      fs.copyFileSync(logPath, debugCopyPath);
+    } else {
+      fs.writeFileSync(debugCopyPath, '', 'utf8');
+    }
+
+    const body = [
+      'ProductCanvas AI support request',
+      '',
+      `Version: ${buildInfo.version} (Build ${buildInfo.build_number})`,
+      `Exported templates: ${exportResult.templateCount}`,
+      `Exported effects: ${exportResult.effectCount}`,
+      `Exported references: ${exportResult.referenceCount}`,
+      '',
+      'Attached: debug log and current session export (template, effect, references).',
+      'Please describe the issue above this line.',
+      '',
+    ].join('\r\n');
+
+    const emlContent = composeEml({
+      subject: `ProductCanvas AI Support (${buildInfo.version})`,
+      body,
+      attachments: [
+        { path: debugCopyPath, name: 'debug.log' },
+        { path: zipPath, name: 'ProductCanvas-Session.zip' },
+      ],
+    });
+    const emlPath = writeEmlFile(draftDir, emlContent);
+    const openResult = await shell.openPath(emlPath);
+    if (openResult) {
+      shell.showItemInFolder(emlPath);
+      return { success: false, fallback: true, draftDir, emlPath };
+    }
+    return { success: true, draftDir, emlPath };
   });
 }
 

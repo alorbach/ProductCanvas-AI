@@ -71,4 +71,6 @@ function setBroadcast(fn) {
   global.__productCanvasOnDebugEntry = fn;
 }
 
-module.exports = { log, info, warn, error, debug, getLog, clear, setBroadcast };
+module.exports = {
+  log, info, warn, error, debug, getLog, clear, setBroadcast, getLogPath,
+};

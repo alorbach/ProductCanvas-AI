@@ -42,5 +42,10 @@
   "about.detail": "Version {version} (Build {build})\nAI image studio from templates\n\n© Andre Lorbach\nhttps://github.com/alorbach\n\nGPL-2.0-or-later",
   "export.defaultName": "Image-{timestamp}.png",
   "export.png": "PNG",
+  "menu.dataBundle.export": "Session Export",
+  "menu.dataBundle.import": "Session Import",
+  "menu.dataBundle.zipFilter": "ZIP archive",
+  "menu.dataBundle.noSession": "No active session to export.",
+  "menu.debugLog.filter": "Log file",
   "settings.codexCliPath.pickTitle": "Select Codex CLI executable"
 }

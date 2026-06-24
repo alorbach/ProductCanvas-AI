@@ -1115,6 +1115,28 @@ function setupDebugPanel() {
     await navigator.clipboard.writeText(text);
     showStatus(t('debug.copied'), { level: 'info' });
   });
+  $('btn-debug-save').addEventListener('click', async () => {
+    try {
+      const savedPath = await api.debugSaveDialog();
+      if (savedPath) {
+        showStatus(t('debug.saved'), { level: 'info' });
+      }
+    } catch (err) {
+      showStatus(err.message || String(err), { level: 'error' });
+    }
+  });
+  $('btn-debug-email').addEventListener('click', async () => {
+    try {
+      const result = await api.supportComposeEmail();
+      if (result?.fallback) {
+        showStatus(t('debug.emailFallback'), { level: 'warn' });
+      } else {
+        showStatus(t('debug.emailOpened'), { level: 'info' });
+      }
+    } catch (err) {
+      showStatus(err.message || String(err), { level: 'error' });
+    }
+  });
   $('btn-debug-clear').addEventListener('click', async () => {
     await api.debugClear();
     debugLines = [];
@@ -1122,6 +1144,15 @@ function setupDebugPanel() {
   });
   api.on('debug:entry', (entry) => appendDebugLine(entry));
   api.on('debug:show', () => openDebugPanel());
+  api.on('dataBundle:imported', async (result) => {
+    showStatus(t('dataBundle.importDone', {
+      name: result?.name || t('dataBundle.defaultName'),
+      templates: result?.importedTemplates || 0,
+      skippedTemplates: result?.skippedTemplates || 0,
+      effects: result?.importedEffects || 0,
+      skippedEffects: result?.skippedEffects || 0,
+    }), { level: 'info' });
+  });
 }
 
 function showView(name) {
@@ -1238,6 +1269,8 @@ function applyLabels() {
   });
   $('debug-toggle').textContent = t('debug.title');
   $('btn-debug-copy').textContent = t('debug.copy');
+  $('btn-debug-save').textContent = t('debug.save');
+  $('btn-debug-email').textContent = t('debug.sendEmail');
   $('btn-debug-clear').textContent = t('debug.clear');
   if ($('bridge-dialog-title')) $('bridge-dialog-title').textContent = t('bridge.dialog.title');
   if ($('bridge-dialog-lbl-code')) $('bridge-dialog-lbl-code').textContent = t('bridge.setup.pairingCode');

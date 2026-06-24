@@ -8,7 +8,7 @@
     "postinstall": "node scripts/generate-placeholders.js",
     "icons": "node scripts/generate-icons.js",
     "start": "electron .",
-    "test": "node test/basic.test.js && node test/packaging-deps.test.js && node test/locale.test.js && node test/safe-paths.test.js && node test/i18n-interpolation.test.js && node test/profile-store.test.js && node test/brand-free.test.js && node test/dropped-files.test.js && node test/renderer-imports.test.js && node test/preload-smoke.test.js && node test/bridge-pairing.test.js && node test/codex-provider.test.js && node test/codex-cli-client.test.js && node test/codex-rate-limits.test.js && node test/codex-cli-resolve.test.js && node test/codex-manager.test.js && node test/stage-mask.test.js && node test/image-settings.test.js && node test/prompt-fidelity.test.js && node test/reference-roles.test.js && node test/image-preflight.test.js && node test/layout-fidelity.test.js && node test/template-edit-pipeline.test.js && node test/effect-edit-pipeline.test.js && node test/preview-edit-pipeline.test.js && node test/preview-import.test.js && node test/template-import.test.js && node test/effect-registry.test.js && node test/effect-generate-pipeline.test.js && node test/product-effect-pipeline.test.js && node test/effect-reference-scale.test.js && node test/product-reference-scale.test.js && node test/reference-prep-report.test.js",
+    "test": "node test/basic.test.js && node test/packaging-deps.test.js && node test/locale.test.js && node test/safe-paths.test.js && node test/i18n-interpolation.test.js && node test/profile-store.test.js && node test/brand-free.test.js && node test/dropped-files.test.js && node test/renderer-imports.test.js && node test/preload-smoke.test.js && node test/bridge-pairing.test.js && node test/codex-provider.test.js && node test/codex-cli-client.test.js && node test/codex-rate-limits.test.js && node test/codex-cli-resolve.test.js && node test/codex-manager.test.js && node test/stage-mask.test.js && node test/image-settings.test.js && node test/prompt-fidelity.test.js && node test/reference-roles.test.js && node test/image-preflight.test.js && node test/layout-fidelity.test.js && node test/template-edit-pipeline.test.js && node test/effect-edit-pipeline.test.js && node test/preview-edit-pipeline.test.js && node test/preview-import.test.js && node test/template-import.test.js && node test/effect-registry.test.js && node test/effect-generate-pipeline.test.js && node test/product-effect-pipeline.test.js && node test/effect-reference-scale.test.js && node test/product-reference-scale.test.js && node test/reference-prep-report.test.js && node test/data-bundle.test.js",
     "dist:win": "npm run icons && node scripts/build-win.js"
   },
   "author": "Andre Lorbach",
@@ -22,6 +22,8 @@
     "url": "https://github.com/alorbach/productcanvas-ai/issues"
   },
   "dependencies": {
+    "archiver": "^7.0.1",
+    "extract-zip": "^2.0.1",
     "sharp": "^0.33.5",
     "undici": "^6.21.0"
   },
