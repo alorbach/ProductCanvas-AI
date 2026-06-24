@@ -3,6 +3,8 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { execFile } = require('child_process');
+const { promisify } = require('util');
 const archiver = require('archiver');
 const extract = require('extract-zip');
 const paths = require('../paths');
@@ -10,8 +12,31 @@ const { DEFAULTS } = require('../profiles/profile-store');
 const { migrateReferenceImages } = require('../generate/reference-roles');
 const { isImagePath } = require('../generate/image-prep');
 
+const execFileAsync = promisify(execFile);
+const EXTRACT_TIMEOUT_MS = 60_000;
+
 const BUNDLE_FORMAT = 'productcanvas-session-bundle';
 const BUNDLE_VERSION = 1;
+
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    }),
+  ]);
+}
+
+async function extractZipToDir(zipPath, destDir) {
+  if (process.platform === 'win32') {
+    await execFileAsync('tar', ['-xf', zipPath, '-C', destDir], {
+      windowsHide: true,
+      timeout: EXTRACT_TIMEOUT_MS,
+    });
+    return;
+  }
+  await withTimeout(extract(zipPath, { dir: destDir }), EXTRACT_TIMEOUT_MS, 'ZIP extract');
+}
 
 function readJson(filePath, fallback) {
   try {
@@ -19,6 +44,16 @@ function readJson(filePath, fallback) {
   } catch {
     return fallback;
   }
+}
+
+function importSummary(result) {
+  return {
+    importedTemplates: result.importedTemplates,
+    skippedTemplates: result.skippedTemplates,
+    importedEffects: result.importedEffects,
+    skippedEffects: result.skippedEffects,
+    name: result.name || result.session?.profileName || 'Session',
+  };
 }
 
 function getAppVersion() {
@@ -50,24 +85,24 @@ function sessionSettings(session) {
   return { ...data };
 }
 
-function uniqueArchiveName(used, preferred, fallbackExt = '.png') {
-  let name = path.basename(preferred || `file${fallbackExt}`);
-  if (!path.extname(name)) name += fallbackExt;
-  const stem = path.basename(name, path.extname(name));
-  const ext = path.extname(name);
-  let candidate = name;
-  let suffix = 1;
-  while (used.has(candidate.toLowerCase())) {
-    candidate = `${stem}-${suffix}${ext}`;
-    suffix += 1;
-  }
-  used.add(candidate.toLowerCase());
-  return candidate;
+function archiveRefName(index, sourcePath) {
+  const ext = path.extname(sourcePath || '') || '.png';
+  return `ref-${index}${ext.toLowerCase()}`;
+}
+
+function archivePreviewName(sourcePath) {
+  const ext = path.extname(sourcePath || '') || '.png';
+  return `preview${ext.toLowerCase()}`;
+}
+
+function archiveEditorRefName(field, sourcePath) {
+  const ext = path.extname(sourcePath || '') || '.png';
+  const key = field === 'editorReferenceImagePath' ? 'editor-ref' : 'effect-editor-ref';
+  return `${key}${ext.toLowerCase()}`;
 }
 
 function buildSessionManifest(session, templateRegistry, effectRegistry) {
   const settings = sessionSettings(session);
-  const usedNames = new Set();
   const templates = [];
   const effects = [];
   const fileEntries = [];
@@ -76,7 +111,8 @@ function buildSessionManifest(session, templateRegistry, effectRegistry) {
     const entry = templateRegistry.getById(settings.templateId);
     const filePath = entry ? templateRegistry.resolveTemplatePath(entry) : null;
     if (entry?.id && entry?.file && filePath && fs.existsSync(filePath)) {
-      templates.push(entry);
+      const { path: _path, ...cleanEntry } = entry;
+      templates.push(cleanEntry);
       fileEntries.push({ archivePath: `templates/${entry.file}`, sourcePath: filePath });
     }
   }
@@ -85,7 +121,8 @@ function buildSessionManifest(session, templateRegistry, effectRegistry) {
     const entry = effectRegistry.getById(settings.effectId);
     const filePath = entry ? effectRegistry.resolveEffectPath(entry) : null;
     if (entry?.id && entry?.file && filePath && fs.existsSync(filePath)) {
-      effects.push(entry);
+      const { path: _path, ...cleanEntry } = entry;
+      effects.push(cleanEntry);
       fileEntries.push({ archivePath: `effects/${entry.file}`, sourcePath: filePath });
     }
   }
@@ -93,11 +130,11 @@ function buildSessionManifest(session, templateRegistry, effectRegistry) {
   const exportedRefs = [];
   for (const ref of settings.referenceImages || []) {
     if (!ref?.path || !fs.existsSync(ref.path) || !isImagePath(ref.path)) continue;
-    const archiveName = uniqueArchiveName(usedNames, ref.name || ref.path, path.extname(ref.path) || '.png');
+    const archiveName = archiveRefName(exportedRefs.length, ref.path);
     const archivePath = `references/${archiveName}`;
     exportedRefs.push({
       archivePath,
-      name: ref.name || archiveName,
+      name: ref.name || path.basename(ref.path),
       role: ref.role || 'detail',
     });
     fileEntries.push({ archivePath, sourcePath: ref.path });
@@ -115,7 +152,9 @@ function buildSessionManifest(session, templateRegistry, effectRegistry) {
       settings[field] = '';
       continue;
     }
-    const archiveName = uniqueArchiveName(usedNames, path.basename(sourcePath), path.extname(sourcePath) || '.png');
+    const archiveName = field === 'lastPreviewPath'
+      ? archivePreviewName(sourcePath)
+      : archiveEditorRefName(field, sourcePath);
     const archivePath = `${folder}/${archiveName}`;
     settings[field] = archivePath;
     fileEntries.push({ archivePath, sourcePath });
@@ -183,12 +222,37 @@ function validateManifest(data) {
   return data;
 }
 
-function shouldSkipEntry(entry, registryItems, destDir) {
-  if (!entry?.id || !entry?.file) return true;
-  if (registryItems.some((item) => item.id === entry.id)) return true;
+function importAssetEntry(entry, registryItems, destDir, tempSubDir) {
+  if (!entry?.id || !entry?.file) return 'skipped';
+
   const destPath = path.join(destDir, entry.file);
-  if (fs.existsSync(destPath)) return true;
-  return false;
+  const srcPath = path.join(tempSubDir, entry.file);
+  const existingIdx = registryItems.findIndex((item) => item.id === entry.id);
+  const fileOnDisk = fs.existsSync(destPath);
+  const fileInZip = fs.existsSync(srcPath);
+  const cleanEntry = { ...entry };
+  delete cleanEntry.path;
+
+  if (existingIdx >= 0) {
+    if (!fileOnDisk && fileInZip) {
+      fs.copyFileSync(srcPath, destPath);
+      return 'restored';
+    }
+    return 'skipped';
+  }
+
+  if (fileOnDisk) {
+    registryItems.push(cleanEntry);
+    return 'imported';
+  }
+
+  if (!fileInZip) {
+    return 'skipped';
+  }
+
+  fs.copyFileSync(srcPath, destPath);
+  registryItems.push(cleanEntry);
+  return 'imported';
 }
 
 function importRegistryEntries(manifest, tempDir, templateRegistry, effectRegistry) {
@@ -205,33 +269,31 @@ function importRegistryEntries(manifest, tempDir, templateRegistry, effectRegist
   fs.mkdirSync(paths.userEffectsDir(), { recursive: true });
 
   for (const entry of manifest.templates) {
-    if (shouldSkipEntry(entry, templateReg.templates, paths.userTemplatesDir())) {
+    const status = importAssetEntry(
+      entry,
+      templateReg.templates,
+      paths.userTemplatesDir(),
+      path.join(tempDir, 'templates'),
+    );
+    if (status === 'imported' || status === 'restored') {
+      result.importedTemplates += 1;
+    } else {
       result.skippedTemplates += 1;
-      continue;
     }
-    const srcPath = path.join(tempDir, 'templates', entry.file);
-    if (!fs.existsSync(srcPath)) {
-      result.skippedTemplates += 1;
-      continue;
-    }
-    fs.copyFileSync(srcPath, path.join(paths.userTemplatesDir(), entry.file));
-    templateReg.templates.push({ ...entry });
-    result.importedTemplates += 1;
   }
 
   for (const entry of manifest.effects) {
-    if (shouldSkipEntry(entry, effectReg.effects, paths.userEffectsDir())) {
+    const status = importAssetEntry(
+      entry,
+      effectReg.effects,
+      paths.userEffectsDir(),
+      path.join(tempDir, 'effects'),
+    );
+    if (status === 'imported' || status === 'restored') {
+      result.importedEffects += 1;
+    } else {
       result.skippedEffects += 1;
-      continue;
     }
-    const srcPath = path.join(tempDir, 'effects', entry.file);
-    if (!fs.existsSync(srcPath)) {
-      result.skippedEffects += 1;
-      continue;
-    }
-    fs.copyFileSync(srcPath, path.join(paths.userEffectsDir(), entry.file));
-    effectReg.effects.push({ ...entry });
-    result.importedEffects += 1;
   }
 
   if (result.importedTemplates > 0) templateRegistry.saveUserRegistry(templateReg);
@@ -239,11 +301,27 @@ function importRegistryEntries(manifest, tempDir, templateRegistry, effectRegist
   return result;
 }
 
-function restoreArchivedFile(tempDir, archivePath, importDir) {
+function resolveArchivedSource(tempDir, archivePath) {
   if (!archivePath) return '';
-  const srcPath = path.join(tempDir, archivePath);
-  if (!fs.existsSync(srcPath)) return '';
-  const destPath = path.join(importDir, path.basename(archivePath));
+  const direct = path.join(tempDir, archivePath);
+  if (fs.existsSync(direct)) return direct;
+
+  const folder = path.dirname(archivePath);
+  const base = path.basename(archivePath);
+  const dir = path.join(tempDir, folder);
+  if (!fs.existsSync(dir)) return '';
+
+  const entries = fs.readdirSync(dir);
+  const caseMatch = entries.find((name) => name.toLowerCase() === base.toLowerCase());
+  if (caseMatch) return path.join(dir, caseMatch);
+  if (entries.length === 1) return path.join(dir, entries[0]);
+  return '';
+}
+
+function restoreArchivedFile(tempDir, archivePath, importDir) {
+  const srcPath = resolveArchivedSource(tempDir, archivePath);
+  if (!srcPath) return '';
+  const destPath = path.join(importDir, path.basename(archivePath) || path.basename(srcPath));
   fs.copyFileSync(srcPath, destPath);
   return destPath;
 }
@@ -283,7 +361,7 @@ async function importFromFile(zipPath, templateRegistry, effectRegistry) {
 
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pcai-session-import-'));
   try {
-    await extract(zipPath, { dir: tempDir });
+    await extractZipToDir(zipPath, tempDir);
     const manifestPath = path.join(tempDir, 'data.json');
     if (!fs.existsSync(manifestPath)) {
       throw new Error('Invalid session bundle: data.json not found.');
@@ -306,6 +384,7 @@ module.exports = {
   BUNDLE_VERSION,
   exportToFile,
   importFromFile,
+  importSummary,
   defaultExportFileName,
   buildSessionManifest,
 };

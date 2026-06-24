@@ -510,6 +510,7 @@ function showStatus(message, { level = 'info', ms = 5000 } = {}) {
   }
   el.textContent = String(message).trim();
   el.className = `app-status app-status-${level}`;
+  el.classList.remove('hidden');
   statusTimer = setTimeout(() => {
     el.textContent = '';
     el.classList.add('hidden');
@@ -1105,6 +1106,46 @@ function setupPreviewCompareLightbox() {
   bindLightboxZoom(overlay);
 }
 
+async function applySessionBundleImported(result) {
+  if (!result) return;
+  session = await api.sessionGet();
+  showView('werbung');
+  await loadTemplates();
+  await loadEffects();
+  await refreshImageSettingsUi();
+  writeSettingsToUi();
+  restorePromptFromSession();
+  renderRefs();
+  if (session.editorReferenceImagePath) {
+    setEditorReferenceImage({
+      path: session.editorReferenceImagePath,
+      name: session.editorReferenceImagePath.split(/[/\\]/).pop() || '',
+    }, { persist: false });
+  } else if (!editorLocked) {
+    clearEditorReference();
+  }
+  await restoreEffectEditorReferenceFromSession(session);
+  if (session.templateId) {
+    const hasTemplate = templates.some((item) => item.id === session.templateId);
+    if (hasTemplate) {
+      await selectTemplate(session.templateId);
+    } else {
+      showStatus(t('dataBundle.templateMissing', { id: session.templateId }), { level: 'warn', ms: 9000 });
+    }
+  }
+  if (session.effectId) {
+    await selectEffect(session.effectId);
+  }
+  await restorePreviewFromSession(session);
+  showStatus(t('dataBundle.importDone', {
+    name: result?.name || session.profileName || t('dataBundle.defaultName'),
+    templates: result?.importedTemplates || 0,
+    skippedTemplates: result?.skippedTemplates || 0,
+    effects: result?.importedEffects || 0,
+    skippedEffects: result?.skippedEffects || 0,
+  }), { level: 'success', ms: 9000 });
+}
+
 function setupDebugPanel() {
   $('debug-toggle').addEventListener('click', () => {
     $('debug-panel').classList.toggle('collapsed');
@@ -1144,15 +1185,6 @@ function setupDebugPanel() {
   });
   api.on('debug:entry', (entry) => appendDebugLine(entry));
   api.on('debug:show', () => openDebugPanel());
-  api.on('dataBundle:imported', async (result) => {
-    showStatus(t('dataBundle.importDone', {
-      name: result?.name || t('dataBundle.defaultName'),
-      templates: result?.importedTemplates || 0,
-      skippedTemplates: result?.skippedTemplates || 0,
-      effects: result?.importedEffects || 0,
-      skippedEffects: result?.skippedEffects || 0,
-    }), { level: 'info' });
-  });
 }
 
 function showView(name) {
@@ -3762,6 +3794,7 @@ function setupInteractionHandlers() {
       clearEditorReference();
     }
     await loadTemplates();
+    await loadEffects();
     await restorePreviewFromSession(s);
   });
   api.on('session:saved', (s) => {
@@ -3817,6 +3850,35 @@ function setupInteractionHandlers() {
   });
   api.on('action:codex-install', () => {
     ensureCodexInstallWithPrompt().catch((err) => showError(err));
+  });
+  api.on('action:import-session', async () => {
+    let waiting = false;
+    try {
+      const filePath = await api.dataBundlePickImportDialog();
+      if (!filePath) return;
+      showWait(t('dataBundle.importing'));
+      waiting = true;
+      const result = await api.dataBundleImportPath(filePath);
+      if (!result) return;
+      await applySessionBundleImported(result);
+    } catch (err) {
+      showError(err, t('dataBundle.importFailed'));
+    } finally {
+      if (waiting) hideWait();
+    }
+  });
+  api.on('action:export-session', async () => {
+    try {
+      const result = await api.dataBundleExportDialog();
+      if (!result?.path) return;
+      showStatus(t('dataBundle.exportDone', {
+        templates: result.templateCount || 0,
+        effects: result.effectCount || 0,
+        references: result.referenceCount || 0,
+      }), { level: 'success', ms: 7000 });
+    } catch (err) {
+      showError(err, t('dataBundle.exportFailed'));
+    }
   });
   api.on('action:bridge-status', () => openBridgeSetupDialog({ focusPairing: false }));
   api.on('template:selected', async (id) => {

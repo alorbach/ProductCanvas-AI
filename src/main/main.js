@@ -3,6 +3,7 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const { BridgeManager } = require('./bridge/bridge-manager');
 const { subscribeBridgeJobProgress } = require('./bridge/bridge-job-progress');
 const { CodexManager } = require('./bridge/codex-manager');
@@ -37,7 +38,7 @@ const {
 } = require('./safe-paths');
 const { migrateIfNeeded } = require('./migration/user-data-migrate');
 const mainI18n = require('./i18n/main-i18n');
-const { exportToFile, importFromFile, defaultExportFileName } = require('./data-bundle/data-bundle-service');
+const { exportToFile, importFromFile, importSummary, defaultExportFileName } = require('./data-bundle/data-bundle-service');
 const { composeEml, createSupportDraftDir, writeEmlFile } = require('./support/eml-compose');
 
 const MAIN_WINDOW_WIDTH = 1600;
@@ -354,38 +355,13 @@ function buildMenu() {
         { type: 'separator' },
         {
           label: mt('menu.dataBundle.export'),
-          click: async () => {
-            try {
-              const r = await dialog.showSaveDialog(mainWindow, {
-                defaultPath: defaultExportFileName(session),
-                filters: [{ name: mt('menu.dataBundle.zipFilter'), extensions: ['zip'] }],
-              });
-              if (r.canceled || !r.filePath) return;
-              if (!session) throw new Error(mt('menu.dataBundle.noSession'));
-              await exportToFile(r.filePath, session, templateRegistry, effectRegistry);
-              shell.showItemInFolder(r.filePath);
-            } catch (err) {
-              dialog.showErrorBox(mt('menu.error.title'), err.message);
-            }
-          },
+          click: () => send('action:export-session', {}),
         },
         {
           label: mt('menu.dataBundle.import'),
-          click: async () => {
-            const r = await dialog.showOpenDialog(mainWindow, {
-              filters: [{ name: mt('menu.dataBundle.zipFilter'), extensions: ['zip'] }],
-              properties: ['openFile'],
-            });
-            if (r.canceled || !r.filePaths[0]) return;
-            try {
-              const result = await importFromFile(r.filePaths[0], templateRegistry, effectRegistry);
-              session = { ...result.session, dirty: false, profilePath: '' };
-              profileStore.saveSession(session);
-              send('dataBundle:imported', result);
-              send('session:loaded', session);
-            } catch (err) {
-              dialog.showErrorBox(mt('menu.error.title'), err.message);
-            }
+          click: () => {
+            focusMainWindow();
+            send('action:import-session', {});
           },
         },
         { type: 'separator' },
@@ -403,6 +379,48 @@ function buildMenu() {
     ...template,
   ]);
   Menu.setApplicationMenu(menu);
+}
+
+async function importSessionBundle(filePath) {
+  if (!templateRegistry || !effectRegistry || !profileStore) {
+    throw new Error('Application is still starting. Please try again.');
+  }
+  debugLog.info('data-bundle', 'Importing session bundle', { filePath });
+  const stagingDir = path.join(os.tmpdir(), 'productcanvas-ai', 'imports');
+  fs.mkdirSync(stagingDir, { recursive: true });
+  const localZip = path.join(stagingDir, `session-import-${Date.now()}.zip`);
+  try {
+    fs.copyFileSync(filePath, localZip);
+    const result = await importFromFile(localZip, templateRegistry, effectRegistry);
+    session = { ...result.session, dirty: false, profilePath: '' };
+    profileStore.saveSession(session);
+    debugLog.info('data-bundle', 'Session bundle imported', {
+      templates: result.importedTemplates,
+      effects: result.importedEffects,
+      skippedTemplates: result.skippedTemplates,
+      skippedEffects: result.skippedEffects,
+      templateId: result.session?.templateId || '',
+      referenceCount: result.session?.referenceImages?.length || 0,
+    });
+    return importSummary(result);
+  } catch (err) {
+    debugLog.error('data-bundle', 'Session bundle import failed', {
+      filePath,
+      message: err?.message || String(err),
+    });
+    throw err;
+  } finally {
+    try {
+      if (fs.existsSync(localZip)) fs.unlinkSync(localZip);
+    } catch { /* ignore */ }
+  }
+}
+
+function sessionBundleFilters() {
+  return [
+    { name: mt('menu.dataBundle.zipFilter'), extensions: ['zip'] },
+    { name: mt('menu.dataBundle.allFiles'), extensions: ['*'] },
+  ];
 }
 
 function subscribeCodexJobProgress(onProgress) {
@@ -963,26 +981,37 @@ function registerIpc() {
 
   ipcMain.handle('dataBundle:exportDialog', async () => {
     if (!session) throw new Error(mt('menu.dataBundle.noSession'));
+    focusMainWindow();
     const r = await dialog.showSaveDialog(mainWindow, {
       defaultPath: defaultExportFileName(session),
-      filters: [{ name: mt('menu.dataBundle.zipFilter'), extensions: ['zip'] }],
+      filters: sessionBundleFilters(),
     });
     if (r.canceled || !r.filePath) return null;
-    return exportToFile(r.filePath, session, templateRegistry, effectRegistry);
+    const result = await exportToFile(r.filePath, session, templateRegistry, effectRegistry);
+    return { ...result, path: r.filePath };
   });
 
-  ipcMain.handle('dataBundle:importDialog', async () => {
+  ipcMain.handle('dataBundle:pickImportDialog', async () => {
+    focusMainWindow();
     const r = await dialog.showOpenDialog(mainWindow, {
-      filters: [{ name: mt('menu.dataBundle.zipFilter'), extensions: ['zip'] }],
+      filters: sessionBundleFilters(),
       properties: ['openFile'],
     });
     if (r.canceled || !r.filePaths[0]) return null;
-    const result = await importFromFile(r.filePaths[0], templateRegistry, effectRegistry);
-    session = { ...result.session, dirty: false, profilePath: '' };
-    profileStore.saveSession(session);
-    send('dataBundle:imported', result);
-    send('session:loaded', session);
-    return result;
+    return r.filePaths[0];
+  });
+
+  ipcMain.handle('dataBundle:importPath', async (_, filePath) => {
+    try {
+      if (!filePath) return null;
+      return await importSessionBundle(filePath);
+    } catch (err) {
+      debugLog.error('data-bundle', 'dataBundle:importPath failed', {
+        filePath,
+        message: err?.message || String(err),
+      });
+      throw err;
+    }
   });
 
   ipcMain.handle('debug:saveDialog', async () => {

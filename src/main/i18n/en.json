@@ -45,6 +45,7 @@
   "menu.dataBundle.export": "Session Export",
   "menu.dataBundle.import": "Session Import",
   "menu.dataBundle.zipFilter": "ZIP archive",
+  "menu.dataBundle.allFiles": "All files",
   "menu.dataBundle.noSession": "No active session to export.",
   "menu.debugLog.filter": "Log file",
   "settings.codexCliPath.pickTitle": "Select Codex CLI executable"

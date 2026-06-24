@@ -60,7 +60,7 @@ async function run() {
     assert.equal(manifest.templates.length, 1);
     assert.equal(manifest.effects.length, 1);
     assert.equal(manifest.session.referenceImages.length, 1);
-    assert.equal(manifest.session.referenceImages[0].archivePath, 'references/ref.png');
+    assert.equal(manifest.session.referenceImages[0].archivePath, 'references/ref-0.png');
 
     const zipPath = path.join(tmpDir, 'export.zip');
     const exportResult = await exportToFile(zipPath, session, templateRegistry, effectRegistry);
@@ -80,7 +80,7 @@ async function run() {
     assert.equal(data.session.templateId, template.id);
     assert(fs.existsSync(path.join(extractDir, 'templates', template.file)));
     assert(fs.existsSync(path.join(extractDir, 'effects', effect.file)));
-    assert(fs.existsSync(path.join(extractDir, 'references', 'ref.png')));
+    assert(fs.existsSync(path.join(extractDir, 'references', 'ref-0.png')));
 
     const importDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pcai-session-import-'));
     paths.userDataRoot = () => importDir;
@@ -114,9 +114,53 @@ async function run() {
     );
 
     const partialImport = await importFromFile(zipPath, partialTemplateRegistry, partialEffectRegistry);
-    assert.equal(partialImport.skippedTemplates, 1);
-    assert.equal(partialImport.importedEffects, 1);
+    assert.equal(partialImport.skippedTemplates, 0);
+    assert.equal(partialImport.importedTemplates, 1);
     assert.equal(partialImport.session.referenceImages.length, 1);
+    assert(!!partialTemplateRegistry.getById(template.id));
+
+    const orphanDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pcai-session-orphan-'));
+    paths.userDataRoot = () => orphanDir;
+    const orphanTemplateRegistry = new TemplateRegistry();
+    const orphanEffectRegistry = new EffectRegistry();
+    fs.mkdirSync(path.join(orphanDir, 'templates'), { recursive: true });
+    fs.copyFileSync(
+      path.join(importDir, 'templates', template.file),
+      path.join(orphanDir, 'templates', template.file),
+    );
+    const orphanImport = await importFromFile(zipPath, orphanTemplateRegistry, orphanEffectRegistry);
+    assert.equal(orphanImport.importedTemplates, 1);
+    assert(!!orphanTemplateRegistry.getById(template.id));
+
+    const brokenDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pcai-session-broken-'));
+    paths.userDataRoot = () => brokenDir;
+    const brokenTemplateRegistry = new TemplateRegistry();
+    const brokenEffectRegistry = new EffectRegistry();
+    const brokenReg = brokenTemplateRegistry.getUserRegistry();
+    brokenReg.templates.push({ ...template });
+    brokenTemplateRegistry.saveUserRegistry(brokenReg);
+    const brokenImport = await importFromFile(zipPath, brokenTemplateRegistry, brokenEffectRegistry);
+    assert.equal(brokenImport.importedTemplates, 1);
+    assert.equal(brokenImport.skippedTemplates, 0);
+    assert(fs.existsSync(path.join(brokenDir, 'templates', template.file)));
+    assert(!!brokenTemplateRegistry.getById(template.id));
+
+    const userZip = 'C:/Users/AL/Desktop/tmp/ProductCanvas-Session-MARTIN-LOGAN-2026-06-24.zip';
+    if (fs.existsSync(userZip)) {
+      const userDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pcai-session-user-'));
+      paths.userDataRoot = () => userDir;
+      const userTemplateRegistry = new TemplateRegistry();
+      const userImport = await importFromFile(
+        userZip,
+        userTemplateRegistry,
+        new EffectRegistry(),
+      );
+      assert.equal(userImport.session.templateId, 'user-36b1884d');
+      assert.equal(userImport.session.referenceImages.length, 1);
+      assert(!!userTemplateRegistry.getById('user-36b1884d'));
+      assert(fs.existsSync(userImport.session.referenceImages[0].path));
+      assert(fs.existsSync(userImport.session.lastPreviewPath));
+    }
 
     const emlAttachment = path.join(tmpDir, 'sample.log');
     fs.writeFileSync(emlAttachment, 'test log line\n', 'utf8');

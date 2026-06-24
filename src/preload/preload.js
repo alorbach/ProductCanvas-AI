@@ -103,15 +103,16 @@ contextBridge.exposeInMainWorld('productCanvas', {
   debugClear: () => ipcRenderer.invoke('debug:clear'),
   debugSaveDialog: () => ipcRenderer.invoke('debug:saveDialog'),
   dataBundleExportDialog: () => ipcRenderer.invoke('dataBundle:exportDialog'),
-  dataBundleImportDialog: () => ipcRenderer.invoke('dataBundle:importDialog'),
+  dataBundlePickImportDialog: () => ipcRenderer.invoke('dataBundle:pickImportDialog'),
+  dataBundleImportPath: (filePath) => ipcRenderer.invoke('dataBundle:importPath', filePath),
   supportComposeEmail: () => ipcRenderer.invoke('support:composeEmail'),
   on: (channel, cb) => {
     const allowed = [
       'session:loaded', 'session:saved', 'bridge:progress', 'job:progress',
       'help:open', 'nav:template-editor', 'nav:effect-editor', 'action:template-clone', 'action:template-delete',
-      'action:save-as', 'templates:updated', 'effects:updated', 'template:selected', 'action:template-import',
+      'action:save-as', 'action:import-session', 'action:export-session', 'templates:updated', 'effects:updated', 'template:selected', 'action:template-import',
       'action:bridge-setup', 'action:bridge-status', 'action:codex-setup', 'action:codex-install',
-      'debug:entry', 'debug:show', 'preferences:changed', 'dataBundle:imported',
+      'debug:entry', 'debug:show', 'preferences:changed',
     ];
     if (allowed.includes(channel)) {
       ipcRenderer.on(channel, (_, data) => cb(data));
