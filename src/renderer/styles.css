@@ -1056,6 +1056,25 @@ body.lightbox-open { overflow: hidden; }
   align-items: stretch;
 }
 
+.codex-rate-status {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  padding: 8px 14px;
+  background: #151515;
+  border-top: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.codex-rate-status.ok { color: #7fdbff; }
+.codex-rate-status.warn { color: #f39c12; }
+.codex-rate-status.error { color: #e74c3c; }
+.codex-rate-status.unavailable { color: var(--muted); }
+
 .app-status {
   flex: 0 1 min(420px, 42vw);
   display: flex;

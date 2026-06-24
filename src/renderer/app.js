@@ -145,6 +145,20 @@ function formatError(err) {
     || raw.includes('zu lange nicht geantwortet')) {
     return t('error.bridgeTimeout');
   }
+  if (err?.code === 'codex_no_image_output'
+    || /no new generated image file was detected/i.test(raw)) {
+    return t('error.codexNoImageOutput');
+  }
+  if (err?.code === 'codex_rate_limited'
+    || /rate limit has 0% remaining/i.test(raw)) {
+    const details = err?.details || {};
+    const window = details.rateLimitWindow || details.exhaustedWindowLabel || '';
+    const reset = details.rateLimitResetLabel || '';
+    if (window && reset) {
+      return t('error.codexRateLimitedDetail', { window, reset });
+    }
+    return t('error.codexRateLimited');
+  }
   if (err?.code === 'REFERENCE_ATTACH_FAILED') {
     const cause = err?.cause;
     const causeMsg = String(cause?.message || '').toLowerCase();
@@ -395,6 +409,97 @@ async function ensureBridgeReady() {
 }
 
 let statusTimer = null;
+let rateLimitPollTimer = null;
+
+function rateLimitWindowLabel(label) {
+  if (label === 'weekly') return t('codex.rateLimit.windowWeekly');
+  if (label === '5h') return t('codex.rateLimit.window5h');
+  return label || '';
+}
+
+function formatRateLimitWindow(summaryWindow) {
+  if (!summaryWindow || summaryWindow.remainingPercent == null) return '';
+  return t('codex.rateLimit.window', {
+    window: rateLimitWindowLabel(summaryWindow.label),
+    percent: String(summaryWindow.remainingPercent),
+  });
+}
+
+function formatRateLimitResetTime(resetsAt) {
+  const seconds = Number(resetsAt || 0);
+  if (!seconds) return '—';
+  const date = new Date(seconds * 1000);
+  if (Number.isNaN(date.getTime())) return '—';
+  const locale = document.documentElement.lang === 'de' ? 'de-DE' : 'en-US';
+  try {
+    return date.toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' });
+  } catch {
+    return date.toISOString();
+  }
+}
+
+function rateLimitStatusLevel(summary) {
+  if (!summary) return 'unavailable';
+  if (summary.exhausted) return 'error';
+  const values = [summary.primary?.remainingPercent, summary.secondary?.remainingPercent]
+    .filter((value) => typeof value === 'number' && !Number.isNaN(value));
+  if (!values.length) return 'unavailable';
+  if (values.some((value) => value <= 0)) return 'error';
+  if (values.some((value) => value <= 15)) return 'warn';
+  return 'ok';
+}
+
+function renderCodexRateLimitStatus(payload) {
+  const el = $('codex-rate-status');
+  if (!el) return;
+
+  const summary = payload?.summary;
+  if (!payload?.success || !summary) {
+    el.textContent = payload?.reason === 'fetch_failed'
+      ? t('codex.rateLimit.loading')
+      : t('codex.rateLimit.unavailable');
+    el.className = 'codex-rate-status unavailable';
+    el.title = payload?.error || '';
+    return;
+  }
+
+  const primary = formatRateLimitWindow(summary.primary);
+  const secondary = formatRateLimitWindow(summary.secondary);
+  el.textContent = t('codex.rateLimit.status', {
+    primary: primary || '—',
+    secondary: secondary || '—',
+  });
+  el.className = `codex-rate-status ${rateLimitStatusLevel(summary)}`;
+  el.title = t('codex.rateLimit.tooltip', {
+    primaryReset: formatRateLimitResetTime(summary.primary?.resetsAt),
+    secondaryReset: formatRateLimitResetTime(summary.secondary?.resetsAt),
+  });
+}
+
+async function refreshCodexRateLimitStatus(options = {}) {
+  const el = $('codex-rate-status');
+  if (!el) return null;
+  if (!options.silent) {
+    el.textContent = t('codex.rateLimit.loading');
+    el.className = 'codex-rate-status unavailable';
+  }
+  try {
+    const payload = await api.codexGetRateLimits({ force: options.force === true });
+    renderCodexRateLimitStatus(payload);
+    return payload;
+  } catch (err) {
+    renderCodexRateLimitStatus({ success: false, reason: 'fetch_failed', error: err?.message || String(err) });
+    return null;
+  }
+}
+
+function startCodexRateLimitPolling() {
+  if (rateLimitPollTimer) clearInterval(rateLimitPollTimer);
+  rateLimitPollTimer = setInterval(() => {
+    void refreshCodexRateLimitStatus({ silent: true }).catch((err) => console.error(err));
+  }, 60000);
+  if (rateLimitPollTimer?.unref) rateLimitPollTimer.unref();
+}
 
 function showStatus(message, { level = 'info', ms = 5000 } = {}) {
   const el = $('app-status');
@@ -1143,6 +1248,7 @@ function applyLabels() {
   if ($('bridge-dialog-close')) $('bridge-dialog-close').textContent = t('bridge.dialog.close');
   if ($('bridge-dialog-connect')) $('bridge-dialog-connect').textContent = t('bridge.setup.connect');
   if ($('bridge-status')) $('bridge-status').title = t('bridge.status.title');
+  if ($('codex-rate-status')) $('codex-rate-status').textContent = t('codex.rateLimit.loading');
 }
 
 async function connectBridgeFromUi() {
@@ -3139,6 +3245,7 @@ async function applyBridgeStatusUi(status, options = {}) {
     renderBridgeDialogStatus(status);
     $('bridge-dialog-hint').textContent = bridgeDialogHint(status);
   }
+  void refreshCodexRateLimitStatus({ silent: true }).catch((err) => console.error(err));
   return status;
 }
 
@@ -3393,6 +3500,7 @@ function setupInteractionHandlers() {
       await updateSession({ lastPreviewPath: result.path, previewPendingEdit: null });
       updatePreviewEditLockUi();
       hideWait();
+      void refreshCodexRateLimitStatus({ force: true, silent: true }).catch((err) => console.error(err));
     } catch (err) {
       hideWait();
       showError(err, t('error.generateFailed'));
@@ -3637,6 +3745,7 @@ function setupInteractionHandlers() {
     appPreferences = prefs;
     await reloadLocale(prefs);
     await refreshBridgeStatus();
+    void refreshCodexRateLimitStatus({ silent: true }).catch((err) => console.error(err));
   });
   api.on('nav:template-editor', () => showView('templates'));
   api.on('nav:effect-editor', () => showView('effects'));
@@ -3765,7 +3874,9 @@ async function init() {
     await restoreEffectEditorPending();
 
     await loadDebugLog();
+    startCodexRateLimitPolling();
     void refreshBridgeStatus({ autoOpen: true }).catch((err) => console.error(err));
+    void refreshCodexRateLimitStatus().catch((err) => console.error(err));
   } finally {
     document.body.classList.remove('i18n-pending');
   }

@@ -1,7 +1,14 @@
 'use strict';
 
 const { getPreferences } = require('../app-preferences');
-const { getCodexCliInfo } = require('./codex-cli-client');
+const { getCodexCliInfo, resolveCodexBinary } = require('./codex-cli-client');
+const {
+  readRateLimits,
+  summarizeRateLimits,
+} = require('./codex-rate-limits');
+
+const RATE_LIMIT_CACHE_MS = Number(process.env.ALORBACH_CODEX_RATE_LIMIT_CACHE_MS || 60000);
+let rateLimitCache = null;
 
 class CodexService {
   constructor(bridgeManager, codexManager, codexProvider, systemLocaleFn) {
@@ -17,6 +24,73 @@ class CodexService {
 
   isBridgeBackend() {
     return this.getBackend() === 'bridge';
+  }
+
+  invalidateRateLimitCache() {
+    rateLimitCache = null;
+  }
+
+  async getRateLimits(options = {}) {
+    const force = options.force === true;
+    const now = Date.now();
+    if (!force && rateLimitCache?.rateLimits && now - rateLimitCache.fetchedAt < RATE_LIMIT_CACHE_MS) {
+      return { ...rateLimitCache, cached: true };
+    }
+
+    const installCheck = await this.codexManager.isInstalled();
+    if (!installCheck.installed) {
+      return {
+        success: false,
+        unavailable: true,
+        reason: 'not_installed',
+        summary: null,
+        rateLimits: null,
+      };
+    }
+
+    const cliInfo = getCodexCliInfo();
+    if (!cliInfo.authExists) {
+      return {
+        success: false,
+        unavailable: true,
+        reason: 'not_logged_in',
+        summary: null,
+        rateLimits: null,
+      };
+    }
+
+    try {
+      const rateLimits = await readRateLimits({
+        codexBinary: resolveCodexBinary(),
+        codexHome: cliInfo.codexHome,
+      });
+      const payload = {
+        success: true,
+        rateLimits,
+        summary: summarizeRateLimits(rateLimits),
+        fetchedAt: now,
+        cached: false,
+      };
+      rateLimitCache = payload;
+      return payload;
+    } catch (err) {
+      if (rateLimitCache?.rateLimits) {
+        return {
+          ...rateLimitCache,
+          cached: true,
+          stale: true,
+          error: err.message || String(err),
+        };
+      }
+      return {
+        success: false,
+        unavailable: true,
+        reason: 'fetch_failed',
+        error: err.message || String(err),
+        summary: null,
+        rateLimits: null,
+      };
+    }
   }
 
   async getFullStatus() {

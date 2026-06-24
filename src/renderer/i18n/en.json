@@ -298,6 +298,9 @@
   "error.inputTooLarge": "Reference images exceeded Codex’s input limit. The app downscales them automatically before each attempt — try again. If it still fails, use smaller source photos.",
   "error.promptFailed": "Could not build prompt",
   "error.generateFailed": "Could not generate image",
+  "error.codexNoImageOutput": "Codex finished but no image file was saved. Update Codex CLI and try again.",
+  "error.codexRateLimited": "Codex rate limit is exhausted (0% remaining). Please wait and try again.",
+  "error.codexRateLimitedDetail": "Codex {window} limit has 0% remaining (resets {reset}). Please wait and try again.",
   "error.referenceAttachFailed": "Could not attach reference images to the Bridge. Check the debug log and try again.",
   "error.bridgeTimeout": "Image generation is taking longer than usual or the Bridge is not responding. Check Bridge tray status and try again.",
   "debug.title": "Debug log",
@@ -332,5 +335,12 @@
   "codex.install.message": "ProductCanvas AI will download and install the official Codex CLI on this PC (OpenAI installer, then winget, then npm if needed). Continue?",
   "codex.install.success": "Codex CLI installed ({version}). Sign in with your ChatGPT account next.",
   "codex.install.title": "Install Codex CLI",
-  "codex.subscription.hint": "Requires an active ChatGPT subscription (Plus, Pro, Business, Edu, or Enterprise). Codex usage is billed through your ChatGPT plan — not a separate ProductCanvas fee."
+  "codex.subscription.hint": "Requires an active ChatGPT subscription (Plus, Pro, Business, Edu, or Enterprise). Codex usage is billed through your ChatGPT plan — not a separate ProductCanvas fee.",
+  "codex.rateLimit.loading": "Codex: …",
+  "codex.rateLimit.unavailable": "Codex: —",
+  "codex.rateLimit.status": "Codex: {primary} · {secondary}",
+  "codex.rateLimit.window": "{window} {percent}% left",
+  "codex.rateLimit.window5h": "5h",
+  "codex.rateLimit.windowWeekly": "week",
+  "codex.rateLimit.tooltip": "5h resets {primaryReset} · week resets {secondaryReset}"
 }

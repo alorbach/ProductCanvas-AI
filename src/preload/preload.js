@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld('productCanvas', {
   pickCodexCliPath: () => ipcRenderer.invoke('app:pickCodexCliPath'),
   openSettings: () => ipcRenderer.invoke('app:openSettings'),
   bridgeGetStatus: () => ipcRenderer.invoke('bridge:getStatus'),
+  codexGetRateLimits: (options) => ipcRenderer.invoke('codex:getRateLimits', options),
   bridgeEnsureReady: (code) => ipcRenderer.invoke('bridge:ensureReady', code),
   bridgeRequirePaired: (code) => ipcRenderer.invoke('bridge:requirePaired', code),
   bridgeResetPairing: () => ipcRenderer.invoke('bridge:resetPairing'),

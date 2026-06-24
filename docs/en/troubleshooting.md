@@ -75,6 +75,7 @@ Image and prompt jobs can run **up to 30 minutes** before the app reports a time
 | `BRIDGE_TIMEOUT` | No response within the configured window |
 | `BRIDGE_HEADERS_TIMEOUT` | Bridge stopped sending progress mid-job |
 | `BRIDGE_FETCH_FAILED` | Connection dropped or bridge not running |
+| `codex_rate_limited` | Codex quota window has 0% remaining |
 
 **Mitigation:**
 
@@ -98,6 +99,20 @@ ProductCanvas AI downscales large reference images (product, template, preview) 
 If you see **“body too large”**, the Bridge HTTP body was too large — reduce source dimensions or retry (references are downscaled automatically).
 
 If you see **“input too large”** or **“exceeds the maximum length of 1048576 characters”**, Codex’s turn limit was exceeded — retry generation; the app scales references down before each attempt.
+
+## Codex finished but no image file saved
+
+**Indicators:** “Codex finished but no image file was saved”; debug log code `codex_no_image_output`; Codex exit status `0` but `new_image_count: 0`.
+
+**Meaning:** Codex CLI reported success, but ProductCanvas could not find a new image file in `%USERPROFILE%\.codex\generated_images` or the temporary job workspace.
+
+**Checks:**
+
+1. Open `%USERPROFILE%\.codex\generated_images` — are there new PNG/JPG/WebP files from the same time?
+2. Update Codex CLI (`codex --version`) and retry generation.
+3. Ignore the stderr line **“Reading prompt from stdin…”** in the debug log — it is normal Codex status text, not the root cause.
+
+**Mitigation:** Retry once after updating Codex. If it repeats, send the debug log (include `generated_images_dir`, `temp_dir`, and `image_source` if present).
 
 ## Image quality and fidelity
 

@@ -75,6 +75,7 @@ Jobs können **bis zu 30 Minuten** laufen, bevor eine Zeitüberschreitung gemeld
 | `BRIDGE_TIMEOUT` | Keine Antwort im Zeitfenster |
 | `BRIDGE_HEADERS_TIMEOUT` | Bridge sendet mid-job keine Fortschritts-Header mehr |
 | `BRIDGE_FETCH_FAILED` | Verbindung abgebrochen oder Bridge offline |
+| `codex_rate_limited` | Codex-Kontingent bei 0 % verbleibend |
 
 **Abhilfe:** Qualität/Auflösung für Tests senken; andere Bridge-Jobs schließen; Bridge neu starten.
 
@@ -94,6 +95,20 @@ ProductCanvas AI skaliert große Referenzbilder (Produkt, Vorlage, Vorschau) vor
 Bei **„body too large“** war der Bridge-HTTP-Body zu groß — Bildmaße reduzieren oder erneut versuchen (Referenzen werden automatisch herunterskaliert).
 
 Bei **„input too large“** oder **„exceeds the maximum length of 1048576 characters“** wurde das Codex-Turn-Limit überschritten — Generierung erneut starten; die App skaliert Referenzen vor jedem Versuch herunter.
+
+## Codex fertig, aber keine Bilddatei gespeichert
+
+**Anzeichen:** „Codex war fertig, aber es wurde keine Bilddatei gespeichert“; Debug-Log-Code `codex_no_image_output`; Codex Exit-Status `0`, aber `new_image_count: 0`.
+
+**Bedeutung:** Die Codex CLI meldete Erfolg, aber ProductCanvas hat keine neue Bilddatei unter `%USERPROFILE%\.codex\generated_images` oder im temporären Job-Ordner gefunden.
+
+**Prüfen:**
+
+1. Ordner `%USERPROFILE%\.codex\generated_images` öffnen — gibt es neue PNG/JPG/WebP-Dateien vom gleichen Zeitpunkt?
+2. Codex CLI aktualisieren (`codex --version`) und Generierung erneut versuchen.
+3. Die stderr-Zeile **„Reading prompt from stdin…“** im Debug-Log ignorieren — das ist normale Codex-Statusmeldung, nicht die Fehlerursache.
+
+**Abhilfe:** Nach Codex-Update einmal erneut generieren. Bei Wiederholung Debug-Log senden (mit `generated_images_dir`, `temp_dir` und `image_source`, falls vorhanden).
 
 ## Bildqualität und Produkttreue
 

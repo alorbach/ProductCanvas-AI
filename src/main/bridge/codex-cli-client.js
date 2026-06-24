@@ -8,6 +8,11 @@ const debugLog = require('../debug/logger');
 const { computePerAttachmentByteBudget } = require('../generate/image-prep');
 const { prepareProductReferencePath } = require('../generate/image-preflight');
 const { buildReferenceOrderBlock } = require('../generate/reference-roles');
+const {
+  buildRateLimitExhaustedError,
+  readRateLimits,
+  remainingPercent,
+} = require('./codex-rate-limits');
 
 const envBinaryOverride = process.env.ALORBACH_CODEX_BINARY || '';
 const defaultBinaryName = 'codex';
@@ -703,7 +708,73 @@ function detectNewImage(before, after) {
   return after.filter((item) => !known.has(item.path.toLowerCase())).sort((a, b) => b.mtimeMs - a.mtimeMs);
 }
 
-function imagePrompt(payload, attachments = [], maskPath = '') {
+function detectUpdatedImage(before, after, runStartMs) {
+  const beforeByPath = new Map(before.map((item) => [item.path.toLowerCase(), item.mtimeMs]));
+  return after.filter((item) => {
+    const prevMtime = beforeByPath.get(item.path.toLowerCase());
+    if (prevMtime === undefined) return false;
+    return item.mtimeMs > runStartMs && item.mtimeMs > prevMtime;
+  }).sort((a, b) => b.mtimeMs - a.mtimeMs);
+}
+
+function isInputAttachmentPath(filePath, tempDir) {
+  if (!tempDir) return false;
+  const base = path.basename(filePath);
+  if (!/^input-image-\d+\./i.test(base)) return false;
+  return path.resolve(path.dirname(filePath)).toLowerCase() === path.resolve(tempDir).toLowerCase();
+}
+
+function resolveGeneratedImagePath(options = {}) {
+  const {
+    before = [],
+    after = [],
+    tempDir = '',
+    runStartMs = 0,
+  } = options;
+
+  const newInGenerated = detectNewImage(before, after);
+  if (newInGenerated.length) {
+    return { path: newInGenerated[0].path, mtimeMs: newInGenerated[0].mtimeMs, source: 'generated_images_new' };
+  }
+
+  const updatedInGenerated = detectUpdatedImage(before, after, runStartMs);
+  if (updatedInGenerated.length) {
+    return { path: updatedInGenerated[0].path, mtimeMs: updatedInGenerated[0].mtimeMs, source: 'generated_images_mtime' };
+  }
+
+  if (tempDir) {
+    const tempImages = listGeneratedImages(tempDir)
+      .filter((item) => item.mtimeMs >= runStartMs && !isInputAttachmentPath(item.path, tempDir))
+      .sort((a, b) => b.mtimeMs - a.mtimeMs);
+    if (tempImages.length) {
+      return { path: tempImages[0].path, mtimeMs: tempImages[0].mtimeMs, source: 'temp_dir' };
+    }
+  }
+
+  return null;
+}
+
+function isBenignCodexStderr(stderr) {
+  const line = String(stderr || '').trim().split(/\r?\n/).find(Boolean) || '';
+  return /^reading prompt from stdin/i.test(line);
+}
+
+function imageFailureErrorMessage(run, failure) {
+  const succeeded = (run?.status === 0 || run?.status === null) && !run?.error;
+  if (!succeeded) {
+    const hint = String(run?.stderr || '').trim().split(/\r?\n/).find(Boolean);
+    if (hint && !isBenignCodexStderr(run?.stderr)) return hint;
+    return failure?.message || run?.error?.message || 'Codex CLI image request failed.';
+  }
+  if (failure?.code === 'codex_no_image_output') {
+    return failure?.message || 'Codex CLI completed, but no new generated image file was detected.';
+  }
+  const hint = String(run?.stderr || '').trim().split(/\r?\n/).find(Boolean);
+  if (hint && !isBenignCodexStderr(run?.stderr)) return hint;
+  return failure?.message || run?.error?.message || 'Codex CLI image request failed.';
+}
+
+function imagePrompt(payload, attachments = [], maskPath = '', outputDir = generatedImagesDir) {
   const prompt = String(payload.prompt || '').trim();
   const size = String(payload.size || '1024x1024').trim();
   const quality = String(payload.quality || 'high').trim();
@@ -733,6 +804,8 @@ function imagePrompt(payload, attachments = [], maskPath = '') {
     );
   }
   lines.push(
+    `Save the final generated image as a file under: ${outputDir}`,
+    'Do not treat an inline preview as sufficient; the image file must exist on disk before you confirm success.',
     `User prompt: ${prompt}`,
     `Requested size: ${size}`,
     `Preferred quality: ${quality}`,
@@ -850,6 +923,32 @@ function codexImageFailureFromOutput(stdout, stderr, structured = null) {
     message: 'Codex CLI completed, but no new generated image file was detected.',
     details,
   };
+}
+
+async function ensureCodexRateLimitForImages() {
+  try {
+    const rateLimits = await readRateLimits({
+      codexBinary: resolveCodexBinary(),
+      codexHome,
+    });
+    const exhaustedErr = buildRateLimitExhaustedError(rateLimits);
+    if (exhaustedErr) {
+      debugLog.warn('codex-cli-client', 'Codex rate limit exhausted before image generation', exhaustedErr.details);
+      throw exhaustedErr;
+    }
+    debugLog.info('codex-cli-client', 'Codex rate limits checked', {
+      primary_remaining_percent: remainingPercent(rateLimits?.primary),
+      secondary_remaining_percent: remainingPercent(rateLimits?.secondary),
+      plan_type: rateLimits?.planType || null,
+    });
+    return rateLimits;
+  } catch (err) {
+    if (err?.code === 'codex_rate_limited') throw err;
+    debugLog.warn('codex-cli-client', 'Codex rate limit preflight skipped', {
+      message: err?.message || String(err),
+    });
+    return null;
+  }
 }
 
 function probeCapabilities() {
@@ -1003,6 +1102,8 @@ class CodexCliClient {
     const prompt = String(payload.prompt || '').trim();
     if (!prompt) throw new Error('No image prompt was provided.');
 
+    await ensureCodexRateLimitForImages();
+
     fs.mkdirSync(generatedImagesDir, { recursive: true });
     const before = listGeneratedImages(generatedImagesDir);
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'productcanvas-codex-image-'));
@@ -1031,11 +1132,12 @@ class CodexCliClient {
 
     const controller = new AbortController();
     if (signalKey) this.abortControllers.set(signalKey, controller);
+    const runStartMs = Date.now();
     try {
       const run = await runCodexExec(args, {
         cwd: tempDir,
         timeout: Number(process.env.ALORBACH_CODEX_IMAGE_TIMEOUT_MS || 1800000),
-        input: imagePrompt(payload, attachments, maskPath),
+        input: imagePrompt(payload, attachments, maskPath, generatedImagesDir),
         abortSignal: controller.signal,
       }, {
         kind: 'images',
@@ -1044,8 +1146,8 @@ class CodexCliClient {
         generated_images_dir: generatedImagesDir,
       });
       const after = listGeneratedImages(generatedImagesDir);
-      const newImages = detectNewImage(before, after);
-      if (run.error || run.status !== 0 || !newImages.length) {
+      const resolvedImage = resolveGeneratedImagePath({ before, after, tempDir, runStartMs });
+      if (run.error || run.status !== 0 || !resolvedImage) {
         const failure = codexImageFailureFromOutput(run.stdout, run.stderr, run.structured);
         const details = {
           ...buildCliFailureDetails(run, {
@@ -1054,24 +1156,27 @@ class CodexCliClient {
             attachment_count: attachments.length,
             mask_applied: Boolean(maskPath),
             generated_images_dir: generatedImagesDir,
-            new_image_count: newImages.length,
+            temp_dir: tempDir,
+            new_image_count: resolvedImage ? 1 : 0,
+            image_source: resolvedImage?.source || null,
           }),
           ...failure.details,
         };
         debugLog.error('codex-cli-client', 'Codex CLI Bildgenerierung fehlgeschlagen', details);
-        const err = new Error(details.stderr_hint || failure.message);
+        const err = new Error(imageFailureErrorMessage(run, failure));
         err.code = failure.code;
         err.details = details;
         throw err;
       }
-      const bytes = fs.readFileSync(newImages[0].path);
+      const bytes = fs.readFileSync(resolvedImage.path);
       const attachmentMode = attachments.length ? 'direct_attachments' : 'prompt-only';
       return {
         response: {
           data: [{ b64_json: bytes.toString('base64') }],
           usage: run.structured?.usage || { total_tokens: 0, local_unmetered: true },
           provider_details: {
-            image_path: newImages[0].path,
+            image_path: resolvedImage.path,
+            image_source: resolvedImage.source,
             generated_images_dir: generatedImagesDir,
             reference_attachment_count: attachments.length,
             refs_forwarded_to_codex: attachments.length > 0,
@@ -1110,4 +1215,10 @@ module.exports = {
   collectImageAttachments,
   imagePrompt,
   buildChatPrompt,
+  listGeneratedImages,
+  detectNewImage,
+  detectUpdatedImage,
+  resolveGeneratedImagePath,
+  isBenignCodexStderr,
+  imageFailureErrorMessage,
 };

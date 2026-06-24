@@ -426,6 +426,8 @@ function registerIpc() {
 
   ipcMain.handle('bridge:getStatus', async () => codexService.getFullStatus());
 
+  ipcMain.handle('codex:getRateLimits', async (_, options = {}) => codexService.getRateLimits(options));
+
   ipcMain.handle('bridge:ensureReady', async (_, pairingCode) => {
     const onProgress = (p) => send('bridge:progress', p);
     return codexService.ensureReady(pairingCode, onProgress);
@@ -809,7 +811,9 @@ function registerIpc() {
       onProgress,
       signalKey,
       { onPreflightComplete },
-    );
+    ).finally(() => {
+      codexService.invalidateRateLimitCache();
+    });
   });
 
   ipcMain.handle('generate:abort', (_, signalKey) => {
