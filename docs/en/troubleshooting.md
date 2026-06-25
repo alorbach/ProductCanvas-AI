@@ -9,6 +9,7 @@ This chapter helps you resolve common issues with [Codex Local Bridge](https://g
 | Red bridge status dot | Confirm bridge tray app is running; check URL in Settings |
 | “Pairing required” banner | Enter fresh 6-digit code from bridge tray → **Connect** |
 | “Codex sign-in required” | Run `codex login` or click **Sign in to Codex** |
+| Codex CLI issues | **Codex → Status** → **Run checks**; copy diagnostics report for support |
 | Prompt build fails | Verify references are valid PNG/JPG/WebP; check debug log |
 | Generation timeout | Wait up to 30 min; cancel and retry; check bridge queue |
 | Product looks wrong | Rebuild prompt; add references; tighten **Extra prompt** |
@@ -57,6 +58,24 @@ codex --version
 ```
 
 If CLI is missing, install via winget/npm or follow Codex CLI documentation. ProductCanvas AI’s setup flow attempts installation when possible.
+
+## Codex CLI diagnostics
+
+Open **Codex → Status** (or click the bridge status dot) to run built-in checks without starting a full image job.
+
+**Run checks** (fast, no image quota):
+
+- Verifies CLI binary, version, sign-in, `auth.json`, capabilities, rate limits, backend/bridge state
+- Compares your version with **winget** (`OpenAI.Codex`) and suggests `winget upgrade --id OpenAI.Codex -e` when newer — prefer this over `codex update` on networks that rate-limit the GitHub API
+- **Update Codex** runs that winget upgrade (npm fallback) after confirmation — does not call `codex update`
+- Probes GitHub API reachability (informational)
+
+**Run smoke test** (end-to-end):
+
+- Sends a tiny text prompt and expects the token `PCAI_OK`
+- Optionally includes a small image test (uses Codex quota; enable the checkbox)
+
+Use **Copy report** to attach a plain-text summary to support email alongside the footer **Debug log**.
 
 ## Timeouts and long waits
 

@@ -9,6 +9,8 @@ assert.ok(CODEX_INSTALL_SCRIPT.includes('install.ps1'));
 const manager = new CodexManager();
 assert.equal(typeof manager.isInstalled, 'function');
 assert.equal(typeof manager.install, 'function');
+assert.equal(typeof manager.checkForUpdate, 'function');
+assert.equal(typeof manager.update, 'function');
 assert.equal(typeof manager.startLogin, 'function');
 
 console.log('codex-manager.test.js OK');

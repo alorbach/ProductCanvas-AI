@@ -398,6 +398,20 @@
       <p id="bridge-dialog-hint" class="muted"></p>
       <p id="bridge-dialog-subscription" class="muted bridge-subscription-hint hidden"></p>
       <dl class="bridge-status-grid" id="bridge-dialog-status"></dl>
+      <section class="bridge-diagnostics" id="bridge-diagnostics-section">
+        <h3 id="bridge-diagnostics-title" class="bridge-diagnostics-title">Diagnostics</h3>
+        <div class="bridge-diagnostics-actions">
+          <button type="button" class="btn secondary btn-sm" id="bridge-dialog-run-checks">Run checks</button>
+          <button type="button" class="btn secondary btn-sm" id="bridge-dialog-update-codex">Update Codex</button>
+          <label class="bridge-diagnostics-option" id="bridge-dialog-include-image-row">
+            <input type="checkbox" id="bridge-dialog-include-image-smoke">
+            <span id="bridge-dialog-lbl-include-image">Include image test (uses quota)</span>
+          </label>
+          <button type="button" class="btn secondary btn-sm" id="bridge-dialog-run-smoke">Run smoke test</button>
+          <button type="button" class="btn secondary btn-sm" id="bridge-dialog-copy-diagnostics">Copy report</button>
+        </div>
+        <pre id="bridge-dialog-diagnostics" class="bridge-diagnostics-output hidden" aria-live="polite"></pre>
+      </section>
       <label class="bridge-pairing-row" id="bridge-dialog-pairing-row">
         <span id="bridge-dialog-lbl-code">Pairing code</span>
         <input type="text" id="bridge-dialog-pairing-code" maxlength="6" pattern="[0-9]*" autocomplete="off">

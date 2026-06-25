@@ -188,6 +188,8 @@ function formatError(err) {
 }
 
 let bridgeDialogAutoShown = false;
+let bridgeDiagnosticsReport = null;
+let bridgeRateLimitSummary = null;
 
 function isDirectBackend(status) {
   return (status?.backend || appPreferences.codexBackend || 'direct') === 'direct';
@@ -254,6 +256,102 @@ function codexCliSourceLabel(source) {
   return label === key ? String(source || 'default') : label;
 }
 
+function findDiagnosticsCheck(report, id) {
+  return report?.checks?.find((check) => check.id === id) || null;
+}
+
+function diagnosticsStatusLabel(status) {
+  const key = `codex.diagnostics.status.${status}`;
+  const label = t(key);
+  return label === key ? String(status || '') : label;
+}
+
+function formatBridgeRateLimitSummary(summary) {
+  if (!summary) return '—';
+  const primary = formatRateLimitWindow(summary.primary);
+  const secondary = formatRateLimitWindow(summary.secondary);
+  return [primary, secondary].filter(Boolean).join(' · ') || '—';
+}
+
+function mergeDiagnosticsReports(staticReport, smokeReport) {
+  if (!staticReport) return smokeReport;
+  if (!smokeReport) return staticReport;
+  const staticChecks = (staticReport.checks || []).filter((check) => !['textSmoke', 'imageSmoke'].includes(check.id));
+  const checks = [...staticChecks, ...(smokeReport.checks || [])];
+  const overall = checks.some((check) => check.status === 'fail')
+    ? 'fail'
+    : checks.some((check) => check.status === 'warn')
+      ? 'warn'
+      : 'ok';
+  return {
+    ...smokeReport,
+    checks,
+    overall,
+    summaryText: [staticReport.summaryText, smokeReport.summaryText].filter(Boolean).join('\n\n'),
+  };
+}
+
+function renderDiagnosticsOutput(report) {
+  const el = $('bridge-dialog-diagnostics');
+  if (!el) return;
+  if (!report?.checks?.length) {
+    el.textContent = t('codex.diagnostics.empty');
+    el.classList.remove('hidden');
+    return;
+  }
+  el.textContent = report.checks.map((check) => {
+    const label = t(check.labelKey);
+    const name = label === check.labelKey ? check.id : label;
+    return `${diagnosticsStatusLabel(check.status).toUpperCase()}\t${name}: ${check.message}`;
+  }).join('\n');
+  el.classList.remove('hidden');
+}
+
+function setBridgeDiagnosticsBusy(busy) {
+  for (const id of ['bridge-dialog-run-checks', 'bridge-dialog-run-smoke', 'bridge-dialog-copy-diagnostics', 'bridge-dialog-update-codex']) {
+    const btn = $(id);
+    if (btn) btn.disabled = busy;
+  }
+  const checkbox = $('bridge-dialog-include-image-smoke');
+  if (checkbox) checkbox.disabled = busy;
+}
+
+function syncCodexUpdateButton() {
+  const btn = $('bridge-dialog-update-codex');
+  if (!btn) return;
+  const updateCheck = findDiagnosticsCheck(bridgeDiagnosticsReport, 'update');
+  const updateAvailable = updateCheck?.status === 'warn';
+  btn.classList.toggle('primary', updateAvailable);
+  btn.classList.toggle('secondary', !updateAvailable);
+  btn.title = updateAvailable
+    ? updateCheck.message
+    : t('codex.update.buttonHint');
+}
+
+async function loadBridgeDialogExtras() {
+  try {
+    const payload = await api.codexGetRateLimits();
+    bridgeRateLimitSummary = payload?.summary || null;
+  } catch {
+    bridgeRateLimitSummary = null;
+  }
+}
+
+function appendBridgeDialogExtraRows(rows, status) {
+  if (bridgeRateLimitSummary) {
+    rows.push([t('bridge.dialog.lblRateLimits'), formatBridgeRateLimitSummary(bridgeRateLimitSummary)]);
+  }
+  const updateCheck = findDiagnosticsCheck(bridgeDiagnosticsReport, 'update');
+  if (updateCheck) {
+    rows.push([t('bridge.dialog.lblUpdate'), updateCheck.message]);
+  }
+  const capabilitiesCheck = findDiagnosticsCheck(bridgeDiagnosticsReport, 'capabilities');
+  if (capabilitiesCheck) {
+    rows.push([t('bridge.dialog.lblCapabilities'), capabilitiesCheck.message]);
+  }
+  return rows;
+}
+
 function renderBridgeDialogStatus(status) {
   const grid = $('bridge-dialog-status');
   if (!grid) return;
@@ -289,15 +387,15 @@ function renderBridgeDialogStatus(status) {
         t('bridge.dialog.lblReady'),
         status?.ready ? t('bridge.dialog.valReady') : t('bridge.dialog.valNotReady'),
       ]);
-      return directRows;
+      return appendBridgeDialogExtraRows(directRows, status);
     })()
-    : [
+    : appendBridgeDialogExtraRows([
       [t('bridge.dialog.lblRunning'), status?.running ? t('bridge.dialog.valYes') : t('bridge.dialog.valNo')],
       [t('bridge.dialog.lblReady'), status?.ready ? t('bridge.dialog.valReady') : t('bridge.dialog.valNotReady')],
       [t('bridge.dialog.lblPaired'), status?.paired ? t('bridge.dialog.valPaired') : t('bridge.dialog.valNotPaired')],
       [t('bridge.dialog.lblOrigin'), status?.origin || '—'],
       [t('bridge.dialog.lblUrl'), status?.bridgeUrl || '—'],
-    ];
+    ], status);
   grid.innerHTML = rows.map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`).join('');
 }
 
@@ -314,11 +412,119 @@ async function openBridgeSetupDialog(options = {}) {
     : t('bridge.dialog.title');
   $('bridge-dialog-hint').textContent = options.message || bridgeDialogHint(status);
   renderBridgeDialogStatus(status);
+  renderDiagnosticsOutput(bridgeDiagnosticsReport);
+  syncCodexUpdateButton();
+  void loadBridgeDialogExtras().then(() => {
+    if ($('bridge-setup-dialog')?.open) {
+      renderBridgeDialogStatus(status);
+    }
+  });
   syncPairingCodeInputs(getPairingCode());
   const dialog = $('bridge-setup-dialog');
   if (!dialog.open) dialog.showModal();
   if (!isDirectBackend(status) && options.focusPairing !== false && (!status.paired || options.focusPairing)) {
     $('bridge-dialog-pairing-code')?.focus();
+  }
+}
+
+async function runBridgeDiagnosticsChecks() {
+  setBridgeDiagnosticsBusy(true);
+  const output = $('bridge-dialog-diagnostics');
+  if (output) {
+    output.textContent = t('codex.diagnostics.running');
+    output.classList.remove('hidden');
+  }
+  try {
+    const report = await api.codexRunDiagnostics();
+    bridgeDiagnosticsReport = report;
+    if (report?.rateLimits?.summary) {
+      bridgeRateLimitSummary = report.rateLimits.summary;
+    }
+    const status = await api.bridgeGetStatus();
+    renderBridgeDialogStatus(status);
+    renderDiagnosticsOutput(report);
+    syncCodexUpdateButton();
+  } catch (err) {
+    showError(err);
+  } finally {
+    setBridgeDiagnosticsBusy(false);
+  }
+}
+
+async function runBridgeSmokeTest() {
+  setBridgeDiagnosticsBusy(true);
+  const output = $('bridge-dialog-diagnostics');
+  if (output) {
+    output.textContent = t('codex.diagnostics.running');
+    output.classList.remove('hidden');
+  }
+  try {
+    const includeImage = $('bridge-dialog-include-image-smoke')?.checked === true;
+    const smokeReport = await api.codexRunSmokeTest({ includeImage });
+    bridgeDiagnosticsReport = mergeDiagnosticsReports(bridgeDiagnosticsReport, smokeReport);
+    renderDiagnosticsOutput(bridgeDiagnosticsReport);
+  } catch (err) {
+    showError(err);
+  } finally {
+    setBridgeDiagnosticsBusy(false);
+  }
+}
+
+async function copyBridgeDiagnosticsReport() {
+  const text = bridgeDiagnosticsReport?.summaryText
+    || $('bridge-dialog-diagnostics')?.textContent
+    || '';
+  if (!text.trim()) {
+    showStatus(t('codex.diagnostics.empty'), { level: 'warn', ms: 5000 });
+    return;
+  }
+  await navigator.clipboard.writeText(text);
+  showStatus(t('codex.diagnostics.copied'), { level: 'success', ms: 4000 });
+}
+
+async function updateCodexFromUi() {
+  const check = await api.codexCheckUpdate();
+  if (check.upToDate) {
+    showStatus(t('codex.update.upToDate', { version: check.currentVersion || '—' }), { level: 'info', ms: 7000 });
+    return;
+  }
+  if (!check.available) {
+    const message = check.reason === 'not_installed'
+      ? t('codex.install.message')
+      : (check.error || t('codex.update.unavailable'));
+    showStatus(message, { level: 'warn', ms: 9000 });
+    return;
+  }
+
+  const ok = await askConfirm(
+    t('codex.update.title'),
+    t('codex.update.message', {
+      current: check.currentVersion || '—',
+      available: check.availableVersion || '—',
+    }),
+  );
+  if (!ok) return;
+
+  showWait(t('codex.update.title'), { kind: 'codexUpdate' });
+  try {
+    const result = await api.codexUpdate();
+    hideWait();
+    if (result?.upToDate) {
+      showStatus(t('codex.update.upToDate', { version: result.version || check.currentVersion || '—' }), { level: 'info', ms: 7000 });
+    } else if (result?.success) {
+      showStatus(t('codex.update.success', { version: result.version || '—' }), { level: 'success', ms: 8000 });
+      await refreshBridgeStatus();
+      if ($('bridge-setup-dialog')?.open) {
+        const status = await api.bridgeGetStatus();
+        renderBridgeDialogStatus(status);
+        await runBridgeDiagnosticsChecks();
+      }
+    } else {
+      showStatus(result?.message || t('codex.update.failed'), { level: 'error', ms: 10000 });
+    }
+  } catch (err) {
+    hideWait();
+    showError(err);
   }
 }
 
@@ -417,12 +623,34 @@ function rateLimitWindowLabel(label) {
   return label || '';
 }
 
-function formatRateLimitWindow(summaryWindow) {
+function formatRateLimitWindow(summaryWindow, options = {}) {
   if (!summaryWindow || summaryWindow.remainingPercent == null) return '';
-  return t('codex.rateLimit.window', {
-    window: rateLimitWindowLabel(summaryWindow.label),
-    percent: String(summaryWindow.remainingPercent),
-  });
+  const window = rateLimitWindowLabel(summaryWindow.label);
+  const percent = String(summaryWindow.remainingPercent);
+  const reset = options.compactReset
+    ? formatRateLimitResetTimeCompact(summaryWindow.resetsAt)
+    : formatRateLimitResetTime(summaryWindow.resetsAt);
+  if (reset && reset !== '—') {
+    return t('codex.rateLimit.windowWithReset', { window, percent, reset });
+  }
+  return t('codex.rateLimit.window', { window, percent });
+}
+
+function formatRateLimitResetTimeCompact(resetsAt) {
+  const seconds = Number(resetsAt || 0);
+  if (!seconds) return '—';
+  const date = new Date(seconds * 1000);
+  if (Number.isNaN(date.getTime())) return '—';
+  const locale = document.documentElement.lang === 'de' ? 'de-DE' : 'en-US';
+  const now = new Date();
+  try {
+    if (date.toDateString() === now.toDateString()) {
+      return date.toLocaleTimeString(locale, { timeStyle: 'short' });
+    }
+    return date.toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' });
+  } catch {
+    return date.toISOString();
+  }
 }
 
 function formatRateLimitResetTime(resetsAt) {
@@ -463,8 +691,8 @@ function renderCodexRateLimitStatus(payload) {
     return;
   }
 
-  const primary = formatRateLimitWindow(summary.primary);
-  const secondary = formatRateLimitWindow(summary.secondary);
+  const primary = formatRateLimitWindow(summary.primary, { compactReset: true });
+  const secondary = formatRateLimitWindow(summary.secondary, { compactReset: true });
   el.textContent = t('codex.rateLimit.status', {
     primary: primary || '—',
     secondary: secondary || '—',
@@ -1312,6 +1540,12 @@ function applyLabels() {
   if ($('bridge-dialog-reset')) $('bridge-dialog-reset').textContent = t('bridge.dialog.resetPairing');
   if ($('bridge-dialog-close')) $('bridge-dialog-close').textContent = t('bridge.dialog.close');
   if ($('bridge-dialog-connect')) $('bridge-dialog-connect').textContent = t('bridge.setup.connect');
+  if ($('bridge-diagnostics-title')) $('bridge-diagnostics-title').textContent = t('codex.diagnostics.title');
+  if ($('bridge-dialog-run-checks')) $('bridge-dialog-run-checks').textContent = t('codex.diagnostics.runChecks');
+  if ($('bridge-dialog-update-codex')) $('bridge-dialog-update-codex').textContent = t('codex.update.button');
+  if ($('bridge-dialog-lbl-include-image')) $('bridge-dialog-lbl-include-image').textContent = t('codex.diagnostics.includeImage');
+  if ($('bridge-dialog-run-smoke')) $('bridge-dialog-run-smoke').textContent = t('codex.diagnostics.runSmoke');
+  if ($('bridge-dialog-copy-diagnostics')) $('bridge-dialog-copy-diagnostics').textContent = t('codex.diagnostics.copyReport');
   if ($('bridge-status')) $('bridge-status').title = t('bridge.status.title');
   if ($('codex-rate-status')) $('codex-rate-status').textContent = t('codex.rateLimit.loading');
 }
@@ -1382,6 +1616,22 @@ function setupBridgeDialog() {
     await refreshBridgeStatus();
     showStatus(t('bridge.dialog.resetDone'), { level: 'success' });
     showBridgeSetup(t('bridge.status.needsPairing'), { focusPairing: true });
+  });
+
+  $('bridge-dialog-run-checks')?.addEventListener('click', () => {
+    runBridgeDiagnosticsChecks().catch((err) => showError(err));
+  });
+
+  $('bridge-dialog-update-codex')?.addEventListener('click', () => {
+    updateCodexFromUi().catch((err) => showError(err));
+  });
+
+  $('bridge-dialog-run-smoke')?.addEventListener('click', () => {
+    runBridgeSmokeTest().catch((err) => showError(err));
+  });
+
+  $('bridge-dialog-copy-diagnostics')?.addEventListener('click', () => {
+    copyBridgeDiagnosticsReport().catch((err) => showError(err));
   });
 
   $('btn-bridge-connect').addEventListener('click', () => {

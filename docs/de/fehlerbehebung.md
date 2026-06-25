@@ -9,6 +9,7 @@ Häufige Probleme mit [Codex Local Bridge](https://github.com/alorbach/codex-loc
 | Roter Bridge-Status | Bridge-Tray prüfen; URL in Einstellungen |
 | Banner „Pairing erforderlich“ | Frischen 6-stelligen Code eingeben → **Verbinden** |
 | „Codex-Anmeldung erforderlich“ | `codex login` oder **Codex anmelden** |
+| Codex-CLI-Probleme | **Codex → Status** → **Checks ausführen**; Diagnose-Report kopieren |
 | Prompt-Erstellung schlägt fehl | Referenzen prüfen (PNG/JPG/WebP); Debug-Log |
 | Zeitüberschreitung | Bis 30 Min. warten; abbrechen und wiederholen |
 | Produkt sieht falsch aus | Prompt neu generieren; Referenzen ergänzen; **Zusatz-Prompt** |
@@ -57,6 +58,24 @@ codex --version
 ```
 
 CLI fehlt: winget/npm oder offizielle Codex-Dokumentation. ProductCanvas AI versucht Installation bei der Einrichtung.
+
+## Codex-CLI-Diagnose
+
+**Codex → Status** öffnen (oder auf den Bridge-Status-Punkt klicken), um Checks ohne vollständige Bildgenerierung auszuführen.
+
+**Checks ausführen** (schnell, kein Bild-Quota):
+
+- Prüft CLI-Binary, Version, Anmeldung, `auth.json`, Fähigkeiten, Rate Limits, Backend/Bridge
+- Vergleicht die installierte Version mit **winget** (`OpenAI.Codex`) und empfiehlt bei Bedarf `winget upgrade --id OpenAI.Codex -e` — auf Netzen mit GitHub-Rate-Limit `codex update` vermeiden
+- **Codex aktualisieren** führt dieses winget-Upgrade (npm-Fallback) nach Bestätigung aus — ruft nicht `codex update` auf
+- Testet GitHub-API-Erreichbarkeit (informativ)
+
+**Smoketest** (End-to-End):
+
+- Sendet einen kurzen Text-Prompt und erwartet das Token `PCAI_OK`
+- Optional kleiner Bildtest (verbraucht Codex-Quota; Checkbox aktivieren)
+
+**Report kopieren** liefert eine Textzusammenfassung für Support-E-Mails zusätzlich zum **Debug-Log** in der Fußzeile.
 
 ## Zeitüberschreitungen und lange Wartezeiten
 

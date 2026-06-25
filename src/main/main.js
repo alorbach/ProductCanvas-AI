@@ -40,6 +40,7 @@ const { migrateIfNeeded } = require('./migration/user-data-migrate');
 const mainI18n = require('./i18n/main-i18n');
 const { exportToFile, importFromFile, importSummary, defaultExportFileName } = require('./data-bundle/data-bundle-service');
 const { composeEml, createSupportDraftDir, writeEmlFile } = require('./support/eml-compose');
+const { runStaticChecks, runSmokeTest } = require('./bridge/codex-diagnostics');
 
 const MAIN_WINDOW_WIDTH = 1600;
 const MAIN_WINDOW_HEIGHT = 900;
@@ -506,6 +507,17 @@ function registerIpc() {
   ipcMain.handle('codex:install', async () => {
     const onProgress = (p) => send('bridge:progress', p);
     return codexManager.install(onProgress);
+  });
+
+  ipcMain.handle('codex:runDiagnostics', async () => runStaticChecks(codexService, codexManager));
+
+  ipcMain.handle('codex:runSmokeTest', async (_, options = {}) => runSmokeTest(codexService, codexProvider, options));
+
+  ipcMain.handle('codex:checkUpdate', async () => codexManager.checkForUpdate());
+
+  ipcMain.handle('codex:update', async () => {
+    const onProgress = (p) => send('bridge:progress', p);
+    return codexManager.update(onProgress);
   });
 
   ipcMain.handle('session:get', () => session || profileStore.loadSession());

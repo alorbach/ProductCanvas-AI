@@ -905,6 +905,46 @@ body.lightbox-open { overflow: hidden; }
   font-size: 0.9rem;
 }
 .bridge-status-grid dt { margin: 0; color: var(--muted); }
+.bridge-status-grid dd { margin: 0; word-break: break-word; }
+.bridge-diagnostics {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.bridge-diagnostics-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.bridge-diagnostics-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+}
+.bridge-diagnostics-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.bridge-diagnostics-output {
+  margin: 0;
+  max-height: 180px;
+  overflow: auto;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.2);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+.bridge-diagnostics-output.hidden { display: none; }
 .bridge-status-grid dd { margin: 0; word-break: break-all; }
 .bridge-pairing-row { display: flex; flex-direction: column; gap: 6px; }
 .bridge-pairing-row input {
@@ -1057,7 +1097,7 @@ body.lightbox-open { overflow: hidden; }
 }
 
 .codex-rate-status {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   display: flex;
   align-items: center;
   padding: 8px 14px;
@@ -1067,7 +1107,8 @@ body.lightbox-open { overflow: hidden; }
   font-size: 0.8rem;
   line-height: 1.35;
   color: var(--muted);
-  white-space: nowrap;
+  white-space: normal;
+  max-width: min(52vw, 720px);
 }
 
 .codex-rate-status.ok { color: #7fdbff; }

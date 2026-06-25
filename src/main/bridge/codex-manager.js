@@ -2,7 +2,8 @@
 
 const { spawn, execFile } = require('child_process');
 const { promisify } = require('util');
-const { resolveCodexBinary } = require('./codex-cli-client');
+const { resolveCodexBinary, invalidateCodexBinaryCache } = require('./codex-cli-client');
+const { compareSemver, parseWingetVersion } = require('./codex-diagnostics');
 
 const execFileAsync = promisify(execFile);
 
@@ -113,6 +114,191 @@ class CodexManager {
       message: lastMessage || `Codex CLI konnte nicht installiert werden. Siehe ${CODEX_INSTALL_DOCS}`,
       attempts,
       docsUrl: CODEX_INSTALL_DOCS,
+    };
+  }
+
+  async checkForUpdate() {
+    const installCheck = await this.isInstalled();
+    if (!installCheck.installed) {
+      return {
+        available: false,
+        upToDate: false,
+        reason: 'not_installed',
+        currentVersion: '',
+        availableVersion: '',
+      };
+    }
+
+    if (process.platform === 'win32') {
+      try {
+        const { stdout } = await execFileAsync('winget', ['show', '--id', 'OpenAI.Codex', '-e'], {
+          windowsHide: true,
+          timeout: 30000,
+          maxBuffer: 1024 * 1024,
+        });
+        const availableVersion = parseWingetVersion(stdout);
+        if (!availableVersion) {
+          return {
+            available: false,
+            upToDate: false,
+            reason: 'winget_version_unavailable',
+            currentVersion: installCheck.version,
+            availableVersion: '',
+            method: 'winget',
+          };
+        }
+        const cmp = compareSemver(availableVersion, installCheck.version);
+        return {
+          available: cmp > 0,
+          upToDate: cmp === 0,
+          currentVersion: installCheck.version,
+          availableVersion,
+          method: 'winget',
+          reason: cmp === null ? 'version_compare_unknown' : undefined,
+        };
+      } catch (err) {
+        return {
+          available: false,
+          upToDate: false,
+          reason: 'winget_unavailable',
+          error: err.message || String(err),
+          currentVersion: installCheck.version,
+          availableVersion: '',
+        };
+      }
+    }
+
+    try {
+      const { stdout } = await execFileAsync('npm', ['view', '@openai/codex', 'version'], {
+        windowsHide: true,
+        timeout: 30000,
+        shell: true,
+      });
+      const availableVersion = String(stdout || '').trim();
+      const cmp = compareSemver(availableVersion, installCheck.version);
+      return {
+        available: cmp > 0,
+        upToDate: cmp === 0,
+        currentVersion: installCheck.version,
+        availableVersion,
+        method: 'npm',
+        reason: cmp === null ? 'version_compare_unknown' : undefined,
+      };
+    } catch (err) {
+      return {
+        available: false,
+        upToDate: false,
+        reason: 'npm_unavailable',
+        error: err.message || String(err),
+        currentVersion: installCheck.version,
+        availableVersion: '',
+      };
+    }
+  }
+
+  async updateViaWinget(onProgress) {
+    onProgress?.({
+      step: 'codex-update',
+      message: 'Aktualisiere Codex CLI über winget…',
+      messageKey: 'wait.status.codexUpdateWinget',
+    });
+    try {
+      await execFileAsync('winget', [
+        'upgrade', '--id', 'OpenAI.Codex', '-e',
+        '--accept-source-agreements', '--accept-package-agreements',
+      ], { windowsHide: true, timeout: 600000 });
+      return { success: true, method: 'winget' };
+    } catch (err) {
+      return {
+        success: false,
+        method: 'winget',
+        message: err.message || 'winget-Upgrade fehlgeschlagen.',
+      };
+    }
+  }
+
+  async updateViaNpm(onProgress) {
+    onProgress?.({
+      step: 'codex-update',
+      message: 'Aktualisiere Codex CLI über npm…',
+      messageKey: 'wait.status.codexUpdateNpm',
+    });
+    try {
+      await execFileAsync('npm', ['update', '-g', '@openai/codex'], {
+        windowsHide: true,
+        timeout: 300000,
+        shell: true,
+      });
+      return { success: true, method: 'npm' };
+    } catch (err) {
+      return {
+        success: false,
+        method: 'npm',
+        message: err.message || 'npm-Upgrade fehlgeschlagen.',
+      };
+    }
+  }
+
+  async update(onProgress) {
+    const before = await this.checkForUpdate();
+    const installCheck = await this.isInstalled();
+    if (!installCheck.installed) {
+      return {
+        success: false,
+        reason: 'not_installed',
+        message: 'Codex CLI is not installed.',
+      };
+    }
+    if (before.upToDate) {
+      return {
+        success: true,
+        upToDate: true,
+        version: installCheck.version,
+        currentVersion: installCheck.version,
+      };
+    }
+
+    const methods = process.platform === 'win32'
+      ? [() => this.updateViaWinget(onProgress), () => this.updateViaNpm(onProgress)]
+      : [() => this.updateViaNpm(onProgress)];
+    const attempts = [];
+    for (const run of methods) {
+      const result = await run();
+      attempts.push(result);
+      if (result.success) break;
+    }
+
+    invalidateCodexBinaryCache();
+
+    const check = await this.isInstalled();
+    if (!check.installed) {
+      const lastMessage = attempts.filter((a) => !a.success).map((a) => a.message).filter(Boolean).pop();
+      return {
+        success: false,
+        message: lastMessage || 'Codex CLI update finished, but the CLI is no longer reachable.',
+        attempts,
+      };
+    }
+
+    const after = await this.checkForUpdate();
+    if (attempts.some((a) => a.success)) {
+      return {
+        success: true,
+        version: check.version,
+        previousVersion: before.currentVersion,
+        availableVersion: before.availableVersion,
+        method: attempts.find((a) => a.success)?.method || 'unknown',
+        attempts,
+        upToDate: after.upToDate || compareSemver(check.version, before.availableVersion) >= 0,
+      };
+    }
+
+    const lastMessage = attempts.filter((a) => !a.success).map((a) => a.message).filter(Boolean).pop();
+    return {
+      success: false,
+      message: lastMessage || 'Codex CLI could not be updated.',
+      attempts,
+      currentVersion: check.version,
     };
   }
 
