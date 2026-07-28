@@ -1438,9 +1438,7 @@ async function applyEffectsVisibility(show) {
     if ($('view-effects')?.classList.contains('active')) {
       showView('werbung');
     }
-    if (session.effectId) {
-      await clearEffectSelection();
-    }
+    // Keep effectId when hiding the UI — visibility is display-only.
   }
 }
 
@@ -2612,9 +2610,8 @@ async function removeReferenceAt(index) {
 async function loadEffects() {
   effects = await api.effectsList();
   let selectedId = session.effectId || '';
-  if (appPreferences.showEffects !== true) {
-    selectedId = '';
-  } else if (selectedId && !effects.some((e) => e.id === selectedId)) {
+  // Visibility preference is display-only — do not clear a saved effectId when hidden.
+  if (selectedId && !effects.some((e) => e.id === selectedId)) {
     selectedId = '';
   }
   if (selectedId !== (session.effectId || '')) {

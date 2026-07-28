@@ -22,6 +22,8 @@ Importierte Dateien werden nach `%APPDATA%\productcanvas-ai\templates\` kopiert.
 
 Die Vorlage legt Canvas-Größe, Hintergrund, Textbereiche und optionale Kategorie-Icons in der Fußzeile fest.
 
+**Layout-Treue:** Kopfzeile, Fußzeile und Kontaktleiste bleiben aus der Vorlage **pixelgenau** erhalten (Bandhöhen und Abstände 100%). Nur die zentrale **Produktbühne** wird mit Produkten und Werbetexten befüllt. Nach der KI-Generierung werden die Frozen-Zonen technisch aus der Vorlage zurückcomposet.
+
 ### 1b. Effektbilder (optional)
 
 Effektbilder sind **standardmäßig ausgeblendet**. Aktivierung unter **Einstellungen → Allgemein → Effektbilder anzeigen**.
@@ -104,7 +106,7 @@ Nach Abschluss erscheint die Vorschau. Klick für Vollbild (Esc zum Schließen).
 Nach der Generierung steht unter der Vorschau **Mit KI bearbeiten** zur Verfügung. Sie können die Vorschau auch **manuell ersetzen**: PNG, JPG oder WebP per **Drag & Drop** auf den Vorschau-Bereich ziehen (das Bild wird in den temporären Vorschau-Speicher kopiert).
 
 1. **Änderungswunsch** beschreiben (z. B. „Neon-Rahmen von blau auf rot“).
-2. **Mit KI bearbeiten** – Vorschau und gewählte Layout-Vorlage schützen Kopfzeile, Fußzeile, Kontaktleiste und Branding, sofern im Änderungswunsch nicht explizit etwas anderes gewünscht ist.
+2. **Mit KI bearbeiten** – Vorschau und gewählte Layout-Vorlage schützen Kopfzeile, Fußzeile, Kontaktleiste und Branding pixelgenau (außer der Änderungswunsch nennt diese Bereiche explizit).
 3. **Vollbild-Vergleich** – Original und Ergebnis nebeneinander.
 4. **Änderung übernehmen** behält die bearbeitete Vorschau, **Änderung verwerfen** stellt die vorherige wieder her.
 

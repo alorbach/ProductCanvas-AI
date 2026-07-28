@@ -12,7 +12,6 @@ const {
   emitReferencePrepProgress,
 } = require('./image-preflight');
 const {
-  appendLayoutLockBlock,
   appendPreviewEditLockBlock,
   buildPreviewEditFrozenRules,
   sanitizePreflightPrompt,
@@ -193,6 +192,8 @@ class PreviewEditPipeline {
       throw new Error('Keine Bilddaten von der Bridge erhalten.');
     }
 
+    // Hard layout compositing stays on the initial generate path only. Preview-edit must not
+    // paste the original template chrome back — that would discard accepted frozen-zone edits.
     const outPath = path.join(paths.tempPreviewDir(), `preview-edit-${Date.now()}.png`);
     fs.writeFileSync(outPath, Buffer.from(b64, 'base64'));
 
@@ -206,6 +207,7 @@ class PreviewEditPipeline {
       referenceAttachmentCount: Number(providerDetails.reference_attachment_count || 0),
       optimizedEditPrompt: prompt,
       stageMaskPrepared: Boolean(stageMaskPath),
+      layoutCompositeApplied: false,
     };
   }
 
@@ -262,6 +264,7 @@ class PreviewEditPipeline {
       refsForwardedToCodex: image.refsForwardedToCodex,
       referenceAttachmentCount: image.referenceAttachmentCount,
       stageMaskPrepared: image.stageMaskPrepared,
+      layoutCompositeApplied: image.layoutCompositeApplied === true,
     };
   }
 }
