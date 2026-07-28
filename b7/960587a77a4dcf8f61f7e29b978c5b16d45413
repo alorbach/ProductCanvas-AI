@@ -1,0 +1,61 @@
+test/layout-composite.test.js
+  s_d9d6c8f5049944::t_a0bd545423f963 1-125
+src/main/generate/image-pipeline.js
+  s_d9d6c8f5049944::t_fb9231c07cd35b 23
+  s_aad235aad27724::t_1ee4d1904aecaa 323-354,357-358,361
+src/main/templates/template-registry.js
+  s_d9d6c8f5049944::t_2050a8b9ce8350 89-100
+  s_d9d6c8f5049944::t_97c526a7de1eff 81-88
+  s_d9d6c8f5049944::t_14079a4aae141c 21-23,27-80
+  s_d9d6c8f5049944::t_9bac26cc63ce67 101-103
+  s_aa5e81a409cea0::t_f8bfe3cf247192 202-209,279-286,294-295,300-301,388-397
+src/main/generate/layout-composite.js
+  s_d9d6c8f5049944::t_9ca211e2d417e8 1-117
+src/main/generate/preview-edit-pipeline.js
+  s_d9d6c8f5049944::t_21cbd5a01df6ba 22,26-30
+  s_aad235aad27724::t_91ccfe6791ddc5 145,206-242,245-246,253,294,311,319
+docs/de/bild-erstellen.md
+  s_aa5e81a409cea0::t_112e2a5ffe3810 25-26,109
+package.json
+  s_aad235aad27724::t_f8d61a7d012875 11
+src/main/generate/layout-fidelity.js
+  s_aad235aad27724::t_d751ab80164233 12,21,30,32,47
+src/main/generate/reference-roles.js
+  s_aad235aad27724::t_c4541843b3740d 143,177,187,206
+test/layout-fidelity.test.js
+  s_aad235aad27724::t_a8821034f93675 41,53-54
+test/template-import.test.js
+  s_aad235aad27724::t_f1f32687573efe 31-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "b7960587a77a4dcf8f61f7e29b978c5b16d45413",
+  "prompts": {},
+  "sessions": {
+    "s_aa5e81a409cea0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa8bf-c123-7f32-99ea-06a506b167ac",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Andre Lorbach <alorbach@adiscon.com>"
+    },
+    "s_aad235aad27724": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa351-25b7-7db1-8607-7ecd59ae7b68",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Andre Lorbach <alorbach@adiscon.com>"
+    },
+    "s_d9d6c8f5049944": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "293b9cfb-e7e2-4af5-9683-99c334d49ccb",
+        "model": "grok-4.5"
+      },
+      "human_author": "Andre Lorbach <alorbach@adiscon.com>"
+    }
+  }
+}
