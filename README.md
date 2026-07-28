@@ -55,14 +55,14 @@ npm run dist:win
 
 Output in `dist/`:
 
-- `ProductCanvas-AI-1.0.0-build.N-win-x64.exe` (installer)
-- `ProductCanvas-AI-1.0.0-build.N-win-x64.zip` (portable)
+- `ProductCanvas-AI-1.0.9-build.N-win-x64.exe` (installer)
+- `ProductCanvas-AI-1.0.9-build.N-win-x64.zip` (portable)
 
 ## Release
 
 ```powershell
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.0.9
+git push origin v1.0.9
 ```
 
 GitHub Actions creates release artifacts automatically (`.github/workflows/release.yml`).

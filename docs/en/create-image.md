@@ -24,6 +24,8 @@ The template defines canvas size, background design, text areas, and optional ca
 
 ### 1b. Effect images (optional)
 
+Effect images are **off by default**. Enable them under **Settings → General → Show effect images**.
+
 The **Effect images** column holds background/effect assets (e.g. fire on black) separate from layout templates.
 
 - **Generate effect** – describe the effect in text; accept the AI preview to save it to your library under `%APPDATA%\productcanvas-ai\effects\`.

@@ -65,6 +65,8 @@ async function applyLabels() {
   $('opt-locale-auto').textContent = t('settings.language.auto');
   $('opt-locale-en').textContent = t('settings.language.en');
   $('opt-locale-de').textContent = t('settings.language.de');
+  if ($('lbl-show-effects')) $('lbl-show-effects').textContent = t('settings.showEffects');
+  if ($('show-effects-hint')) $('show-effects-hint').textContent = t('settings.showEffectsHint');
   $('lbl-codex-backend').textContent = t('settings.codexBackend');
   $('opt-backend-direct').textContent = t('settings.codexBackend.direct');
   $('opt-backend-bridge').textContent = t('settings.codexBackend.bridge');
@@ -105,6 +107,7 @@ function updateCodexFieldVisibility() {
 async function loadForm() {
   const prefs = await api.getPreferences();
   $('setting-locale').value = prefs.uiLocale || 'auto';
+  if ($('setting-show-effects')) $('setting-show-effects').checked = prefs.showEffects === true;
   $('setting-codex-backend').value = prefs.codexBackend || 'direct';
   $('setting-bridge-url').value = prefs.bridgeUrl || 'http://127.0.0.1:8765';
   $('setting-codex-cli-path').value = prefs.codexCliPath || '';
@@ -118,6 +121,7 @@ async function loadForm() {
 async function saveSettings() {
   const patch = {
     uiLocale: $('setting-locale').value,
+    showEffects: $('setting-show-effects')?.checked === true,
     codexBackend: $('setting-codex-backend').value,
     bridgeUrl: $('setting-bridge-url').value.trim(),
     codexCliPath: $('setting-codex-cli-path').value.trim(),
@@ -155,6 +159,9 @@ api.on('preferences:changed', async (prefs) => {
   await loadI18n(prefs.resolvedLocale);
   await applyLabels();
   updateSystemHint(prefs);
+  if ($('setting-show-effects') && prefs.showEffects !== undefined) {
+    $('setting-show-effects').checked = prefs.showEffects === true;
+  }
   if ($('setting-codex-backend')) {
     $('setting-codex-backend').value = prefs.codexBackend || 'direct';
   }

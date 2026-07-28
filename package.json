@@ -1,6 +1,6 @@
 {
   "name": "productcanvas-ai",
-  "version": "1.0.3",
+  "version": "1.0.9",
   "description": "Universal AI image studio from layout templates and reference photos via Codex Local Bridge",
   "private": true,
   "main": "src/main/main.js",

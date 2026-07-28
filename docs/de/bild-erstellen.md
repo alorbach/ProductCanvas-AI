@@ -24,6 +24,8 @@ Die Vorlage legt Canvas-Größe, Hintergrund, Textbereiche und optionale Kategor
 
 ### 1b. Effektbilder (optional)
 
+Effektbilder sind **standardmäßig ausgeblendet**. Aktivierung unter **Einstellungen → Allgemein → Effektbilder anzeigen**.
+
 Die Spalte **Effektbilder** enthält Hintergrund-/Effekt-Assets (z. B. Feuer auf schwarz), getrennt von Layout-Vorlagen.
 
 - **Effektbild erzeugen** – Effekt in Text beschreiben; KI-Vorschau akzeptieren, um das Bild unter `%APPDATA%\productcanvas-ai\effects\` zu speichern.
