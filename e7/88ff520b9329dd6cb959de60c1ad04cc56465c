@@ -1,0 +1,47 @@
+src/main/main.js
+  s_1469714a0273e5::t_0ee629cb836c6e 277-281,286-311,313-315,322,324
+src/renderer/app.js
+  s_1469714a0273e5::t_dfecab36e66e2b 1442
+  s_1469714a0273e5::t_dfa61aa6f88144 4053
+  s_1469714a0273e5::t_32f418f08fd437 2615,2617-2621
+  s_1469714a0273e5::t_baa86349a25dd1 1432-1441,1443-1446
+  s_1469714a0273e5::t_db2bb4a4850a51 4192
+  s_1469714a0273e5::t_ec10ccd0f9985e 4083,4091-4093
+  s_1469714a0273e5::t_90edee1aa0660a 4084-4086
+docs/de/bild-erstellen.md
+  s_aa5e81a409cea0::t_cc6df817776767 27-28
+docs/en/create-image.md
+  s_aa5e81a409cea0::t_2082960f0ecd9d 27-28
+src/main/app-preferences.js
+  s_aa5e81a409cea0::t_ceda1878acd69e 11,70,90-92,102
+src/renderer/i18n/de.json
+  s_aa5e81a409cea0::t_379651ddc1f25b 122-123
+src/renderer/settings.html
+  s_aa5e81a409cea0::t_75bd8aa75e786e 29-33
+src/renderer/styles.css
+  s_aa5e81a409cea0::t_ab719437aed4a5 178-181
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "e788ff520b9329dd6cb959de60c1ad04cc56465c",
+  "prompts": {},
+  "sessions": {
+    "s_1469714a0273e5": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3562d78e-32d9-447e-a72f-db0ba3b24c62",
+        "model": "grok-4.5"
+      },
+      "human_author": "Andre Lorbach <alorbach@adiscon.com>"
+    },
+    "s_aa5e81a409cea0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa8bf-c123-7f32-99ea-06a506b167ac",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Andre Lorbach <alorbach@adiscon.com>"
+    }
+  }
+}
