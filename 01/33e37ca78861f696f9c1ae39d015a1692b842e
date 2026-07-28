@@ -1,0 +1,58 @@
+src/renderer/app.js
+  s_1469714a0273e5::t_32f418f08fd437 2615,2617-2621
+  s_1469714a0273e5::t_ec10ccd0f9985e 4083,4091-4093
+  s_1469714a0273e5::t_dfecab36e66e2b 1442
+  s_1469714a0273e5::t_baa86349a25dd1 1432-1441,1443-1446
+  s_1469714a0273e5::t_90edee1aa0660a 4084-4086
+  s_1469714a0273e5::t_db2bb4a4850a51 4192
+  s_1469714a0273e5::t_dfa61aa6f88144 4053
+src/main/bridge/codex-rate-limits.js
+  s_1469714a0273e5::t_250e719cb21862 7-8
+  s_1469714a0273e5::t_706c891b16d211 9
+  s_1469714a0273e5::t_df8d892c82695a 10-14,203
+src/main/main.js
+  s_1469714a0273e5::t_2df1654719f593 87-93
+  s_1469714a0273e5::t_0ee629cb836c6e 283-287,292-317,319-321,328,330
+README.md
+  s_aa5e81a409cea0::t_a87fc2e342264a 58-59,64-65
+docs/de/bild-erstellen.md
+  s_aa5e81a409cea0::t_f4fee2de461ab9 27-28
+docs/en/create-image.md
+  s_aa5e81a409cea0::t_9c636944b1ebc3 27-28
+package-lock.json
+  s_aa5e81a409cea0::t_1d14616486edbe 3,9
+package.json
+  s_aa5e81a409cea0::t_c91badf591f47d 3
+src/main/app-preferences.js
+  s_aa5e81a409cea0::t_8d3db70dd081de 11,70,90-92,102
+src/renderer/i18n/de.json
+  s_aa5e81a409cea0::t_c1e96751f3632d 122-123
+src/renderer/settings.html
+  s_aa5e81a409cea0::t_19ffa4020eeebd 29-33
+src/renderer/styles.css
+  s_aa5e81a409cea0::t_9d21bf2fb400d5 178-181
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "0133e37ca78861f696f9c1ae39d015a1692b842e",
+  "prompts": {},
+  "sessions": {
+    "s_1469714a0273e5": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3562d78e-32d9-447e-a72f-db0ba3b24c62",
+        "model": "default"
+      },
+      "human_author": null
+    },
+    "s_aa5e81a409cea0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa8bf-c123-7f32-99ea-06a506b167ac",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Andre Lorbach <alorbach@adiscon.com>"
+    }
+  }
+}
