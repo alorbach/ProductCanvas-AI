@@ -18,9 +18,117 @@ const DEFAULT_TEMPLATE_META = {
     seriesName: { x: 80, y: 360, fontSize: 28 },
     tagline: { x: 80, y: 400, fontSize: 18 },
   },
-  productStage: { x: 48, y: 200, width: 1440, height: 580 },
+  // Coordinates relative to REFERENCE_CANVAS; scaled to real template size on import.
+  // Leaves ~19.5% header and ~26.8% footer so contact bar + category row stay frozen.
+  productStage: { x: 48, y: 200, width: 1440, height: 550 },
   categories: ['TV', 'BEAMER', 'LEINWÄNDE', 'LAUTSPRECHER', 'AV-RECEIVER', 'SUBWOOFER', 'KINOSESSEL'],
 };
+
+/** Default productStage / textZones are authored for this canvas size. */
+const REFERENCE_CANVAS = { width: 1536, height: 1024 };
+
+function clampProductStage(stage, canvasW, canvasH) {
+  if (!stage || !canvasW || !canvasH) return stage || null;
+  const x = Math.max(0, Math.min(Number(stage.x) || 0, canvasW - 1));
+  const y = Math.max(0, Math.min(Number(stage.y) || 0, canvasH - 1));
+  const width = Math.max(1, Math.min(Number(stage.width) || 1, canvasW - x));
+  const height = Math.max(1, Math.min(Number(stage.height) || 1, canvasH - y));
+  return { x, y, width, height };
+}
+
+/**
+ * Fit a productStage defined on REFERENCE_CANVAS onto an actual template size,
+ * preserving header/footer band fractions so Kopf and Fußzeile stay outside the stage.
+ */
+function fitProductStageToCanvas(stage, canvasW, canvasH, refW = REFERENCE_CANVAS.width, refH = REFERENCE_CANVAS.height) {
+  if (!stage || !canvasW || !canvasH || !refW || !refH) {
+    return clampProductStage(stage, canvasW, canvasH);
+  }
+  const headerFrac = Math.max(0, (Number(stage.y) || 0) / refH);
+  const footerFrac = Math.max(0, (refH - ((Number(stage.y) || 0) + (Number(stage.height) || 0))) / refH);
+  const y = Math.round(headerFrac * canvasH);
+  const bottomReserve = Math.round(footerFrac * canvasH);
+  const height = Math.max(1, canvasH - y - bottomReserve);
+  const x = Math.round((Number(stage.x) || 0) * canvasW / refW);
+  const width = Math.round((Number(stage.width) || refW) * canvasW / refW);
+  return clampProductStage({ x, y, width, height }, canvasW, canvasH);
+}
+
+function scaleTextZonesToCanvas(textZones, canvasW, canvasH, refW = REFERENCE_CANVAS.width, refH = REFERENCE_CANVAS.height) {
+  if (!textZones || !canvasW || !canvasH) return textZones;
+  const out = {};
+  for (const [key, zone] of Object.entries(textZones)) {
+    if (!zone || typeof zone !== 'object') {
+      out[key] = zone;
+      continue;
+    }
+    out[key] = {
+      ...zone,
+      x: Math.round((Number(zone.x) || 0) * canvasW / refW),
+      y: Math.round((Number(zone.y) || 0) * canvasH / refH),
+    };
+  }
+  return out;
+}
+
+function looksLikeUnscaledReferenceStage(stage, canvasW, canvasH) {
+  if (!stage || !canvasW || !canvasH) return false;
+  const canvasDiffers = canvasW !== REFERENCE_CANVAS.width || canvasH !== REFERENCE_CANVAS.height;
+  if (!canvasDiffers) return false;
+
+  const def = DEFAULT_TEMPLATE_META.productStage;
+  const x = Number(stage.x) || 0;
+  const y = Number(stage.y) || 0;
+  const w = Number(stage.width) || 0;
+  const h = Number(stage.height) || 0;
+  const matchesDefaultXY = Math.abs(x - def.x) < 2 && Math.abs(y - def.y) < 2;
+  // Current default width 1440; accept legacy default height 580 as well as 550.
+  const matchesDefaultW = Math.abs(w - def.width) < 2 || Math.abs(w - 1440) < 2;
+  const matchesDefaultH = Math.abs(h - def.height) < 2 || Math.abs(h - 580) < 2;
+  return matchesDefaultXY && matchesDefaultW && matchesDefaultH;
+}
+
+function productStageNeedsRefit(stage, canvasW, canvasH) {
+  if (!stage || !canvasW || !canvasH) return false;
+  const x = Number(stage.x) || 0;
+  const y = Number(stage.y) || 0;
+  const w = Number(stage.width) || 0;
+  const h = Number(stage.height) || 0;
+  if (x < 0 || y < 0 || w < 1 || h < 1) return true;
+  if (x + w > canvasW || y + h > canvasH) return true;
+  // Unscaled reference-sized stage on a different canvas (smaller or larger than 1536×1024).
+  if (looksLikeUnscaledReferenceStage(stage, canvasW, canvasH)) {
+    return true;
+  }
+  return false;
+}
+
+function normalizeTemplateStageMeta(template) {
+  if (!template?.productStage || !template.width || !template.height) return template;
+  // Versioned coordinate space: do not re-interpret custom stages after import/migration.
+  if (Number(template.stageSpaceVersion) === 1) {
+    const overflow = productStageNeedsRefit(template.productStage, template.width, template.height)
+      && !looksLikeUnscaledReferenceStage(template.productStage, template.width, template.height);
+    if (!overflow) return template;
+    return {
+      ...template,
+      productStage: clampProductStage(template.productStage, template.width, template.height),
+      stageSpaceVersion: 1,
+    };
+  }
+  if (!productStageNeedsRefit(template.productStage, template.width, template.height)) {
+    return template;
+  }
+  return {
+    ...template,
+    productStage: fitProductStageToCanvas(
+      DEFAULT_TEMPLATE_META.productStage,
+      template.width,
+      template.height,
+    ),
+    stageSpaceVersion: 1,
+  };
+}
 
 function readJson(filePath, fallback) {
   try {
@@ -120,11 +228,14 @@ class TemplateRegistry {
 
   listAll() {
     this.pruneMissingTemplates();
-    return (this.getUserRegistry().templates || []).map((t) => enrichTemplateMeta({
-      ...t,
-      type: 'user',
-      path: path.join(paths.userTemplatesDir(), t.file),
-    }));
+    return (this.getUserRegistry().templates || []).map((t) => {
+      const enriched = enrichTemplateMeta({
+        ...t,
+        type: 'user',
+        path: path.join(paths.userTemplatesDir(), t.file),
+      });
+      return normalizeTemplateStageMeta(enriched);
+    });
   }
 
   getById(id) {
@@ -157,6 +268,7 @@ class TemplateRegistry {
       stageHint: source.stageHint,
       textZones: source.textZones,
       productStage: source.productStage,
+      stageSpaceVersion: source.stageSpaceVersion || 1,
       categories: source.categories,
       createdAt: new Date().toISOString(),
     };
@@ -194,6 +306,14 @@ class TemplateRegistry {
     const destPath = path.join(paths.userTemplatesDir(), fileName);
     await this.normalizeTemplateImage(filePath, destPath);
     const dims = await this.readTemplateDimensions(destPath);
+    const canvasW = dims?.width || 0;
+    const canvasH = dims?.height || 0;
+    const productStage = canvasW && canvasH
+      ? fitProductStageToCanvas(templateMeta.productStage, canvasW, canvasH)
+      : templateMeta.productStage;
+    const textZones = canvasW && canvasH
+      ? scaleTextZonesToCanvas(templateMeta.textZones, canvasW, canvasH)
+      : templateMeta.textZones;
 
     const entry = {
       id: newId,
@@ -201,14 +321,15 @@ class TemplateRegistry {
       file: fileName,
       type: 'user',
       parentId: null,
-      width: dims?.width || 0,
-      height: dims?.height || 0,
+      width: canvasW,
+      height: canvasH,
       accent: templateMeta.accent,
       accentHex: templateMeta.accentHex,
       textGold: templateMeta.textGold,
       stageHint: templateMeta.stageHint,
-      textZones: templateMeta.textZones,
-      productStage: templateMeta.productStage,
+      textZones,
+      productStage,
+      stageSpaceVersion: 1,
       categories: templateMeta.categories,
       importedFrom: path.basename(filePath),
       createdAt: new Date().toISOString(),
@@ -295,4 +416,14 @@ class TemplateRegistry {
   }
 }
 
-module.exports = { TemplateRegistry, DEFAULT_TEMPLATE_META };
+module.exports = {
+  TemplateRegistry,
+  DEFAULT_TEMPLATE_META,
+  REFERENCE_CANVAS,
+  clampProductStage,
+  fitProductStageToCanvas,
+  looksLikeUnscaledReferenceStage,
+  normalizeTemplateStageMeta,
+  productStageNeedsRefit,
+  scaleTextZonesToCanvas,
+};

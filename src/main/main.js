@@ -84,7 +84,13 @@ function getBuildInfo() {
   try {
     return require('../build-info.json');
   } catch {
-    return { version: '1.0.3', build_number: 0 };
+    let version = '0.0.0';
+    try {
+      version = require('../../package.json').version || version;
+    } catch {
+      // keep fallback
+    }
+    return { version, build_number: 0 };
   }
 }
 
@@ -274,41 +280,54 @@ function buildMenu() {
         { label: mt('menu.templates.delete'), click: () => send('action:template-delete', {}) },
       ],
     },
-    {
+  ];
+
+  const showEffects = getPreferences(systemLocale()).showEffects === true;
+  if (showEffects) {
+    template.push({
       label: mt('menu.effects'),
       submenu: [
         { label: mt('menu.effects.edit'), click: () => send('nav:effect-editor', {}) },
       ],
+    });
+  }
+
+  const helpSubmenu = [
+    { label: mt('menu.help.gettingStarted'), click: () => send('help:open', 'getting-started') },
+    { label: mt('menu.help.handbook'), click: () => send('help:open', 'user-guide') },
+    { label: mt('menu.help.editTemplates'), click: () => send('help:open', 'edit-templates') },
+  ];
+  if (showEffects) {
+    helpSubmenu.push({ label: mt('menu.help.editEffects'), click: () => send('help:open', 'edit-effects') });
+  }
+  helpSubmenu.push(
+    { type: 'separator' },
+    { label: mt('menu.help.debug'), click: () => send('debug:show', {}) },
+    { type: 'separator' },
+    {
+      label: mt('menu.help.about'),
+      click: () => {
+        const info = getBuildInfo();
+        dialog.showMessageBox(mainWindow, {
+          type: 'info',
+          title: mt('about.title'),
+          message: mt('about.message'),
+          detail: mt('about.detail', { version: info.version, build: info.build_number }),
+        });
+      },
     },
+  );
+
+  template.push(
     {
       label: mt('menu.codex'),
       submenu: buildCodexSubmenu(),
     },
     {
       label: mt('menu.help'),
-      submenu: [
-        { label: mt('menu.help.gettingStarted'), click: () => send('help:open', 'getting-started') },
-        { label: mt('menu.help.handbook'), click: () => send('help:open', 'user-guide') },
-        { label: mt('menu.help.editTemplates'), click: () => send('help:open', 'edit-templates') },
-        { label: mt('menu.help.editEffects'), click: () => send('help:open', 'edit-effects') },
-        { type: 'separator' },
-        { label: mt('menu.help.debug'), click: () => send('debug:show', {}) },
-        { type: 'separator' },
-        {
-          label: mt('menu.help.about'),
-          click: () => {
-            const info = getBuildInfo();
-            dialog.showMessageBox(mainWindow, {
-              type: 'info',
-              title: mt('about.title'),
-              message: mt('about.message'),
-              detail: mt('about.detail', { version: info.version, build: info.build_number }),
-            });
-          },
-        },
-      ],
+      submenu: helpSubmenu,
     },
-  ];
+  );
 
   const menu = Menu.buildFromTemplate([
     {

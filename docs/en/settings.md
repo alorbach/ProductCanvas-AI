@@ -51,9 +51,9 @@ Only **`http://` and `https://`** URLs are accepted. Invalid values fall back to
 
 This field is shown only when **Codex Local Bridge** is selected as the backend.
 
-## Layout stage masks (experimental)
+## Layout fidelity (header / footer / product stage)
 
-When a template defines a **product stage** rectangle, ProductCanvas AI can generate a PNG mask for that region during image generation. Mask inpainting is **not yet active** in the subscription Codex CLI path — the mask is prepared and logged for when Codex exposes `--mask` support. Until then, layout fidelity relies on prompt rules.
+After AI generation, ProductCanvas AI composites **header, footer, contact bar, and side margins** pixel-identically from the layout template. Only the **product stage** (`productStage` rectangle in template meta) comes from the generated image. Prompt rules also lock band heights/spacing, and an optional PNG stage mask is prepared (mask inpainting is not yet active on the subscription Codex CLI path until Codex supports `--mask`).
 
 ## Project settings (Create image tab)
 

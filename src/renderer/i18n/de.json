@@ -119,6 +119,8 @@
   "settings.language.en": "Englisch",
   "settings.language.de": "Deutsch",
   "settings.language.systemHint": "Systemsprache: {locale}",
+  "settings.showEffects": "Effektbilder anzeigen",
+  "settings.showEffectsHint": "Blendet die Effektbilder-Spalte und den Reiter Effektbilder bearbeiten ein. Standardmäßig aus.",
   "settings.bridgeUrl": "Bridge-URL",
   "settings.codexBackend": "Codex-Backend",
   "settings.codexBackend.bridge": "Codex Local Bridge",

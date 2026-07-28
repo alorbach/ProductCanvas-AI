@@ -1429,6 +1429,19 @@ function showView(name) {
   }
 }
 
+async function applyEffectsVisibility(show) {
+  const visible = show === true;
+  $('effects-panel')?.classList.toggle('hidden', !visible);
+  $('nav-effects')?.classList.toggle('hidden', !visible);
+  $('view-werbung')?.classList.toggle('effects-hidden', !visible);
+  if (!visible) {
+    if ($('view-effects')?.classList.contains('active')) {
+      showView('werbung');
+    }
+    // Keep effectId when hiding the UI — visibility is display-only.
+  }
+}
+
 function applyLabels() {
   $('app-title').textContent = t('app.title');
   $('app-subtitle').textContent = t('app.subtitle');
@@ -2597,9 +2610,12 @@ async function removeReferenceAt(index) {
 async function loadEffects() {
   effects = await api.effectsList();
   let selectedId = session.effectId || '';
+  // Visibility preference is display-only — do not clear a saved effectId when hidden.
   if (selectedId && !effects.some((e) => e.id === selectedId)) {
     selectedId = '';
-    await updateSession({ effectId: '' });
+  }
+  if (selectedId !== (session.effectId || '')) {
+    await updateSession({ effectId: selectedId });
   }
   renderEffectList('effect-list', session.effectId, async (id) => {
     await selectEffect(id);
@@ -4031,6 +4047,7 @@ function setupInteractionHandlers() {
   api.on('bridge:progress', (p) => updateWait(p));
   api.on('session:loaded', async (s) => {
     session = s;
+    await applyEffectsVisibility(appPreferences.showEffects === true);
     await refreshImageSettingsUi();
     writeSettingsToUi();
     restorePromptFromSession();
@@ -4060,11 +4077,17 @@ function setupInteractionHandlers() {
   api.on('preferences:changed', async (prefs) => {
     appPreferences = prefs;
     await reloadLocale(prefs);
+    await applyEffectsVisibility(prefs.showEffects === true);
+    if (prefs.showEffects === true) {
+      await loadEffects();
+    }
     await refreshBridgeStatus();
     void refreshCodexRateLimitStatus({ silent: true }).catch((err) => console.error(err));
   });
   api.on('nav:template-editor', () => showView('templates'));
-  api.on('nav:effect-editor', () => showView('effects'));
+  api.on('nav:effect-editor', () => {
+    if (appPreferences.showEffects === true) showView('effects');
+  });
   api.on('action:save-as', async () => {
     const name = session.profileName || 'Profil';
     const saved = await api.profileSaveDialog(name);
@@ -4163,6 +4186,7 @@ async function init() {
     setupInteractionHandlers();
 
     session = await api.sessionGet();
+    await applyEffectsVisibility(prefs.showEffects === true);
     if (session.editorReferenceImagePath) {
       setEditorReferenceImage({
         path: session.editorReferenceImagePath,

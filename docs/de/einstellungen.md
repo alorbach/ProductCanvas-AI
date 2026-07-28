@@ -51,9 +51,9 @@ Nur **`http://`** und **`https://`** sind erlaubt. Ungültige Werte fallen auf `
 
 Dieses Feld erscheint nur bei Backend **Codex Local Bridge**.
 
-## Layout-Bühnen-Masken (experimentell)
+## Layout-Treue (Kopf / Fuß / Produktbühne)
 
-Definiert eine Vorlage eine **Produktbühne** (Rechteck), erzeugt ProductCanvas AI beim Generieren optional eine PNG-Maske für diese Region. Mask-Inpainting ist im Subscription-Codex-CLI-Pfad **noch nicht aktiv** — die Maske wird vorbereitet und geloggt, bis Codex `--mask` unterstützt. Bis dahin gilt Layout-Treue über Prompt-Regeln.
+Nach der KI-Generierung composetet ProductCanvas AI **Kopfzeile, Fußzeile, Kontaktleiste und Seitenränder** pixelgenau aus der Layout-Vorlage zurück. Nur die **Produktbühne** (Rechteck `productStage` in der Vorlagen-Meta) kommt aus dem generierten Bild. Zusätzlich gibt es Prompt-Regeln für Bandhöhen/Abstände und optional eine PNG-Bühnen-Maske (vorbereitet; Mask-Inpainting im Subscription-Codex-CLI-Pfad noch nicht aktiv, bis Codex `--mask` unterstützt).
 
 ## Projekteinstellungen (Tab Bild erstellen)
 

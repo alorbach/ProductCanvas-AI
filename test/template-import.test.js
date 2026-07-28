@@ -28,6 +28,21 @@ async function run() {
     const imported = await registry.importFromFile(src, 'blau.DB');
     assert.equal(imported.width, 1024, 'import keeps 1024 px width');
     assert.equal(imported.height, 768, 'import keeps 768 px height');
+    assert.ok(imported.productStage, 'import stores productStage');
+    assert.ok(
+      imported.productStage.x + imported.productStage.width <= imported.width,
+      'productStage fits canvas width',
+    );
+    assert.ok(
+      imported.productStage.y + imported.productStage.height <= imported.height,
+      'productStage fits canvas height',
+    );
+    // Header/footer fractions preserved from reference canvas (~19.5% / ~23.8%)
+    assert.ok(imported.productStage.y > 100, 'header band reserved above stage');
+    assert.ok(
+      imported.height - (imported.productStage.y + imported.productStage.height) > 100,
+      'footer band reserved below stage',
+    );
     const storedMeta = await sharp(registry.resolveTemplatePath(imported)).metadata();
     assert.equal(storedMeta.width, 1024, 'stored png keeps width');
     assert.equal(storedMeta.height, 768, 'stored png keeps height');

@@ -20,6 +20,7 @@ const {
 } = require('./image-preflight');
 const { resolveImageGenerationSettings } = require('./image-settings');
 const { buildStageMaskPath } = require('./stage-mask');
+const { compositeFrozenLayoutZones } = require('./layout-composite');
 const { ProductEffectPipeline } = require('./product-effect-pipeline');
 
 class ImagePipeline {
@@ -319,12 +320,45 @@ class ImagePipeline {
 
       const outPath = path.join(paths.tempPreviewDir(), `preview-${Date.now()}.png`);
       fs.writeFileSync(outPath, Buffer.from(b64, 'base64'));
+
+      let finalPath = outPath;
+      let finalB64 = b64;
+      let layoutCompositeApplied = false;
+      if (template?.productStage && templatePath) {
+        try {
+          const composite = await compositeFrozenLayoutZones({
+            generatedPath: outPath,
+            templatePath,
+            template,
+            templateDims,
+            outputSize: imageSettings.size,
+          });
+          if (composite.applied) {
+            finalPath = composite.path;
+            finalB64 = composite.b64;
+            layoutCompositeApplied = true;
+            debugLog.info('image-pipeline', 'Frozen-Layout-Zonen aus Vorlage zurückcomposet', {
+              templateId: template.id,
+              stageRect: composite.stageRect,
+              outPath: composite.path,
+            });
+          } else {
+            debugLog.warn('image-pipeline', 'Layout-Compositing übersprungen', {
+              reason: composite.reason,
+            });
+          }
+        } catch (err) {
+          debugLog.warn('image-pipeline', 'Layout-Compositing fehlgeschlagen', { message: err.message });
+        }
+      }
+
       return {
         success: true,
-        path: outPath,
-        b64,
+        path: finalPath,
+        b64: finalB64,
         result,
         composited: productPrep.effectApplied,
+        layoutCompositeApplied,
         attachmentMode,
         preflightPrompt: finalPrompt,
         preflightFingerprint,

@@ -119,6 +119,8 @@
   "settings.language.en": "English",
   "settings.language.de": "German",
   "settings.language.systemHint": "System language: {locale}",
+  "settings.showEffects": "Show effect images",
+  "settings.showEffectsHint": "Shows the Effect images column and the Edit effects tab. Off by default.",
   "settings.bridgeUrl": "Bridge URL",
   "settings.codexBackend": "Codex backend",
   "settings.codexBackend.bridge": "Codex Local Bridge",

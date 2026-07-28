@@ -38,6 +38,7 @@ const taskPrompt = buildPreflightTaskPrompt({
   template,
 });
 assert(taskPrompt.includes('LAYOUT FROZEN ZONES'), 'preflight task includes frozen rules');
+assert(/band heights and vertical spacing 100%/i.test(taskPrompt), 'preflight task locks header/footer spacing');
 assert(taskPrompt.includes('Main line:'), 'preflight task uses main line label');
 assert(!/Category:/i.test(taskPrompt), 'preflight task must not include category');
 assert(!/Gold typography for brand/i.test(taskPrompt), 'preflight task must not force gold brand');
@@ -49,6 +50,8 @@ assert(!/gold typography for brand/i.test(clean), 'sanitizer removes gold typogr
 
 const locked = appendLayoutLockBlock('Place Martin Logan speakers.', template, { size: '1536x1024' });
 assert(locked.includes(LAYOUT_FROZEN_RULES), 'layout lock block appended');
+assert(/ONLY the central product stage may change/i.test(locked), 'layout lock limits edits to stage');
+assert(/band heights and vertical spacing 100%/i.test(locked), 'layout lock keeps header/footer spacing');
 assert(locked.includes('1536x1024'), 'layout lock includes exact size');
 assert(!locked.includes('1365x1024'), 'layout lock does not use wrong size');
 

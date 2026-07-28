@@ -74,6 +74,18 @@ h1 {
   margin-bottom: 14px;
 }
 
+.checkbox-field {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.checkbox-field input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+  accent-color: #2d6cdf;
+}
+
 input, select {
   background: #1a1a1a;
   border: 1px solid #333;

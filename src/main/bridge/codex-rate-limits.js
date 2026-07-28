@@ -4,6 +4,14 @@ const { spawn } = require('child_process');
 
 const DEFAULT_TIMEOUT_MS = Number(process.env.ALORBACH_CODEX_RATE_LIMIT_TIMEOUT_MS || 15000);
 
+function appVersion() {
+  try {
+    return require('../../../package.json').version || '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+}
+
 function remainingPercent(window) {
   if (!window || typeof window.usedPercent !== 'number' || Number.isNaN(window.usedPercent)) {
     return null;
@@ -192,7 +200,7 @@ function readRateLimits(options = {}) {
     (async () => {
       try {
         await rpc('initialize', {
-          clientInfo: { name: 'productcanvas-ai', version: '1.0.0' },
+          clientInfo: { name: 'productcanvas-ai', version: appVersion() },
         });
         const result = await rpc('account/rateLimits/read');
         cleanup(null, result?.rateLimits || result || null);

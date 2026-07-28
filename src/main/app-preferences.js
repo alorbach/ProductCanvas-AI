@@ -8,6 +8,7 @@ const SUPPORTED_LOCALES = ['en', 'de'];
 const DEFAULT_UI_LOCALE = 'auto';
 const DEFAULT_CODEX_BACKEND = 'direct';
 const SUPPORTED_CODEX_BACKENDS = ['direct', 'bridge'];
+const DEFAULT_SHOW_EFFECTS = false;
 
 function readDefaults() {
   try {
@@ -66,6 +67,7 @@ function getPreferences(systemLocale) {
     bridgeUrl: normalizeBridgeUrl(defaults.bridgeUrl),
     codexBackend,
     codexCliPath: sanitizeCodexCliPath(defaults.codexCliPath),
+    showEffects: defaults.showEffects === true,
   };
 }
 
@@ -85,6 +87,9 @@ function setPreferences(patch, systemLocale) {
   if (patch.codexCliPath !== undefined) {
     allowed.codexCliPath = normalizeCodexCliPath(patch.codexCliPath);
   }
+  if (patch.showEffects !== undefined) {
+    allowed.showEffects = Boolean(patch.showEffects);
+  }
   writeDefaults(allowed);
   return getPreferences(systemLocale);
 }
@@ -94,6 +99,7 @@ module.exports = {
   DEFAULT_UI_LOCALE,
   DEFAULT_CODEX_BACKEND,
   SUPPORTED_CODEX_BACKENDS,
+  DEFAULT_SHOW_EFFECTS,
   resolveLocale,
   getPreferences,
   setPreferences,
