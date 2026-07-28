@@ -29,7 +29,6 @@ scripts/           Icons, Windows build, placeholders
 | `bridge/bridge-manager.js` | Bridge lifecycle, ensure-ready, status |
 | `bridge/codex-manager.js` | Codex CLI install/login helpers |
 | `generate/stage-mask.js` | Product-stage PNG masks (prepared; active when CLI supports `--mask`) |
-| `generate/layout-composite.js` | Composite frozen zones (header/footer) pixel-identically from the template |
 | `generate/prompt-builder.js` | Reference analysis, werbung prompt |
 | `generate/image-pipeline.js` | Preflight + Codex image generation |
 | `generate/template-edit-pipeline.js` | Template AI edits |

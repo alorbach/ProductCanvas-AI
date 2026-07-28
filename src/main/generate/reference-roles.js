@@ -140,7 +140,7 @@ function buildReferenceOrderBlock(attachmentPlan) {
   for (const entry of plan) {
     const n = entry.imageIndex;
     if (entry.role === 'layout') {
-      lines.push(`- Image ${n} (layout template): copy frozen header, footer, contact bar, brand text colors, icon row, neon accents, and all layout zones pixel-identically from this image. Keep header and footer band heights and vertical spacing 100% unchanged. Edit only the central product stage.`);
+      lines.push(`- Image ${n} (layout template): copy frozen header, footer, contact bar, brand text colors, icon row, neon accents, and all layout zones pixel-identically from this image. Edit only the central product stage.`);
       continue;
     }
     if (entry.role === 'detail' && entry.isPrimaryDetail) {
@@ -174,7 +174,6 @@ function buildLayoutFrozenRules(attachmentPlan) {
     return [
       'LAYOUT FROZEN ZONES (copy pixel-identically from the attached layout template):',
       '- Top-left logo, top-right brand title, contact bar, footer category icons and labels.',
-      '- Keep header and footer band heights and vertical spacing 100% identical — do NOT stretch, compress, or shift these bands.',
       '- Exact text colors as shown in the template (e.g. white brand title — do NOT recolor to gold).',
       '- Neon side bars and accent color exactly as in the template.',
       '- Do NOT add category highlight boxes, gold frames, or new footer emphasis.',
@@ -184,7 +183,6 @@ function buildLayoutFrozenRules(attachmentPlan) {
   return [
     `LAYOUT FROZEN ZONES (copy pixel-identically from IMAGE ${layoutIdx} / attached template):`,
     '- Top-left logo, top-right brand title, contact bar, footer category icons and labels.',
-    '- Keep header and footer band heights and vertical spacing 100% identical — do NOT stretch, compress, or shift these bands.',
     '- Exact text colors as shown in the template (e.g. white brand title — do NOT recolor to gold).',
     '- Neon side bars and accent color exactly as in the template.',
     '- Do NOT add category highlight boxes, gold frames, or new footer emphasis.',
@@ -203,7 +201,6 @@ function buildLayoutEditableRules(attachmentPlan) {
     : '- Use colors and typography that match the layout template for stage product lines.';
   return [
     'EDITABLE ZONE (product stage only):',
-    '- ONLY the central product stage may change content, scale, or composition — header and footer bands stay fixed.',
     productLine,
     '- Ad lines (main line, line 1, line 2) may appear in the stage text zone only.',
     typographyLine,

@@ -29,7 +29,6 @@ scripts/           Icons, Windows-Build, Platzhalter
 | `bridge/bridge-manager.js` | Bridge-Lebenszyklus, ensure-ready, Status |
 | `bridge/codex-manager.js` | Codex-CLI-Installation/Login |
 | `generate/stage-mask.js` | Produktbühnen-PNG-Masken (vorbereitet; aktiv wenn CLI `--mask` unterstützt) |
-| `generate/layout-composite.js` | Frozen-Zonen (Kopf/Fuß) pixelgenau aus Vorlage zurückcomposen |
 | `generate/prompt-builder.js` | Referenzanalyse, Werbe-Prompt |
 | `generate/image-pipeline.js` | Preflight + Codex-Bildgenerierung |
 | `generate/template-edit-pipeline.js` | KI-Vorlagenbearbeitung |

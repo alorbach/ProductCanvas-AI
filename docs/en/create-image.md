@@ -22,8 +22,6 @@ Imported files are copied to `%APPDATA%\productcanvas-ai\templates\` and registe
 
 The template defines canvas size, background design, text areas, and optional category icons in the footer.
 
-**Layout fidelity:** Header, footer, and contact bar stay **pixel-identical** to the template (band heights and spacing at 100%). Only the central **product stage** is filled with products and ad lines. After AI generation, frozen zones are composited back from the template.
-
 ### 1b. Effect images (optional)
 
 Effect images are **off by default**. Enable them under **Settings → General → Show effect images**.
@@ -108,7 +106,7 @@ When complete, the preview panel shows the result. Click the preview for fullscr
 After generation, use **Edit with AI** below the preview. You can also **replace the preview manually**: drag PNG, JPG, or WebP onto the preview area (the file is copied into the temporary preview store).
 
 1. Describe what should change in **Change request** (e.g. “change neon frame from blue to red”).
-2. Click **Edit with AI**. The current preview and the selected layout template keep header, footer, contact bar, and branding pixel-identical unless you explicitly name those areas in the change request.
+2. Click **Edit with AI**. The current preview and the selected layout template are used to protect header, footer, contact bar, and branding unless you explicitly request changes in the change request.
 3. Use **Compare fullscreen** to view the original and edited result side by side.
 4. **Accept change** keeps the edited preview as your working result, or **Reject change** restores the previous preview.
 

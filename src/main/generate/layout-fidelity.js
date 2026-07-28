@@ -9,7 +9,6 @@ const {
 const LAYOUT_FROZEN_RULES = [
   'LAYOUT FROZEN ZONES (copy pixel-identically from IMAGE 2 / attached template):',
   '- Top-left logo, top-right brand title, contact bar, footer category icons and labels.',
-  '- Keep header and footer band heights and vertical spacing 100% identical — do NOT stretch, compress, or shift these bands.',
   '- Exact text colors as shown in the template (e.g. white brand title — do NOT recolor to gold).',
   '- Neon side bars and accent color exactly as in the template.',
   '- Do NOT add category highlight boxes, gold frames, or new footer emphasis.',
@@ -18,7 +17,6 @@ const LAYOUT_FROZEN_RULES = [
 
 const LAYOUT_EDITABLE_RULES = [
   'EDITABLE ZONE (product stage only):',
-  '- ONLY the central product stage may change content, scale, or composition — header and footer bands stay fixed.',
   '- Place products from IMAGE 1 only inside the central stage area.',
   '- Ad lines (main line, line 1, line 2) may appear in the stage text zone only.',
   '- Use colors and typography that match IMAGE 2 for stage product lines — do not force gold on header brand text.',
@@ -27,9 +25,9 @@ const LAYOUT_EDITABLE_RULES = [
 function buildProductStageHint(template) {
   const stage = template?.productStage;
   if (!stage) {
-    return 'Editable region: central product stage between header and contact bar only. Header and footer band heights stay 100% unchanged.';
+    return 'Editable region: central product stage between header and contact bar only.';
   }
-  return `Editable region (product stage only): x=${stage.x}, y=${stage.y}, width=${stage.width}, height=${stage.height} at ${template.width || 1536}x${template.height || 1024}px canvas. Everything outside this rectangle (header, footer, contact bar, neon sides) must stay pixel-identical with 100% band heights and spacing.`;
+  return `Editable region (product stage only): x=${stage.x}, y=${stage.y}, width=${stage.width}, height=${stage.height} at ${template.width || 1536}x${template.height || 1024}px canvas.`;
 }
 
 function buildTemplateLayoutHint(template, options = {}) {
@@ -44,7 +42,6 @@ function buildTemplateLayoutHint(template, options = {}) {
     lines.push(
       `${layoutRef} is authoritative for all frozen layout zones.`,
       `Copy header, footer, contact bar, icon row, neon accents, and brand text colors exactly from ${layoutRef}.`,
-      'Preserve header and footer band heights and vertical spacing at 100% — only the central product stage may change.',
     );
   } else {
     lines.push(`Accent hint: ${template.accentHex || template.accent}.`);
