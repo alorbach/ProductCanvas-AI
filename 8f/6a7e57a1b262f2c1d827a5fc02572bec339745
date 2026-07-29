@@ -1,0 +1,29 @@
+src/renderer/app.js
+  s_1469714a0273e5::t_32f418f08fd437 2615,2617
+  s_1469714a0273e5::t_dfecab36e66e2b 1442
+  s_1469714a0273e5::t_baa86349a25dd1 1441,1443
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "8f6a7e57a1b262f2c1d827a5fc02572bec339745",
+  "prompts": {},
+  "sessions": {
+    "s_1469714a0273e5": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3562d78e-32d9-447e-a72f-db0ba3b24c62",
+        "model": "default"
+      },
+      "human_author": null
+    },
+    "s_aa5e81a409cea0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa8bf-c123-7f32-99ea-06a506b167ac",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Andre Lorbach <alorbach@adiscon.com>"
+    }
+  }
+}
