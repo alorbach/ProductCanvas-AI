@@ -11,7 +11,12 @@ function importPreviewFromPath(sourcePath) {
     return null;
   }
   const ext = path.extname(resolved).toLowerCase() || '.png';
-  const dest = path.join(paths.tempPreviewDir(), `preview-import-${Date.now()}${ext}`);
+  const baseName = path.basename(resolved, ext);
+  const keepWmMarker = /\.wm$/i.test(baseName);
+  const dest = path.join(
+    paths.tempPreviewDir(),
+    `preview-import-${Date.now()}${keepWmMarker ? '.wm' : ''}${ext}`,
+  );
   fs.copyFileSync(resolved, dest);
   return dest;
 }

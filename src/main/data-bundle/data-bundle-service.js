@@ -90,8 +90,11 @@ function archiveRefName(index, sourcePath) {
   return `ref-${index}${ext.toLowerCase()}`;
 }
 
-function archivePreviewName(sourcePath) {
+function archivePreviewName(field, sourcePath) {
   const ext = path.extname(sourcePath || '') || '.png';
+  if (field === 'lastPreviewEditSourcePath') {
+    return `preview-edit-source${ext.toLowerCase()}`;
+  }
   return `preview${ext.toLowerCase()}`;
 }
 
@@ -143,20 +146,28 @@ function buildSessionManifest(session, templateRegistry, effectRegistry) {
 
   const pathFields = [
     ['lastPreviewPath', 'previews'],
+    ['lastPreviewEditSourcePath', 'previews'],
     ['editorReferenceImagePath', 'editor-refs'],
     ['effectEditorReferenceImagePath', 'effect-editor-refs'],
   ];
+  const archivedBySource = new Map();
   for (const [field, folder] of pathFields) {
     const sourcePath = settings[field];
     if (!sourcePath || !fs.existsSync(sourcePath) || !isImagePath(sourcePath)) {
       settings[field] = '';
       continue;
     }
-    const archiveName = field === 'lastPreviewPath'
-      ? archivePreviewName(sourcePath)
+    const resolvedSource = path.resolve(sourcePath);
+    if (archivedBySource.has(resolvedSource)) {
+      settings[field] = archivedBySource.get(resolvedSource);
+      continue;
+    }
+    const archiveName = (field === 'lastPreviewPath' || field === 'lastPreviewEditSourcePath')
+      ? archivePreviewName(field, sourcePath)
       : archiveEditorRefName(field, sourcePath);
     const archivePath = `${folder}/${archiveName}`;
     settings[field] = archivePath;
+    archivedBySource.set(resolvedSource, archivePath);
     fileEntries.push({ archivePath, sourcePath });
   }
 
@@ -339,6 +350,26 @@ function restoreSession(manifest, tempDir) {
     })).filter((ref) => ref.path),
   );
   restored.lastPreviewPath = restoreArchivedFile(tempDir, manifest.session.lastPreviewPath, importDir);
+  const restoredEditSource = restoreArchivedFile(
+    tempDir,
+    manifest.session.lastPreviewEditSourcePath,
+    importDir,
+  );
+  if (restoredEditSource) {
+    restored.lastPreviewEditSourcePath = restoredEditSource;
+  } else if (restored.lastPreviewPath) {
+    const inferred = (() => {
+      const display = restored.lastPreviewPath;
+      const ext = path.extname(display);
+      const base = ext ? display.slice(0, -ext.length) : display;
+      if (!base.toLowerCase().endsWith('.wm')) return '';
+      const clean = `${base.slice(0, -3)}${ext || '.png'}`;
+      return fs.existsSync(clean) ? clean : '';
+    })();
+    restored.lastPreviewEditSourcePath = inferred || '';
+  } else {
+    restored.lastPreviewEditSourcePath = '';
+  }
   restored.editorReferenceImagePath = restoreArchivedFile(
     tempDir,
     manifest.session.editorReferenceImagePath,

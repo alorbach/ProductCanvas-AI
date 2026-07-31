@@ -9,6 +9,21 @@ const DEFAULT_UI_LOCALE = 'auto';
 const DEFAULT_CODEX_BACKEND = 'direct';
 const SUPPORTED_CODEX_BACKENDS = ['direct', 'bridge'];
 const DEFAULT_SHOW_EFFECTS = false;
+const DEFAULT_AI_WATERMARK = true;
+const DEFAULT_AI_WATERMARK_CORNER = 'bottom-right';
+const SUPPORTED_AI_WATERMARK_CORNERS = [
+  'bottom-right',
+  'bottom-left',
+  'top-right',
+  'top-left',
+];
+
+function normalizeAiWatermarkCorner(value) {
+  const corner = String(value || '').trim().toLowerCase();
+  return SUPPORTED_AI_WATERMARK_CORNERS.includes(corner)
+    ? corner
+    : DEFAULT_AI_WATERMARK_CORNER;
+}
 
 function readDefaults() {
   try {
@@ -68,6 +83,8 @@ function getPreferences(systemLocale) {
     codexBackend,
     codexCliPath: sanitizeCodexCliPath(defaults.codexCliPath),
     showEffects: defaults.showEffects === true,
+    aiWatermark: defaults.aiWatermark !== false,
+    aiWatermarkCorner: normalizeAiWatermarkCorner(defaults.aiWatermarkCorner),
   };
 }
 
@@ -90,6 +107,12 @@ function setPreferences(patch, systemLocale) {
   if (patch.showEffects !== undefined) {
     allowed.showEffects = Boolean(patch.showEffects);
   }
+  if (patch.aiWatermark !== undefined) {
+    allowed.aiWatermark = Boolean(patch.aiWatermark);
+  }
+  if (patch.aiWatermarkCorner !== undefined) {
+    allowed.aiWatermarkCorner = normalizeAiWatermarkCorner(patch.aiWatermarkCorner);
+  }
   writeDefaults(allowed);
   return getPreferences(systemLocale);
 }
@@ -100,6 +123,10 @@ module.exports = {
   DEFAULT_CODEX_BACKEND,
   SUPPORTED_CODEX_BACKENDS,
   DEFAULT_SHOW_EFFECTS,
+  DEFAULT_AI_WATERMARK,
+  DEFAULT_AI_WATERMARK_CORNER,
+  SUPPORTED_AI_WATERMARK_CORNERS,
+  normalizeAiWatermarkCorner,
   resolveLocale,
   getPreferences,
   setPreferences,

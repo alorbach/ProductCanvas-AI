@@ -31,6 +31,20 @@
         <span id="lbl-show-effects">Show effect images</span>
       </label>
       <p id="show-effects-hint" class="muted"></p>
+      <label class="field checkbox-field">
+        <input type="checkbox" id="setting-ai-watermark" checked>
+        <span id="lbl-ai-watermark">AI watermark on generated images</span>
+      </label>
+      <p id="ai-watermark-hint" class="muted"></p>
+      <label class="field" id="ai-watermark-corner-field">
+        <span id="lbl-ai-watermark-corner">AI icon corner</span>
+        <select id="setting-ai-watermark-corner">
+          <option value="bottom-right" id="opt-wm-corner-br">Bottom right</option>
+          <option value="bottom-left" id="opt-wm-corner-bl">Bottom left</option>
+          <option value="top-right" id="opt-wm-corner-tr">Top right</option>
+          <option value="top-left" id="opt-wm-corner-tl">Top left</option>
+        </select>
+      </label>
     </section>
 
     <section id="tab-panel-codex" class="settings-panel" role="tabpanel" aria-labelledby="tab-btn-codex" hidden>
