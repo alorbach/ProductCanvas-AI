@@ -22,6 +22,7 @@ const DEFAULTS = {
   editorReferenceImagePath: '',
   effectEditorReferenceImagePath: '',
   lastPreviewPath: '',
+  lastPreviewEditSourcePath: '',
   previewPendingEdit: null,
   imagePrompt: '',
   productDescription: '',

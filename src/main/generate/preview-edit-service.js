@@ -1,6 +1,7 @@
 'use strict';
 
 const fs = require('fs');
+const path = require('path');
 const { isAllowedExportSource } = require('../safe-paths');
 
 function isValidStoredPreviewPath(filePath) {
@@ -12,36 +13,142 @@ function isValidStoredPreviewPath(filePath) {
   }
 }
 
+function clearPreviewSessionPatch() {
+  return {
+    lastPreviewPath: '',
+    lastPreviewEditSourcePath: '',
+    previewPendingEdit: null,
+  };
+}
+
+/** If display is `*.wm.ext`, prefer the clean sibling when present. */
+function inferCleanSibling(displayPath) {
+  const resolved = String(displayPath || '').trim();
+  if (!resolved) return '';
+  const ext = path.extname(resolved);
+  const base = ext ? resolved.slice(0, -ext.length) : resolved;
+  if (!base.toLowerCase().endsWith('.wm')) return '';
+  const clean = `${base.slice(0, -3)}${ext || '.png'}`;
+  return isValidStoredPreviewPath(clean) ? clean : '';
+}
+
+/** True when path looks like a stamped watermark sibling (`*.wm.ext`). */
+function isWmDisplayPath(filePath) {
+  const resolved = String(filePath || '').trim();
+  if (!resolved) return false;
+  const ext = path.extname(resolved);
+  const base = ext ? resolved.slice(0, -ext.length) : resolved;
+  return base.toLowerCase().endsWith('.wm');
+}
+
+function resolveEditSourceFallback(displayPath, editSourcePath) {
+  const trimmed = String(editSourcePath || '').trim();
+  if (trimmed && isValidStoredPreviewPath(trimmed) && !isWmDisplayPath(trimmed)) {
+    return trimmed;
+  }
+  if (trimmed && isValidStoredPreviewPath(trimmed) && isWmDisplayPath(trimmed)) {
+    const fromStoredWm = inferCleanSibling(trimmed);
+    if (fromStoredWm) return fromStoredWm;
+  }
+  const inferred = inferCleanSibling(displayPath);
+  if (inferred) return inferred;
+  // Do not feed a stamped .wm.png into AI edit when the clean sibling is gone.
+  if (isWmDisplayPath(displayPath)) return '';
+  // Explicit empty edit-source means "no editable source" (e.g. imported wm-only file).
+  if (editSourcePath !== undefined && editSourcePath !== null && !trimmed) {
+    return '';
+  }
+  return isValidStoredPreviewPath(displayPath) ? displayPath : '';
+}
+
+/** Prefer a non-watermarked editable path among candidates (infer clean sibling for *.wm). */
+function resolveNonWmEditPath(...candidates) {
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    if (isValidStoredPreviewPath(candidate) && !isWmDisplayPath(candidate)) {
+      return candidate;
+    }
+    if (isValidStoredPreviewPath(candidate) && isWmDisplayPath(candidate)) {
+      const inferred = inferCleanSibling(candidate);
+      if (inferred) return inferred;
+    }
+  }
+  return '';
+}
+
 function resolveStoredPreview(session = {}) {
   const pending = session.previewPendingEdit;
   if (pending && typeof pending === 'object') {
-    const originalOk = isValidStoredPreviewPath(pending.originalPreviewPath);
-    const editedOk = isValidStoredPreviewPath(pending.editedPreviewPath);
-    if (!originalOk || !editedOk) {
+    const editedDisplayOk = isValidStoredPreviewPath(pending.editedPreviewPath);
+    const editedSource = resolveNonWmEditPath(
+      pending.editedEditSourcePath,
+      pending.editedPreviewPath,
+    );
+    const originalSource = resolveNonWmEditPath(
+      pending.originalEditSourcePath,
+      pending.originalPreviewPath,
+      pending.originalDisplayPath,
+    );
+    if (!editedDisplayOk || !editedSource || !originalSource) {
       return {
         valid: false,
         path: '',
         pendingEdit: null,
-        sessionPatch: { lastPreviewPath: '', previewPendingEdit: null },
+        sessionPatch: clearPreviewSessionPatch(),
       };
     }
+    const patchedPending = {
+      ...pending,
+      editedEditSourcePath: editedSource,
+      originalEditSourcePath: originalSource,
+      originalDisplayPath: isValidStoredPreviewPath(pending.originalDisplayPath)
+        ? pending.originalDisplayPath
+        : (isValidStoredPreviewPath(pending.originalPreviewPath)
+          ? pending.originalPreviewPath
+          : pending.originalDisplayPath),
+    };
     return {
       valid: true,
       path: pending.editedPreviewPath,
-      pendingEdit: pending,
+      pendingEdit: patchedPending,
       sessionPatch: null,
     };
   }
 
   const storedPath = String(session.lastPreviewPath || '').trim();
+  const editSource = String(session.lastPreviewEditSourcePath || '').trim();
+
   if (!isValidStoredPreviewPath(storedPath)) {
-    const sessionPatch = storedPath
-      ? { lastPreviewPath: '', previewPendingEdit: null }
-      : null;
+    if (isValidStoredPreviewPath(editSource) && !isWmDisplayPath(editSource)) {
+      const wmSibling = (() => {
+        const ext = path.extname(editSource);
+        const base = ext ? editSource.slice(0, -ext.length) : editSource;
+        if (base.toLowerCase().endsWith('.wm')) return '';
+        const candidate = `${base}.wm${ext || '.png'}`;
+        return isValidStoredPreviewPath(candidate) ? candidate : '';
+      })();
+      const display = wmSibling || editSource;
+      return {
+        valid: true,
+        path: display,
+        pendingEdit: null,
+        sessionPatch: {
+          lastPreviewPath: display,
+          lastPreviewEditSourcePath: editSource,
+        },
+      };
+    }
+    const sessionPatch = (storedPath || editSource) ? clearPreviewSessionPatch() : null;
     return { valid: false, path: '', pendingEdit: null, sessionPatch };
   }
 
-  return { valid: true, path: storedPath, pendingEdit: null, sessionPatch: null };
+  const resolvedEditSource = resolveEditSourceFallback(storedPath, editSource);
+  let sessionPatch = null;
+  if (resolvedEditSource !== editSource) {
+    sessionPatch = { lastPreviewEditSourcePath: resolvedEditSource || '' };
+  }
+
+  return { valid: true, path: storedPath, pendingEdit: null, sessionPatch };
 }
 
 class PreviewEditService {
@@ -86,6 +193,7 @@ class PreviewEditService {
   }
 
   async runEdit({ previewPath, templateId, changeRequest, quality, size }, onProgress, signalKey) {
+    const session = this.getSession() || {};
     const result = await this.pipeline.runPreviewEdit(
       { previewPath, templateId, changeRequest, quality, size },
       onProgress,
@@ -93,7 +201,10 @@ class PreviewEditService {
     );
     this.pendingEdit = {
       originalPreviewPath: result.previewPath,
+      originalDisplayPath: session.lastPreviewPath || result.previewPath,
+      originalEditSourcePath: result.previewPath,
       editedPreviewPath: result.editedPreviewPath,
+      editedEditSourcePath: result.editedEditSourcePath || result.editedPreviewPath,
       editedPreviewB64: result.editedPreviewB64,
       changeRequest: result.changeRequest,
       optimizedEditPrompt: result.optimizedEditPrompt,
@@ -116,15 +227,21 @@ class PreviewEditService {
       } catch { /* ignore */ }
     }
     let originalPreviewB64 = '';
-    if (this.pendingEdit.originalPreviewPath
-      && fs.existsSync(this.pendingEdit.originalPreviewPath)) {
+    const originalDisplay = this.pendingEdit.originalDisplayPath
+      || this.pendingEdit.originalPreviewPath;
+    if (originalDisplay && fs.existsSync(originalDisplay)) {
       try {
-        originalPreviewB64 = fs.readFileSync(this.pendingEdit.originalPreviewPath).toString('base64');
+        originalPreviewB64 = fs.readFileSync(originalDisplay).toString('base64');
       } catch { /* ignore */ }
     }
     return {
       originalPreviewPath: this.pendingEdit.originalPreviewPath,
+      originalDisplayPath: originalDisplay,
+      originalEditSourcePath: this.pendingEdit.originalEditSourcePath
+        || this.pendingEdit.originalPreviewPath,
       editedPreviewPath: this.pendingEdit.editedPreviewPath,
+      editedEditSourcePath: this.pendingEdit.editedEditSourcePath
+        || this.pendingEdit.editedPreviewPath,
       originalPreviewB64,
       editedPreviewB64,
       changeRequest: this.pendingEdit.changeRequest,
@@ -140,18 +257,38 @@ class PreviewEditService {
     if (!this.pendingEdit?.editedPreviewPath) {
       throw new Error('Keine ausstehende Vorschau zum Akzeptieren.');
     }
-    const newPath = this.pendingEdit.editedPreviewPath;
-    this.clearPendingFromSession({ lastPreviewPath: newPath });
-    return { path: newPath, success: true };
+    const displayPath = this.pendingEdit.editedPreviewPath;
+    const editSourcePath = resolveNonWmEditPath(
+      this.pendingEdit.editedEditSourcePath,
+      displayPath,
+    );
+    this.clearPendingFromSession({
+      lastPreviewPath: displayPath,
+      lastPreviewEditSourcePath: editSourcePath || '',
+    });
+    return { path: displayPath, editSourcePath: editSourcePath || '', success: true };
   }
 
   rejectEdit() {
-    if (this.pendingEdit?.editedPreviewPath && fs.existsSync(this.pendingEdit.editedPreviewPath)) {
-      try { fs.unlinkSync(this.pendingEdit.editedPreviewPath); } catch { /* ignore */ }
+    const editedDisplay = this.pendingEdit?.editedPreviewPath;
+    const editedSource = this.pendingEdit?.editedEditSourcePath;
+    if (editedDisplay && fs.existsSync(editedDisplay)) {
+      try { fs.unlinkSync(editedDisplay); } catch { /* ignore */ }
     }
-    const originalPath = this.pendingEdit?.originalPreviewPath || '';
-    this.clearPendingFromSession({ lastPreviewPath: originalPath });
-    return { path: originalPath, success: true };
+    if (editedSource && editedSource !== editedDisplay && fs.existsSync(editedSource)) {
+      try { fs.unlinkSync(editedSource); } catch { /* ignore */ }
+    }
+    const displayPath = this.pendingEdit?.originalDisplayPath
+      || this.pendingEdit?.originalPreviewPath
+      || '';
+    const editSourcePath = this.pendingEdit?.originalEditSourcePath
+      || this.pendingEdit?.originalPreviewPath
+      || displayPath;
+    this.clearPendingFromSession({
+      lastPreviewPath: displayPath,
+      lastPreviewEditSourcePath: editSourcePath,
+    });
+    return { path: displayPath, editSourcePath, success: true };
   }
 }
 

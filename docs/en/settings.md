@@ -23,6 +23,10 @@ UI strings live in the app’s i18n files; help content loads from `docs/en/` or
 
 Click **Save** to apply. The main window refreshes labels without restart.
 
+## AI watermark
+
+When enabled (default), ProductCanvas AI embeds the official **EU Basic** AI labelling icon into product image previews after generation and after AI preview edits, following Commission placement guidance (embedded in the image, clearly sized). Choose the corner under **Settings → General → AI icon corner** (default: bottom right). The PNG export uses the same stamped file. Disable under **Settings → General** if you handle labeling yourself.
+
 ## Codex backend
 
 | Option | Behavior |

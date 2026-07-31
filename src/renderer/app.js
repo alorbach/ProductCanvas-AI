@@ -28,6 +28,7 @@ let effects = [];
 let imageSettingsCatalog = null;
 let promptData = null;
 let lastPreviewPath = '';
+let lastPreviewEditSourcePath = '';
 let lastPreviewB64 = '';
 let editorTemplateId = '';
 let editorLocked = false;
@@ -2148,12 +2149,17 @@ async function replacePreviewFromPaths(filePaths) {
   $('preview-change-summary').textContent = '';
   setPreviewReviewBarVisible(false);
   const settings = readSettingsFromUi();
+  const importedFromWm = (filePaths || []).some((p) => /\.wm\.[^.]+$/i.test(String(p || '')));
   showPreview(imported.path, '', {
     format: previewFormatFromPath(imported.path),
     requestedLabel: formatGatewaySizeLabel(settings.size, getSelectedTemplate()),
     quality: settings.quality || 'high',
+  }, importedFromWm ? '' : imported.path);
+  await updateSession({
+    lastPreviewPath: imported.path,
+    lastPreviewEditSourcePath: importedFromWm ? '' : imported.path,
+    previewPendingEdit: null,
   });
-  await updateSession({ lastPreviewPath: imported.path, previewPendingEdit: null });
   updatePreviewEditLockUi();
 }
 
@@ -2202,7 +2208,12 @@ function applyPreviewPendingEditUi(pending) {
       requestedLabel: formatGatewaySizeLabel(pending.imageSize || session.size, getSelectedTemplate()),
       quality: pending.quality || session.quality || 'high',
     };
-    showPreview(pending.editedPreviewPath || lastPreviewPath, editedB64, mainPreviewMetaContext);
+    showPreview(
+      pending.editedPreviewPath || lastPreviewPath,
+      editedB64,
+      mainPreviewMetaContext,
+      pending.editedEditSourcePath || pending.editedPreviewPath || lastPreviewPath,
+    );
   }
   setPreviewReviewBarVisible(true);
   const details = $('preview-prompt-details');
@@ -2224,7 +2235,13 @@ async function restorePreviewFromSession(s = session) {
     return;
   }
   if (resolved.pendingEdit) {
-    lastPreviewPath = resolved.pendingEdit.originalPreviewPath || resolved.path || '';
+    lastPreviewPath = resolved.pendingEdit.originalDisplayPath
+      || resolved.pendingEdit.originalPreviewPath
+      || resolved.path
+      || '';
+    lastPreviewEditSourcePath = resolved.pendingEdit.originalEditSourcePath
+      || resolved.pendingEdit.originalPreviewPath
+      || lastPreviewPath;
     applyPreviewPendingEditUi(resolved.pendingEdit);
     if ($('preview-edit-block')) $('preview-edit-block').classList.remove('hidden');
     return;
@@ -2233,7 +2250,10 @@ async function restorePreviewFromSession(s = session) {
     previewEditLocked = false;
     previewOriginalB64 = '';
     setPreviewReviewBarVisible(false);
-    showPreview(resolved.path, '', buildPreviewMetaFromSession(s));
+    const active = resolved.session || session || s;
+    const editSource = active.lastPreviewEditSourcePath
+      || (!/\.wm\.[^.]+$/i.test(String(resolved.path || '')) ? resolved.path : '');
+    showPreview(resolved.path, '', buildPreviewMetaFromSession(active), editSource);
     if ($('preview-edit-block')) $('preview-edit-block').classList.remove('hidden');
     updatePreviewEditLockUi();
   }
@@ -3474,7 +3494,7 @@ function hideWait() {
   renderWaitContext(null);
 }
 
-function showPreview(path, b64, meta = {}) {
+function showPreview(path, b64, meta = {}, editSourcePath) {
   const img = $('preview-image');
   mainPreviewMetaContext = {
     format: meta.format || 'PNG',
@@ -3499,6 +3519,8 @@ function showPreview(path, b64, meta = {}) {
   $('btn-export').classList.remove('hidden');
   if ($('preview-edit-block')) $('preview-edit-block').classList.remove('hidden');
   lastPreviewPath = path;
+  // undefined => default to display path; '' => intentionally no editable source
+  lastPreviewEditSourcePath = editSourcePath === undefined ? (path || '') : (editSourcePath || '');
   lastPreviewB64 = b64 || '';
   if (b64) {
     refreshPreviewMetaOverlay('preview-image', 'preview-image-meta', mainPreviewMetaContext);
@@ -3759,13 +3781,30 @@ function setupInteractionHandlers() {
     if (previewEditLocked) {
       const discard = await askConfirm(t('generate.button'), t('preview.pendingGenerateConfirm'));
       if (!discard) return;
-      await api.previewRejectEdit();
+      const rejected = await api.previewRejectEdit();
       previewEditLocked = false;
       previewOriginalB64 = '';
+      lastPreviewB64 = '';
       setPreviewReviewBarVisible(false);
       updatePreviewEditLockUi();
-      if (lastPreviewPath) {
-        showPreview(lastPreviewPath, lastPreviewB64, buildPreviewMetaFromSession());
+      if (rejected?.path) {
+        showPreview(
+          rejected.path,
+          '',
+          buildPreviewMetaFromSession(),
+          rejected.editSourcePath ?? rejected.path,
+        );
+        await updateSession({
+          lastPreviewPath: rejected.path,
+          lastPreviewEditSourcePath: rejected.editSourcePath ?? rejected.path,
+        });
+      } else if (lastPreviewPath) {
+        showPreview(
+          lastPreviewPath,
+          '',
+          buildPreviewMetaFromSession(),
+          lastPreviewEditSourcePath || lastPreviewPath,
+        );
       }
     }
     const settings = readSettingsFromUi();
@@ -3825,13 +3864,17 @@ function setupInteractionHandlers() {
         fileSizeBytes: estimateBytesFromB64(result.b64),
         requestedLabel: formatGatewaySizeLabel(settings.size, getSelectedTemplate()),
         quality: settings.quality,
-      });
+      }, result.editSourcePath ?? result.path);
       previewEditLocked = false;
       previewOriginalB64 = '';
       setPreviewReviewBarVisible(false);
       $('preview-change-summary').textContent = '';
       $('preview-optimized-prompt').value = '';
-      await updateSession({ lastPreviewPath: result.path, previewPendingEdit: null });
+      await updateSession({
+        lastPreviewPath: result.path,
+        lastPreviewEditSourcePath: result.editSourcePath ?? result.path,
+        previewPendingEdit: null,
+      });
       updatePreviewEditLockUi();
       hideWait();
       void refreshCodexRateLimitStatus({ force: true, silent: true }).catch((err) => console.error(err));
@@ -3848,7 +3891,17 @@ function setupInteractionHandlers() {
 
   $('btn-preview-edit')?.addEventListener('click', async () => {
     if (!(await ensureBridgeReady())) return;
-    if (!lastPreviewPath) return;
+    const editSource = (() => {
+      const preferred = String(lastPreviewEditSourcePath || '').trim();
+      if (preferred && !/\.wm\.[^.]+$/i.test(preferred)) return preferred;
+      const display = String(lastPreviewPath || '').trim();
+      if (display && !/\.wm\.[^.]+$/i.test(display)) return display;
+      return '';
+    })();
+    if (!editSource) {
+      showStatus(t('preview.needChange'), { level: 'warn' });
+      return;
+    }
     const changeRequest = $('preview-change-request').value.trim();
     if (!changeRequest) {
       showStatus(t('preview.needChange'), { level: 'warn' });
@@ -3875,7 +3928,7 @@ function setupInteractionHandlers() {
         }),
       );
       const result = await api.previewRunEdit({
-        previewPath: lastPreviewPath,
+        previewPath: editSource,
         templateId: settings.templateId || session.templateId,
         changeRequest,
         quality: settings.quality,
@@ -3891,7 +3944,12 @@ function setupInteractionHandlers() {
           requestedLabel: formatGatewaySizeLabel(settings.size, getSelectedTemplate()),
           quality: settings.quality,
         };
-        showPreview(result.editedPreviewPath, result.editedPreviewB64, mainPreviewMetaContext);
+        showPreview(
+          result.editedPreviewPath,
+          result.editedPreviewB64,
+          mainPreviewMetaContext,
+          result.editedEditSourcePath || result.editedPreviewPath,
+        );
         setPreviewReviewBarVisible(true);
         const details = $('preview-prompt-details');
         if (details) details.open = true;
@@ -3917,8 +3975,16 @@ function setupInteractionHandlers() {
       $('preview-optimized-prompt').value = '';
       if (result.path) {
         lastPreviewB64 = '';
-        showPreview(result.path, '', buildPreviewMetaFromSession());
-        await updateSession({ lastPreviewPath: result.path });
+        showPreview(
+          result.path,
+          '',
+          buildPreviewMetaFromSession(),
+          result.editSourcePath ?? result.path,
+        );
+        await updateSession({
+          lastPreviewPath: result.path,
+          lastPreviewEditSourcePath: result.editSourcePath ?? result.path,
+        });
       }
       updatePreviewEditLockUi();
     } catch (err) {
@@ -3935,10 +4001,25 @@ function setupInteractionHandlers() {
       $('preview-optimized-prompt').value = '';
       if (result.path) {
         if (previewOriginalB64) {
-          showPreview(result.path, previewOriginalB64, buildPreviewMetaFromSession());
+          showPreview(
+            result.path,
+            previewOriginalB64,
+            buildPreviewMetaFromSession(),
+            result.editSourcePath ?? result.path,
+          );
         } else {
-          showPreview(result.path, '', buildPreviewMetaFromSession());
+          showPreview(
+            result.path,
+            '',
+            buildPreviewMetaFromSession(),
+            result.editSourcePath ?? result.path,
+          );
         }
+        previewOriginalB64 = '';
+        await updateSession({
+          lastPreviewPath: result.path,
+          lastPreviewEditSourcePath: result.editSourcePath ?? result.path,
+        });
       }
       previewOriginalB64 = '';
       updatePreviewEditLockUi();

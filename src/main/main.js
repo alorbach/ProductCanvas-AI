@@ -778,6 +778,7 @@ function registerIpc() {
     const result = previewEditor.acceptEdit();
     if (session) {
       session.lastPreviewPath = result.path;
+      session.lastPreviewEditSourcePath = result.editSourcePath ?? result.path;
       session.previewPendingEdit = null;
       scheduleAutosave();
       send('session:saved', session);
@@ -789,6 +790,7 @@ function registerIpc() {
     const result = previewEditor.rejectEdit();
     if (session) {
       session.lastPreviewPath = result.path;
+      session.lastPreviewEditSourcePath = result.editSourcePath ?? result.path;
       session.previewPendingEdit = null;
       scheduleAutosave();
       send('session:saved', session);
@@ -816,10 +818,14 @@ function registerIpc() {
     }
     let originalPreviewB64 = '';
     let editedPreviewB64 = '';
-    if (resolved.pendingEdit?.originalPreviewPath && fs.existsSync(resolved.pendingEdit.originalPreviewPath)) {
-      try {
-        originalPreviewB64 = fs.readFileSync(resolved.pendingEdit.originalPreviewPath).toString('base64');
-      } catch { /* ignore */ }
+    if (resolved.pendingEdit) {
+      const originalDisplay = resolved.pendingEdit.originalDisplayPath
+        || resolved.pendingEdit.originalPreviewPath;
+      if (originalDisplay && fs.existsSync(originalDisplay)) {
+        try {
+          originalPreviewB64 = fs.readFileSync(originalDisplay).toString('base64');
+        } catch { /* ignore */ }
+      }
     }
     if (resolved.valid && resolved.path && fs.existsSync(resolved.path)) {
       try {

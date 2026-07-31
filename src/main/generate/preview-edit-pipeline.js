@@ -19,6 +19,7 @@ const {
 } = require('./layout-fidelity');
 const { resolveImageGenerationSettings } = require('./image-settings');
 const { buildStageMaskPath } = require('./stage-mask');
+const { maybeApplyAiWatermark } = require('./ai-watermark');
 
 const PREVIEW_LAYOUT_HINT = 'Image 1 = advertisement preview to edit; Image 2 = layout template for frozen header/footer zones.';
 
@@ -195,11 +196,15 @@ class PreviewEditPipeline {
 
     const outPath = path.join(paths.tempPreviewDir(), `preview-edit-${Date.now()}.png`);
     fs.writeFileSync(outPath, Buffer.from(b64, 'base64'));
+    const stamped = await maybeApplyAiWatermark(outPath);
+    const displayPath = stamped.applied ? stamped.path : outPath;
+    const outB64 = stamped.b64 || b64;
 
     const providerDetails = result?.response?.provider_details || {};
     return {
-      path: outPath,
-      b64,
+      path: displayPath,
+      editSourcePath: outPath,
+      b64: outB64,
       attachmentMode: result._attachmentMode || 'reference_images',
       refsForwardedToCodex: providerDetails.refs_forwarded_to_codex === true
         || Number(providerDetails.reference_attachment_count || 0) > 0,
@@ -256,6 +261,7 @@ class PreviewEditPipeline {
       preservedElements: optimized.preservedElements,
       optimizedEditPrompt: image.optimizedEditPrompt,
       editedPreviewPath: image.path,
+      editedEditSourcePath: image.editSourcePath || image.path,
       editedPreviewB64: image.b64,
       imageSize: imageSettings.size,
       imageQuality: imageSettings.quality,

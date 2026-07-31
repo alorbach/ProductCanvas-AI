@@ -23,6 +23,10 @@ UI-Texte kommen aus den i18n-Dateien; Hilfe aus `docs/de/` oder `docs/en/` je na
 
 **Speichern** klicken – die Hauptansicht aktualisiert Labels ohne Neustart.
 
+## KI-Wasserzeichen
+
+Wenn aktiviert (Standard), bettet ProductCanvas AI das offizielle **EU-Basic**-AI-Kennzeichnungs-Icon in Produktbild-Vorschauen nach Generierung und nach KI-Vorschau-Bearbeitung ein – gemäß den Platzierungsregeln der Kommission (direkt im Bild, gut sichtbar). Die Ecke wählen Sie unter **Einstellungen → Allgemein → Ecke für AI-Icon** (Standard: unten rechts). Der PNG-Export verwendet dieselbe gestempelte Datei. Unter **Einstellungen → Allgemein** abschaltbar, wenn Sie die Kennzeichnung selbst übernehmen.
+
 ## Codex-Backend
 
 | Option | Verhalten |

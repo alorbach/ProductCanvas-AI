@@ -67,6 +67,13 @@ async function applyLabels() {
   $('opt-locale-de').textContent = t('settings.language.de');
   if ($('lbl-show-effects')) $('lbl-show-effects').textContent = t('settings.showEffects');
   if ($('show-effects-hint')) $('show-effects-hint').textContent = t('settings.showEffectsHint');
+  if ($('lbl-ai-watermark')) $('lbl-ai-watermark').textContent = t('settings.aiWatermark');
+  if ($('ai-watermark-hint')) $('ai-watermark-hint').textContent = t('settings.aiWatermarkHint');
+  if ($('lbl-ai-watermark-corner')) $('lbl-ai-watermark-corner').textContent = t('settings.aiWatermarkCorner');
+  if ($('opt-wm-corner-br')) $('opt-wm-corner-br').textContent = t('settings.aiWatermarkCorner.bottomRight');
+  if ($('opt-wm-corner-bl')) $('opt-wm-corner-bl').textContent = t('settings.aiWatermarkCorner.bottomLeft');
+  if ($('opt-wm-corner-tr')) $('opt-wm-corner-tr').textContent = t('settings.aiWatermarkCorner.topRight');
+  if ($('opt-wm-corner-tl')) $('opt-wm-corner-tl').textContent = t('settings.aiWatermarkCorner.topLeft');
   $('lbl-codex-backend').textContent = t('settings.codexBackend');
   $('opt-backend-direct').textContent = t('settings.codexBackend.direct');
   $('opt-backend-bridge').textContent = t('settings.codexBackend.bridge');
@@ -104,10 +111,22 @@ function updateCodexFieldVisibility() {
   }
 }
 
+function updateAiWatermarkCornerVisibility() {
+  const enabled = $('setting-ai-watermark') ? $('setting-ai-watermark').checked : true;
+  const field = $('ai-watermark-corner-field');
+  const select = $('setting-ai-watermark-corner');
+  if (field) field.hidden = !enabled;
+  if (select) select.disabled = !enabled;
+}
+
 async function loadForm() {
   const prefs = await api.getPreferences();
   $('setting-locale').value = prefs.uiLocale || 'auto';
   if ($('setting-show-effects')) $('setting-show-effects').checked = prefs.showEffects === true;
+  if ($('setting-ai-watermark')) $('setting-ai-watermark').checked = prefs.aiWatermark !== false;
+  if ($('setting-ai-watermark-corner')) {
+    $('setting-ai-watermark-corner').value = prefs.aiWatermarkCorner || 'bottom-right';
+  }
   $('setting-codex-backend').value = prefs.codexBackend || 'direct';
   $('setting-bridge-url').value = prefs.bridgeUrl || 'http://127.0.0.1:8765';
   $('setting-codex-cli-path').value = prefs.codexCliPath || '';
@@ -115,6 +134,7 @@ async function loadForm() {
   await applyLabels();
   updateSystemHint(prefs);
   updateCodexFieldVisibility();
+  updateAiWatermarkCornerVisibility();
   selectTab(activeTab);
 }
 
@@ -122,6 +142,8 @@ async function saveSettings() {
   const patch = {
     uiLocale: $('setting-locale').value,
     showEffects: $('setting-show-effects')?.checked === true,
+    aiWatermark: $('setting-ai-watermark') ? $('setting-ai-watermark').checked : true,
+    aiWatermarkCorner: $('setting-ai-watermark-corner')?.value || 'bottom-right',
     codexBackend: $('setting-codex-backend').value,
     bridgeUrl: $('setting-bridge-url').value.trim(),
     codexCliPath: $('setting-codex-cli-path').value.trim(),
@@ -131,6 +153,7 @@ async function saveSettings() {
   await applyLabels();
   updateSystemHint(prefs);
   updateCodexFieldVisibility();
+  updateAiWatermarkCornerVisibility();
   const status = $('settings-status');
   status.hidden = false;
   status.textContent = t('settings.saved');
@@ -141,6 +164,9 @@ document.querySelectorAll('.settings-tab').forEach((btn) => {
 });
 
 $('setting-codex-backend').addEventListener('change', updateCodexFieldVisibility);
+if ($('setting-ai-watermark')) {
+  $('setting-ai-watermark').addEventListener('change', updateAiWatermarkCornerVisibility);
+}
 $('btn-save-settings').addEventListener('click', () => saveSettings());
 $('btn-codex-cli-browse').addEventListener('click', async () => {
   const picked = await api.pickCodexCliPath();
@@ -162,6 +188,12 @@ api.on('preferences:changed', async (prefs) => {
   if ($('setting-show-effects') && prefs.showEffects !== undefined) {
     $('setting-show-effects').checked = prefs.showEffects === true;
   }
+  if ($('setting-ai-watermark') && prefs.aiWatermark !== undefined) {
+    $('setting-ai-watermark').checked = prefs.aiWatermark !== false;
+  }
+  if ($('setting-ai-watermark-corner') && prefs.aiWatermarkCorner !== undefined) {
+    $('setting-ai-watermark-corner').value = prefs.aiWatermarkCorner || 'bottom-right';
+  }
   if ($('setting-codex-backend')) {
     $('setting-codex-backend').value = prefs.codexBackend || 'direct';
   }
@@ -169,6 +201,7 @@ api.on('preferences:changed', async (prefs) => {
     $('setting-codex-cli-path').value = prefs.codexCliPath || '';
   }
   updateCodexFieldVisibility();
+  updateAiWatermarkCornerVisibility();
 });
 
 loadForm();

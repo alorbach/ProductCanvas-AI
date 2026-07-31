@@ -21,6 +21,7 @@ const {
 const { resolveImageGenerationSettings } = require('./image-settings');
 const { buildStageMaskPath } = require('./stage-mask');
 const { ProductEffectPipeline } = require('./product-effect-pipeline');
+const { maybeApplyAiWatermark } = require('./ai-watermark');
 
 class ImagePipeline {
   constructor(codexClient, templateRegistry, effectRegistry) {
@@ -319,10 +320,14 @@ class ImagePipeline {
 
       const outPath = path.join(paths.tempPreviewDir(), `preview-${Date.now()}.png`);
       fs.writeFileSync(outPath, Buffer.from(b64, 'base64'));
+      const stamped = await maybeApplyAiWatermark(outPath);
+      const displayPath = stamped.applied ? stamped.path : outPath;
+      const outB64 = stamped.b64 || b64;
       return {
         success: true,
-        path: outPath,
-        b64,
+        path: displayPath,
+        editSourcePath: outPath,
+        b64: outB64,
         result,
         composited: productPrep.effectApplied,
         attachmentMode,

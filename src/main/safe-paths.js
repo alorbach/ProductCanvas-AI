@@ -63,6 +63,9 @@ function collectKnownPaths(context = {}) {
   if (context.session?.lastPreviewPath) {
     known.add(path.resolve(context.session.lastPreviewPath));
   }
+  if (context.session?.lastPreviewEditSourcePath) {
+    known.add(path.resolve(context.session.lastPreviewEditSourcePath));
+  }
 
   return known;
 }
