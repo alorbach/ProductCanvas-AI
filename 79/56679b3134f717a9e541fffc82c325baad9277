@@ -1,0 +1,73 @@
+src/main/data-bundle/data-bundle-service.js
+  s_dcf64a7c7f1f58::t_ab8ac10d1781a9 149,153,160-166,170,354-356
+src/renderer/settings.js
+  s_dcf64a7c7f1f58::t_713bea69f1dc60 70-71,113,128,169-171
+src/renderer/app.js
+  s_d9d6c8f5049944::t_8d5f9bca8b2c3f 31,2158-2159,2161-2162,2211-2216,2238-2244,2253,2256,3784,3787,3790-3794,3796-3798,3800-3807,3873-3874,3876-3877,3931,3947-3952,3978-3981,3983-3985,3987,4004-4007,4009,4011-4014,4016,4018-4020,4022
+package-lock.json
+  s_aa5e81a409cea0::t_1d14616486edbe 3,9
+src/renderer/settings.html
+  s_aa5e81a409cea0::t_0bac13a4960e2e 34-38
+src/main/main.js
+  s_dcf64a7c7f1f58::t_4c30ce4f380428 821-828
+src/main/profiles/profile-store.js
+  s_dcf64a7c7f1f58::t_3d5a721cad1c72 25
+src/main/generate/image-pipeline.js
+  s_d9d6c8f5049944::t_1ad67967cb38d1 24,323-325,328-330
+src/main/safe-paths.js
+  s_dcf64a7c7f1f58::t_04d3150b5bdeee 66-68
+test/ai-watermark.test.js
+  s_dcf64a7c7f1f58::t_55e88c28dfba35 1-20,22-103
+  s_dcf64a7c7f1f58::t_1a49f4f5904161 21
+src/main/app-preferences.js
+  s_aa5e81a409cea0::t_0d2edc64e2a887 12,72,95-97,108
+src/main/generate/preview-edit-pipeline.js
+  s_d9d6c8f5049944::t_e6ef3cabf9019b 22,199-201,205-207,264
+src/main/generate/preview-edit-service.js
+  s_dcf64a7c7f1f58::t_5e57d96e6cabaf 16-34,44,52-53,56-58,77,92,95-96,99-104,108
+  s_dcf64a7c7f1f58::t_cd874a35ffefe0 191,199,202,225-227,229,234-236,238-239,255,260-261,263,268-274,276-286
+package.json
+  s_d9d6c8f5049944::t_489f134d6c6be5 3,11
+src/main/generate/ai-watermark.js
+  s_dcf64a7c7f1f58::t_31370148f1b399 1-146,168-171,173-223
+docs/de/einstellungen.md
+  s_d9d6c8f5049944::t_5cd7c40391b201 26-29
+docs/en/settings.md
+  s_d9d6c8f5049944::t_04b398ba8c2bb8 26-29
+src/renderer/i18n/de.json
+  s_aa5e81a409cea0::t_dca706b51ecac7 124-125
+src/renderer/i18n/en.json
+  s_aa5e81a409cea0::t_44d5c82570c6e4 124-125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "7956679b3134f717a9e541fffc82c325baad9277",
+  "prompts": {},
+  "sessions": {
+    "s_aa5e81a409cea0": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019fa8bf-c123-7f32-99ea-06a506b167ac",
+        "model": "gpt-5.6-terra"
+      },
+      "human_author": "Andre Lorbach <alorbach@adiscon.com>"
+    },
+    "s_d9d6c8f5049944": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "293b9cfb-e7e2-4af5-9683-99c334d49ccb",
+        "model": "default"
+      },
+      "human_author": "Andre Lorbach <alorbach@adiscon.com>"
+    },
+    "s_dcf64a7c7f1f58": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "6c6be54b-c63d-454e-a2cc-a68b044231b9",
+        "model": "default"
+      },
+      "human_author": null
+    }
+  }
+}
